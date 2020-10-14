@@ -1,0 +1,688 @@
+#!/usr/bin/python3
+
+import sys
+import os
+import os.path
+import pkginfo
+import glob
+import shutil
+
+def getinfo_pkginfo(path):
+
+	if path.endswith(".whl"):
+		return pkginfo.Wheel(path)
+
+	if os.path.isdir(path):
+		return pkginfo.UnpackedSDist(path)
+
+	return pkginfo.SDist(path)
+	
+def getinfo_setuptools(path):
+	path = os.path.join(path, 'setup.py')
+	if not os.path.exists(path):
+		return None
+
+	setup_args = None
+
+	def my_setup(**kwargs):
+		nonlocal setup_args
+		setup_args = kwargs
+
+	import setuptools
+
+	setuptools.setup = my_setup
+
+	import importlib.util
+	spec = importlib.util.spec_from_file_location('setup', path)
+	mod = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(mod)
+
+	print("setup() called with args", setup_args.keys())
+
+	mapping = {
+		'author' : 'author',
+		'author_email' : 'author_email',
+		'classifiers' : 'classifiers',
+		'keywords' : 'keywords',
+		'license' : 'license',
+		'url' : 'home_page',
+		'description' : 'summary',
+		'long_description' : 'description',
+		'long_description_content_type' : 'description_content_type',
+
+		'python_requires' : 'requires_python',
+		'setup_requires' : 'requires',
+		# 'tests_require' : 'requires',
+		# 'extras_require' : 'requires'
+	}
+
+	d = pkginfo.Distribution()
+	for (key, attr) in mapping.items():
+		value = setup_args.get(key)
+		if value:
+			existing = getattr(d, attr, None)
+			if existing is not None:
+				if type(existing) == list or type(value) == list:
+					value = list(existing) + list(value)
+				else:
+					value = existing + value
+			setattr(d, attr, value)
+
+	return d
+
+def pkginfo_as_dict(pkg):
+	attrs = []
+	for a in dir(pkg):
+		if not a.startswith("_"):
+			attrs.append(a)
+
+	result = dict()
+	for k in attrs:
+		v = getattr(pkg, k, None)
+		if v is None:
+			continue
+		if callable(v):
+			continue
+		result[k] = v
+
+	return result
+
+def pkginfo_print(pkg):
+	attrs = []
+	for a in dir(pkg):
+		if not a.startswith("_"):
+			attrs.append(a)
+
+	for k in attrs:
+		v = getattr(pkg, k, None)
+		if v is None:
+			continue
+		if callable(v):
+			continue
+
+		k = k.capitalize() + ":"
+		if type(v) not in (tuple, list):
+			v = repr(v)
+			if len(v) > 100:
+				v = v[:100] + "..."
+			print("%-20s  %s" % (k, v))
+		elif len(v) == 0:
+			# print("%-20s  %s" % (k, "<empty>"))
+			continue
+		else:
+			print("%s" % (k))
+			for vi in v:
+				print("        %s" % vi)
+
+def pkginfo_as_metadata(pkg):
+	def name_to_header(s):
+		# strip off trailing plural "s"
+		if s in ('classifiers', 'supported_platforms', 'project_urls'):
+			s = s[:-1]
+		s = (n.capitalize() for n in s.split('_'))
+		return "-".join(s)
+
+	def maybe_print(key):
+		nonlocal info
+		nonlocal seen
+
+		header = name_to_header(key)
+		seen.add(key)
+
+		res = header + ": "
+
+		value = info.get(key)
+		if value is None:
+			return ""
+
+		if type(value) not in (tuple, list):
+			if type(value) != str:
+				value = repr(value)
+
+			if '\n' in value:
+				res += "\n        ".join(value.split('\n'))
+			else:
+				res += value
+		else:
+			# Turn classifiers list into several "Classifier:" header lines
+			if "Url" in header:
+				header = header.replace('Url', "URL")
+
+			res = "\n".join("%s: %s" % (header, v) for v in value)
+
+		if res:
+			res += "\n"
+			# print(">> %s" % res)
+		return res
+
+	seen = set()
+	first = ('metadata_version', 'name', 'version', 'summary', 'home_page', 'author', 'author_email', 'maintainer', 'maintainer_email', 'license')
+	ignore = ('filename', 'description', 'description_content_type')
+
+	info = pkginfo_as_dict(pkg)
+
+	result = ""
+	for key in first:
+		result += maybe_print(key)
+
+	for key in sorted(info.keys()):
+		if key in seen or key in ignore:
+			continue
+		result += maybe_print(key)
+
+	result += maybe_print('description_content_type')
+
+	if pkg.description:
+		result += "\n" + pkg.description
+
+	return result
+
+def get_python_version():
+	vi = sys.version_info
+	return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
+
+def check_python_version(requires_python):
+	from packaging.specifiers import SpecifierSet
+
+	spec = SpecifierSet(requires_python, prereleases = False)
+	pyvers = get_python_version()
+	return pyvers in spec
+
+def is_version_more_recent(older, newer):
+	from packaging.specifiers import parse
+
+	older = parse(older)
+	spec = SpecifierSet(requires_python, prereleases = False)
+	pyvers = get_python_version()
+	return pyvers in spec
+
+class PackageIndex(object):
+	def __init__(self, url = 'https://pypi.org/pypi'):
+		self.url = url
+
+	@staticmethod
+	def printname(name, version):
+		if not version:
+			return name
+		return name + "-" + version
+
+	def find_package(self, name, version = None):
+		import urllib.request
+
+		url = self.url + "/" + name
+		if version:
+			url += "/" + version
+		url += "/json"
+		resp = urllib.request.urlopen(url)
+		if resp.status != 200:
+			raise ValueError("Unable to get package info for %s: HTTP response %s (%s)" % (
+					self.printname(name, version),
+					resp.status, resp.reason))
+
+		import json
+		d = json.load(resp)
+
+		# JSON contains
+		# ['info', 'last_serial', 'releases', 'urls']
+		# info is a dict of PKG-INFO stuff
+		# last_serial is an int, not sure what for
+		print("Versions: %s" % ", ".join(d['releases'].keys()))
+
+		download = self.pick_source(d['urls'])
+		if not download:
+			return ValueError("No source for latest version of %s" % self.printname(name, version))
+
+		if download['requires_python'] and not check_python_version(download['requires_python']):
+			from packaging.specifiers import parse
+
+			if version is not None:
+				raise ValueError("Cannot use %s - incompatible with my python version" % self.printname(name, version))
+
+			print("Cannot use %s - incompatible with my python version" % download['filename'])
+			best_ver = None
+			best_source = None
+			for (ver, release) in d['releases'].items():
+				ver = parse(ver)
+				if ver.is_prerelease:
+					continue
+				if best_ver and ver < best_ver:
+					continue
+
+				download = self.pick_source(release)
+				if not download:
+					continue
+
+				if download['requires_python'] and not check_python_version(download['requires_python']):
+					continue
+
+				best_ver = ver
+				best_source = download
+
+			if not best_source:
+				raise ValueError("%s: unable to find a release that is compatible with my python version" % name)
+
+			print("Using %s-%s, which is compatible with my python version" % (name, best_ver))
+			download = best_source
+
+		filename = self.download(download)
+		if not filename:
+			return ValueError("Failed to download %s" % download['url'])
+
+		return Package(filename)
+
+	def pick_source(self, download_list):
+		for download in download_list:
+			if download['yanked']:
+				print("Ignoring %s: yanked (%s)" % (
+						download['filename'], download['yanked_reason']))
+				continue
+			if download['python_version'] == 'source':
+				return download
+
+		return None
+
+	def download(self, download):
+		import urllib.request
+
+		url = download['url']
+		filename = download['filename']
+		resp = urllib.request.urlopen(url)
+		if resp.status != 200:
+			raise ValueError("Unable to download %s from %s (HTTP status %s %s)" % (
+					filename, url, resp.status, resp.reason))
+
+		with open(filename, "wb") as f:
+			f.write(resp.read())
+
+		print("Downloaded %s from %s" % (filename, url))
+		return filename
+
+class WheelArchive(object):
+	def __init__(self, path):
+		self.path = path
+		self._zip = self.open()
+
+	def open(self):
+		import zipfile
+
+		return zipfile.ZipFile(self.path, mode = 'r')
+
+	@property
+	def basename(self):
+		return os.path.basename(self.path)
+
+	def name_set(self):
+		result = set()
+		for member in self._zip.infolist():
+			if member.is_dir():
+				continue
+
+			result.add(member.filename)
+
+		return result
+
+	def compare(self, other):
+		my_name_set = self.name_set()
+		other_name_set = other.name_set()
+
+		added_set = other_name_set - my_name_set
+		removed_set = my_name_set - other_name_set
+
+		changed_set = set()
+		for member_name in my_name_set.intersection(other_name_set):
+			my_data = self._zip.read(member_name)
+			other_data = other._zip.read(member_name)
+
+			if other_data != my_data:
+				changed_set.add(member_name)
+
+		if False:
+			print("added=" + ", ".join(added_set))
+			print("removed=" + ", ".join(removed_set))
+			print("changed=" + ", ".join(changed_set))
+
+		return added_set, removed_set, changed_set
+
+class PackageBuildInfo(object):
+	def __init__(self, name):
+		self.name = name.replace('-', '_')
+		self.fullreq = None
+		self.hash = {}
+
+	def add_hash(self, algo, md):
+		self.hash[algo] = md
+
+class Package(object):
+	def __init__(self, path):
+		self.path = path
+		self._info = getinfo_pkginfo(path)
+
+		self.build_dir = "BUILD"
+		self._unpacked_dir = None
+		self.build_requires = []
+		self.artefacts = []
+
+	@property
+	def name(self):
+		return self._info.name
+
+	@property
+	def version(self):
+		return self._info.version
+
+	@property
+	def NV(self):
+		return "%s-%s" % (self.name, self.version)
+
+	def get_hash(self, md):
+		import hashlib
+
+		m = hashlib.new(md)
+		with open(self.path, "rb") as f:
+			m.update(f.read())
+
+		return m.hexdigest()
+
+	def print_info(self):
+		pkginfo_print(self._info)
+
+	def run(self, cmd):
+		print("Running %s" % cmd)
+		if os.system(cmd) != 0:
+			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
+
+	def check_python(self):
+		requires_python = self._info.requires_python
+		if not requires_python:
+			# any python version is okay
+			return
+
+		if not check_python_version(requires_python):
+			raise ValueError("Cannot build %s: requires python_version %s" % (self.NV, requires_python))
+
+		print("OK: satisfied python_version requirement %s" % (requires_python))
+
+	def unpack(self, git = False):
+		archive = self.path
+		if os.path.exists(self.build_dir):
+			shutil.rmtree(self.build_dir)
+
+		if not git:
+			shutil.unpack_archive(archive, self.build_dir)
+			self._unpacked_dir = os.path.join(self.build_dir, self.NV)
+		else:
+			self.unpack_git()
+		print("Unpacked %s to %s" % (archive, self._unpacked_dir))
+
+	def unpack_git(self):
+		git_repo = self._info.home_page
+		git_repo = git_repo.replace('_', '-')
+		if not git_repo or not "github.com" in git_repo:
+			raise ValueError("Package homepage \"%s\" doesn't look like a git repo" % git_repo)
+
+		self._unpacked_dir = os.path.join(self.build_dir, self.NV)
+		self.run("git clone %s %s" % (git_repo, self._unpacked_dir))
+
+		cwd = os.getcwd()
+		try:
+			os.chdir(self._unpacked_dir)
+			self.run("git checkout %s" % self.version)
+		finally:
+			os.chdir(cwd)
+
+	def build(self, quiet = False):
+		assert(self._unpacked_dir)
+
+		cwd = os.getcwd()
+		try:
+			os.chdir(self._unpacked_dir)
+			return self._do_build(quiet)
+		finally:
+			os.chdir(cwd)
+	
+	def _do_build(self, quiet):
+		cmd = "python3 setup.py bdist_wheel"
+		cmd = "pip3 wheel --wheel-dir dist ."
+		cmd += " --log pip.log"
+		cmd += " --no-deps"
+
+		if quiet:
+			cmd += " >build.log 2>&1"
+		else:
+			cmd += " 2>&1 | tee build.log"
+
+		self.run(cmd)
+
+		wheels = glob.glob("dist/*.whl")
+		print("Successfully built %s-%s: %s" % (pkg.name, pkg.version, ", ".join(wheels)))
+
+		for w in wheels:
+			w = os.path.join(os.getcwd(), w)
+			self.artefacts.append(Package(w))
+
+		return self.artefacts
+
+	def unchanged_from_previous_build(self, savedir):
+		samesame = True
+		for wheel in self.artefacts:
+			wheel_name = os.path.basename(wheel.path)
+			old_wheel_path = os.path.join(savedir, wheel_name)
+			print("Checking %s vs %s" % (wheel.path, old_wheel_path))
+			if not os.path.exists(old_wheel_path):
+				print("%s does not exist" % old_wheel_path)
+				samesame = False
+				continue
+
+			old_wheel = WheelArchive(old_wheel_path)
+			new_wheel = WheelArchive(wheel.path)
+			if not self.wheels_identical(old_wheel, new_wheel):
+				print("%s differs from previous build" % wheel_name)
+				samesame = False
+				continue
+
+		return samesame
+
+	def wheels_identical(self, old_wheel, new_wheel):
+		def print_delta(wheel, how, name_set):
+			print("%s: %s %d file(s)" % (wheel.basename, how, len(name_set)))
+			for name in name_set:
+				print("  %s" % name)
+
+		added_set, removed_set, changed_set = old_wheel.compare(new_wheel)
+
+		samesame = True
+		if added_set:
+			print_delta(new_wheel, "added", added_set)
+			samesame = False
+
+		if removed_set:
+			print_delta(new_wheel, "removed", removed_set)
+			samesame = False
+
+		if changed_set:
+			print_delta(new_wheel, "changed", changed_set)
+			samesame = False
+
+		if samesame:
+			print("%s: unchanged" % new_wheel.basename)
+
+		return samesame
+
+	# There must be a smarter way to extract the build requirements than
+	# this...
+	def guess_build_dependencies(self):
+		from packaging.requirements import Requirement
+		import re
+
+		logfile = os.path.join(self._unpacked_dir, "pip.log")
+		if not os.path.exists(logfile):
+			return
+
+		req = None
+
+		self.build_requires = []
+		with open(logfile, "r") as f:
+			for l in f.readlines():
+				# Parse lines like:
+				# Added flit_core<4,>=3.0.0 from http://.../flit_core-3.0.0-py3-none-any.whl#md5=7648384867c294a95487e26bc451482d to build tracker
+				if req and ('Added' in l) and ('to build tracker' in l):
+					m = re.search('Added ([^ ]*)', l)
+					if not m:
+						raise ValueError("regex match failed")
+					r = Requirement(m.group(1))
+
+					assert(req.name == r.name)
+					req.fullreq = str(r)
+
+					m = re.search('Added [^ ]* from https*:[^#]*#([^=]*)=([a-z0-9]*)', l)
+					if m:
+						req.add_hash(m.group(1), m.group(2))
+
+				if "to search for versions of" not in l:
+					continue
+
+				m = re.search('to search for versions of (.*):', l)
+				if not m:
+					raise ValueError("regex match failed")
+
+				req = PackageBuildInfo(m.group(1))
+				self.build_requires.append(req)
+
+		for req in self.build_requires:
+			if not req.hash:
+				raise ValueError("Unable to extract hash for build requirement \"%s\" from pip.log" % req.name)
+
+		if self.build_requires:
+			print("Build requires: %s" % ", ".join([r.name for r in self.build_requires]))
+
+	def upload(self, reponame):
+		print("Uploading %s to %s repository" % (self.path, reponame))
+		cmd = "twine upload --verbose --repository %s %s" % (reponame, self.path)
+		self.run(cmd)
+
+	def save_results(self, savedir):
+		if os.path.exists(savedir):
+			shutil.rmtree(savedir)
+		os.makedirs(savedir, mode = 0o755)
+
+		logfile = os.path.join(self._unpacked_dir, "build.log")
+		if os.path.exists(logfile):
+			self.save_file(logfile, savedir)
+
+		logfile = os.path.join(self._unpacked_dir, "pip.log")
+		if os.path.exists(logfile):
+			self.save_file(logfile, savedir)
+
+		logfile = os.path.join(savedir, "build-requires")
+		with open(logfile, "w") as f:
+			for req in self.build_requires:
+				f.write("require %s\n" % req.name)
+				if req.fullreq:
+					f.write("  specifier %s\n" % req.fullreq);
+				if req.hash:
+					for (algo, md) in req.hash.items():
+						f.write("  hash %s %s\n" % (algo, md))
+
+		for wheel in self.artefacts:
+			wheel.path = self.save_file(wheel.path, savedir)
+
+			path = os.path.join(savedir, "%s-METADATA.txt" % wheel.NV)
+			with open(path, "w") as f:
+				print("Writing %s metadata to %s" % (wheel.NV, path))
+				f.write(wheel.get_metadata())
+
+		path = os.path.join(savedir, "build-artefacts")
+		with open(path, "w") as f:
+			for wheel in self.artefacts:
+				f.write("wheel %s\n" % wheel.name)
+				f.write("  version %s\n" % wheel.version)
+
+				for md in ('md5', 'sha256'):
+					f.write("  hash %s %s\n" % (md, wheel.get_hash(md)))
+
+	def save_file(self, src, dst):
+		print("Saving %s to %s" % (src, dst))
+		shutil.copy(src, dst)
+
+		if os.path.isdir(dst):
+			return os.path.join(dst, os.path.basename(src))
+		return dst
+
+	def get_metadata(self):
+		return pkginfo_as_metadata(self._info)
+
+def build_option_parser():
+	import optparse
+
+	parser = optparse.OptionParser(usage = "blah")
+	parser.add_option('--debug', default = False, action = 'store_true',
+                help = "Enable debugging output")
+	parser.add_option('--quiet', default = False, action = 'store_true',
+                help = "Be less verbose")
+	parser.add_option('--git', default = False, action = 'store_true',
+                help = "Build from git repo rather than sdist")
+	parser.add_option('--force', default = False, action = 'store_true',
+                help = "Always store build results, even if they did not change")
+
+	parser.add_option('--output-dir', default = "OUTPUT",
+		help = "Directory to write output files to (defaults to OUTPUT)")
+	parser.add_option('--upload-to', default = None,
+		help = "Repository to upload packages to")
+
+	return parser
+
+(opts, args) = build_option_parser().parse_args()
+
+packageIndex = PackageIndex()
+for file in args:
+	print("Examining %s" % file)
+
+	if os.path.exists(file):
+		pkg = Package(file)
+	else:
+		pkg = packageIndex.find_package(file)
+
+	print("=== Package %s ===" %(pkg.NV))
+
+	pkg.check_python()
+
+	try:
+		print("=== Unpacking %s ===" %(pkg.NV))
+		pkg.unpack(git = opts.git)
+
+		print("=== Building %s ===" %(pkg.NV))
+		built = pkg.build(quiet = opts.quiet)
+
+		if not built:
+			raise ValueError("%s: nothing got built" % file)
+
+		savedir = os.path.join(opts.output_dir, pkg.NV)
+
+		print("=== Inspecting build dependencies ===")
+		pkg.guess_build_dependencies()
+
+		print("=== Checking whether artefacts changed from previous build ===")
+		if not opts.force and pkg.unchanged_from_previous_build(savedir):
+			print("%s artefacts have not changed since previous build" % pkg.NV)
+			continue
+
+		print("=== Storing build results ===")
+		pkg.save_results(savedir)
+
+		if opts.upload_to:
+			print("=== Uploading build results to %s ===" % opts.upload_to)
+			for p in built:
+				p.upload(opts.upload_to)
+		else:
+			print("=== Leaving build results in %s ===" % savedir)
+			for p in built:
+				print("Built %s as %s" % (p.NV, p.path))
+
+	except Exception as e:
+		print("FAILED to build %s" % pkg.NV)
+		import traceback
+		print(e)
+		traceback.print_tb(sys.exc_info()[2])
+		traceback.format_exc()
+
+print("=== Done ===")
