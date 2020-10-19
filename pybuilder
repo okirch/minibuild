@@ -182,6 +182,7 @@ def get_python_version():
 	return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 def check_python_version(requires_python):
+	# We could also use Marker('python_version %s').evaluate()
 	from packaging.specifiers import SpecifierSet
 
 	spec = SpecifierSet(requires_python, prereleases = False)
@@ -207,8 +208,96 @@ class PackageBuildInfo(object):
 		self.filename = None
 		self.hash = {}
 
+	def id(self):
+		return "%s-%s" % (self.name, self.version)
+
 	def add_hash(self, algo, md):
+		# print("%s %s=%s" % (self.filename, algo, md))
 		self.hash[algo] = md
+
+class PackageReleaseInfo(object):
+	def __init__(self, name, version, parsed_version = None):
+		self.name = name.replace('-', '_')
+		self.version = version
+
+		if not parsed_version:
+			from packaging.specifiers import parse
+			parsed_version = parse(version)
+
+		self.parsed_version = parsed_version
+
+		self.python_version = None
+
+		self.builds = []
+
+	def id(self):
+		return "%s-%s" % (self.name, self.version)
+
+	def more_recent_than(self, other):
+		assert(isinstance(other, PackageReleaseInfo))
+		return other.parsed_version < this.parsed_version
+
+	def add_build(self, build):
+		self.builds.append(build)
+
+	def build_types(self):
+		return [b.type for b in self.builds]
+
+class PackageInfo(object):
+	def __init__(self, name):
+		self.name = name.replace('-', '_')
+		self.releases = []
+
+	def add_release(self, release):
+		self.releases.append(release)
+
+	def versions(self):
+		return [r.version for r in self.releases]
+
+class DownloadFinder(object):
+	def __init__(self, req_string):
+		from packaging.requirements import Requirement
+
+		req = Requirement(req_string)
+		self.requirement = req
+
+		self.name = req.name
+		self.allow_prereleases = False
+		self.request_specifier = None
+
+	def python_version_check(self, build):
+		if not build.python_version:
+			return True
+		return check_python_version(build.python_version)
+
+	def release_match(self, release):
+		if not self.python_version_check(release):
+			return False
+
+		assert(release.parsed_version)
+		if not self.allow_prereleases and release.parsed_version.is_prerelease:
+			return False
+
+		if self.request_specifier and release.parsed_version not in self.request_specifier:
+			return False
+
+		return True
+
+class SourceDownloadFinder(DownloadFinder):
+	def __init__(self, req_string):
+		super(SourceDownloadFinder, self).__init__(req_string)
+
+	def build_match(self, build):
+		# print("inspecting %s which is of type %s" % (build.filename, build.type))
+		return build.type == 'sdist'
+
+class BinaryDownloadFinder(DownloadFinder):
+	def __init__(self, req_string):
+		super(BinaryDownloadFinder, self).__init__(req_string)
+
+	def build_match(self, build):
+		# print("inspecting %s which is of type %s" % (build.filename, build.type))
+		return build.type == 'bdist_wheel'
 
 class PackageIndex(object):
 	def __init__(self, url = 'https://pypi.org/pypi'):
@@ -220,86 +309,117 @@ class PackageIndex(object):
 			return name
 		return name + "-" + version
 
-	def find_package(self, name, version = None):
+	# JSON contains
+	# ['info', 'last_serial', 'releases', 'urls']
+	# info is a dict of PKG-INFO stuff
+	# last_serial is an int, not sure what for
+	@staticmethod
+	def process_json(name, d):
+		from packaging.specifiers import parse
+
+		info = PackageInfo(name)
+
+		for (ver, files) in d['releases'].items():
+			relInfo = PackageReleaseInfo(name, ver)
+			info.add_release(relInfo)
+
+			for download in files:
+				filename = download['filename']
+
+				if download['yanked']:
+					print("Ignoring %s: yanked (%s)" % (filename, download['yanked_reason']))
+					continue
+
+				type = download['packagetype']
+				if type == 'sdist':
+					if download['python_version'] != 'source':
+						raise ValueError("%s: unable to deal with sdist package w/ version \"%s\"" % (download['filename'], download['python_version']))
+					pkgInfo = PackageBuildInfo(name, ver, type = type)
+				elif type.startswith('bdist'):
+					pkgInfo = PackageBuildInfo(name, ver, type = type)
+				else:
+					print("%s: don't know how to deal with package type \"%s\"" % (filename, type))
+					continue
+
+				pkgInfo.filename = filename
+				pkgInfo.url = download['url']
+
+				md = download.get('md5_digest')
+				if md:
+					pkgInfo.add_hash('md5', md)
+				for algo, md in download['digests'].items():
+					pkgInfo.add_hash(algo, md)
+
+				relInfo.add_build(pkgInfo)
+
+		return info
+
+	def find_best_match(self, finder, verbose = False):
+		from packaging.requirements import Requirement
 		import urllib.request
 
+		name = finder.name
+
 		url = self.url + "/" + name
-		if version:
-			url += "/" + version
 		url += "/json"
 		resp = urllib.request.urlopen(url)
 		if resp.status != 200:
 			raise ValueError("Unable to get package info for %s: HTTP response %s (%s)" % (
-					self.printname(name, version),
-					resp.status, resp.reason))
+					name, resp.status, resp.reason))
 
 		import json
 		d = json.load(resp)
 
-		# JSON contains
-		# ['info', 'last_serial', 'releases', 'urls']
-		# info is a dict of PKG-INFO stuff
-		# last_serial is an int, not sure what for
-		print("Versions: %s" % ", ".join(d['releases'].keys()))
+		info = self.process_json(name, d)
 
-		download = self.pick_source(d['urls'])
-		if not download:
-			return ValueError("No source for latest version of %s" % self.printname(name, version))
+		if verbose:
+			print("%s versions: %s" % (name, ", ".join(info.versions())))
 
-		if download['requires_python'] and not check_python_version(download['requires_python']):
-			from packaging.specifiers import parse
+		best_ver = None
+		best_match = None
 
-			if version is not None:
-				raise ValueError("Cannot use %s - incompatible with my python version" % self.printname(name, version))
+		for release in info.releases:
+			if not finder.release_match(release):
+				if verbose:
+					print("ignoring release %s" % release.id())
+				continue
 
-			print("Cannot use %s - incompatible with my python version" % download['filename'])
-			best_ver = None
-			best_source = None
-			for (ver, release) in d['releases'].items():
-				ver = parse(ver)
-				if ver.is_prerelease:
-					continue
-				if best_ver and ver < best_ver:
-					continue
+			if best_ver and release.parsed_version <= best_ver:
+				continue
 
-				download = self.pick_source(release)
-				if not download:
-					continue
+			for build in release.builds:
+				if finder.build_match(build):
+					best_match = build
+					best_ver = release.parsed_version
 
-				if download['requires_python'] and not check_python_version(download['requires_python']):
-					continue
+		if not best_match:
+			raise ValueError("%s: unable to find a release that is compatible with my python version" % name)
 
-				best_ver = ver
-				best_source = download
+		if verbose:
+			print("Using %s" % best_match.id())
 
-			if not best_source:
-				raise ValueError("%s: unable to find a release that is compatible with my python version" % name)
+		return best_match
 
-			print("Using %s-%s, which is compatible with my python version" % (name, best_ver))
-			download = best_source
+	def find_package(self, req_string, verbose = False):
+		finder = SourceDownloadFinder(req_string)
+		pkgInfo = self.find_best_match(finder, verbose)
 
-		filename = self.download(download)
+		filename = self.download(pkgInfo)
 		if not filename:
 			return ValueError("Failed to download %s" % download['url'])
 
-		return Package(filename)
+		pkg = Package(filename)
 
-	def pick_source(self, download_list):
-		for download in download_list:
-			if download['yanked']:
-				print("Ignoring %s: yanked (%s)" % (
-						download['filename'], download['yanked_reason']))
-				continue
-			if download['python_version'] == 'source':
-				return download
+		return pkg
 
-		return None
-
-	def download(self, download):
+	def download(self, pkgInfo):
 		import urllib.request
 
-		url = download['url']
-		filename = download['filename']
+		assert(pkgInfo.url)
+		assert(pkgInfo.filename)
+
+		url = pkgInfo.url
+		filename = pkgInfo.filename
 		resp = urllib.request.urlopen(url)
 		if resp.status != 200:
 			raise ValueError("Unable to download %s from %s (HTTP status %s %s)" % (
@@ -406,6 +526,40 @@ class Package(object):
 			raise ValueError("Cannot build %s: requires python_version %s" % (self.NV, requires_python))
 
 		print("OK: satisfied python_version requirement %s" % (requires_python))
+
+	def rebuild_required(self, savedir, index):
+		if not os.path.exists(savedir):
+			return True
+
+		req_list = self.parse_build_requires(savedir)
+		for req in req_list:
+			if req.fullreq:
+				finder = BinaryDownloadFinder(req.fullreq)
+			else:
+				finder = BinaryDownloadFinder(req.name)
+
+			p = index.find_best_match(finder)
+
+			print("Looking at %s" % p.filename)
+			if req.version:
+				if req.version != p.version:
+					print("Building would pick %s-%s rather than %s-%s" % (
+						p.name, p.version,
+						req.name, req.version))
+					return True
+
+			match = False
+			for algo, md in req.hash.items():
+				print("Requirement %s %s %s" % (req.id(), algo, md))
+				print("  Available package %s %s %s" % (p.filename, algo, p.hash.get(algo)))
+				if p.hash.get(algo) == md:
+					match = True
+
+			if not match:
+				print("%s was apparently rebuilt in the meantime" % p.filename)
+				return True
+
+		return False
 
 	def unpack(self, git = False):
 		archive = self.path
@@ -664,6 +818,8 @@ def build_option_parser():
                 help = "Be less verbose")
 	parser.add_option('--git', default = False, action = 'store_true',
                 help = "Build from git repo rather than sdist")
+	parser.add_option('--rebuild-if-needed', default = False, action = 'store_true',
+                help = "Only rebuild package if needed")
 	parser.add_option('--force', default = False, action = 'store_true',
                 help = "Always store build results, even if they did not change")
 
@@ -683,13 +839,21 @@ for file in args:
 	if os.path.exists(file):
 		pkg = Package(file)
 	else:
-		pkg = packageIndex.find_package(file)
+		pkg = packageIndex.find_package(file, verbose = True)
 
 	print("=== Package %s ===" %(pkg.NV))
 
 	pkg.check_python()
 
 	try:
+		savedir = os.path.join(opts.output_dir, pkg.NV)
+
+		if opts.rebuild_if_needed:
+			print("=== Checking whether a rebuild is required ===")
+			if not pkg.rebuild_required(savedir, packageIndex):
+				print("=== No rebuild required for %s ===" %(pkg.NV))
+				continue
+
 		print("=== Unpacking %s ===" %(pkg.NV))
 		pkg.unpack(git = opts.git)
 
@@ -698,8 +862,6 @@ for file in args:
 
 		if not built:
 			raise ValueError("%s: nothing got built" % file)
-
-		savedir = os.path.join(opts.output_dir, pkg.NV)
 
 		print("=== Inspecting build dependencies ===")
 		pkg.guess_build_dependencies()
