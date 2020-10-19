@@ -210,6 +210,8 @@ class PackageBuildInfo(object):
 		self.hash = {}
 
 	def id(self):
+		if not self.version:
+			return self.name
 		return "%s-%s" % (self.name, self.version)
 
 	def add_hash(self, algo, md):
@@ -226,21 +228,28 @@ class PackageBuildInfo(object):
 		self.add_hash(algo, m.hexdigest())
 
 	@staticmethod
+	def parse_filename(filename):
+		# try to detect version and type by looking at the file name
+		_name = filename
+		if filename.endswith(".tar.gz"):
+			_name = filename[:-7]
+			_name, _version = _name.rsplit('-', 1)
+			_type = 'sdist'
+		elif filename.endswith(".whl"):
+			_name, _version, _crap = filename.split('-', 2)
+			_type = 'bdist_wheel'
+		else:
+			raise ValueError("Unable to parse file name \"%s\"" % _name)
+
+		return _name, _version, _type
+
+	@staticmethod
 	def from_local_file(path, name = None, version = None, type = None):
 		filename = os.path.basename(path)
 
 		if not name or not version or not type:
 			# try to detect version and type by looking at the file name
-			_name = filename
-			if filename.endswith(".tar.gz"):
-				_name = filename[:-7]
-				_name, _version = _name.rsplit('-', 1)
-				_type = 'sdist'
-			elif filename.endswith(".whl"):
-				_name, _version, _crap = filename.split('-', 2)
-				_type = 'bdist_wheel'
-			else:
-				raise ValueError("Unable to parse file name \"%s\"" % _name)
+			_name, _version, _type = PackageBuildInfo.parse_filename(filename)
 
 			if name:
 				assert(name == _name)
