@@ -446,10 +446,6 @@ class PackageIndex(object):
 
 		return best_match
 
-	def find_package(self, req_string, verbose = False):
-		finder = SourceDownloadFinder(req_string, verbose = verbose)
-		return self.find_best_match(finder)
-
 # For now, this is a very trivial downloader.
 # This could be something much more complex that uses caches, OBS, yadda yadda
 class Downloader(object):
@@ -900,7 +896,8 @@ for file in args:
 	if os.path.exists(file):
 		build = PackageBuildInfo.from_local_file(file)
 	else:
-		build = packageIndex.find_package(file, verbose = True)
+		finder = SourceDownloadFinder(file, verbose = True)
+		build = packageIndex.find_best_match(finder)
 
 	print("=== Package %s ===" %(build.id()))
 
