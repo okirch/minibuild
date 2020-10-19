@@ -206,6 +206,7 @@ class PackageBuildInfo(object):
 		self.fullreq = None
 		self.url = None
 		self.filename = None
+		self.local_path = None
 		self.hash = {}
 
 	def id(self):
@@ -214,6 +215,51 @@ class PackageBuildInfo(object):
 	def add_hash(self, algo, md):
 		# print("%s %s=%s" % (self.filename, algo, md))
 		self.hash[algo] = md
+
+	def update_hash(self, algo):
+		import hashlib
+
+		m = hashlib.new(algo)
+		with open(self.local_path, "rb") as f:
+			m.update(f.read())
+
+		self.add_hash(algo, m.hexdigest())
+
+	@staticmethod
+	def from_local_file(path, name = None, version = None, type = None):
+		filename = os.path.basename(path)
+
+		if not name or not version or not type:
+			# try to detect version and type by looking at the file name
+			_name = filename
+			if filename.endswith(".tar.gz"):
+				_name = filename[:-7]
+				_name, _version = _name.rsplit('-', 1)
+				_type = 'sdist'
+			elif filename.endswith(".whl"):
+				_name, _version, _crap = filename.split('-', 2)
+				_type = 'bdist_wheel'
+			else:
+				raise ValueError("Unable to parse file name \"%s\"" % _name)
+
+			if name:
+				assert(name == _name)
+			name = _name
+			if version:
+				assert(version == _version)
+			version = _version
+			if type:
+				assert(type == _type)
+			type = _type
+
+		build = PackageBuildInfo(name, version, type)
+		build.filename = filename
+		build.local_path = path
+
+		build.update_hash('md5')
+		build.update_hash('sha256')
+
+		return build
 
 class PackageReleaseInfo(object):
 	def __init__(self, name, version, parsed_version = None):
@@ -404,6 +450,7 @@ class PackageIndex(object):
 		finder = SourceDownloadFinder(req_string)
 		pkgInfo = self.find_best_match(finder, verbose)
 
+		assert(pkgInfo.url)
 		filename = self.download(pkgInfo)
 		if not filename:
 			return ValueError("Failed to download %s" % download['url'])
@@ -478,9 +525,11 @@ class WheelArchive(object):
 		return added_set, removed_set, changed_set
 
 class Package(object):
-	def __init__(self, path):
-		self.path = path
-		self._info = getinfo_pkginfo(path)
+	def __init__(self, build):
+		assert(build.filename)
+
+		self._source = build
+		self._info = getinfo_pkginfo(self.path)
 
 		self.build_dir = "BUILD"
 		self._unpacked_dir = None
@@ -494,6 +543,10 @@ class Package(object):
 	@property
 	def version(self):
 		return self._info.version
+
+	@property
+	def path(self):
+		return self._source.local_path
 
 	@property
 	def NV(self):
@@ -617,7 +670,9 @@ class Package(object):
 
 		for w in wheels:
 			w = os.path.join(os.getcwd(), w)
-			self.artefacts.append(Package(w))
+
+			build = PackageBuildInfo.from_local_file(w)
+			self.artefacts.append(Package(build))
 
 		return self.artefacts
 
@@ -832,12 +887,18 @@ def build_option_parser():
 
 (opts, args) = build_option_parser().parse_args()
 
-packageIndex = PackageIndex()
+if False:
+	index_url = 'http://localhost:8081/repository/pypi-group/'
+	packageIndex = PackageIndex(url = index_url)
+else:
+	packageIndex = PackageIndex()
+
 for file in args:
 	print("Examining %s" % file)
 
 	if os.path.exists(file):
-		pkg = Package(file)
+		build = PackageBuildInfo.from_local_file(file)
+		pkg = Package(build)
 	else:
 		pkg = packageIndex.find_package(file, verbose = True)
 
