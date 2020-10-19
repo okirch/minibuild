@@ -573,15 +573,7 @@ class Package(object):
 		if os.path.exists(logfile):
 			self.save_file(logfile, savedir)
 
-		logfile = os.path.join(savedir, "build-requires")
-		with open(logfile, "w") as f:
-			for req in self.build_requires:
-				f.write("require %s\n" % req.name)
-				if req.fullreq:
-					f.write("  specifier %s\n" % req.fullreq);
-				if req.hash:
-					for (algo, md) in req.hash.items():
-						f.write("  hash %s %s\n" % (algo, md))
+		self.save_build_requires(savedir)
 
 		for wheel in self.artefacts:
 			wheel.path = self.save_file(wheel.path, savedir)
@@ -607,6 +599,52 @@ class Package(object):
 		if os.path.isdir(dst):
 			return os.path.join(dst, os.path.basename(src))
 		return dst
+
+	def save_build_requires(self, savedir):
+		logfile = os.path.join(savedir, "build-requires")
+		with open(logfile, "w") as f:
+			for req in self.build_requires:
+				f.write("require %s\n" % req.name)
+				if req.fullreq:
+					f.write("  specifier %s\n" % req.fullreq);
+				if req.hash:
+					for (algo, md) in req.hash.items():
+						f.write("  hash %s %s\n" % (algo, md))
+
+	def parse_build_requires(self, savedir):
+		result = []
+
+		path = os.path.join(savedir, "build-requires")
+		with open(path, 'r') as f:
+			req = None
+			for l in f.readlines():
+				if not l:
+					continue
+
+				if l.startswith("require"):
+					name = l[7:].strip()
+					req = PackageBuildInfo(name)
+					result.append(req)
+					continue
+
+				if req is None:
+					raise ValueError("%s: no build info in this context" % (path, ))
+
+				if l.startswith(' '):
+					words = l.strip().split()
+					if not words:
+						continue
+					if words[0] == 'specifier':
+						req.fullreq = words[1]
+						continue
+
+					if words[0] == 'hash':
+						req.add_hash(words[1], words[2])
+						continue
+
+				raise ValueError("%s: unparseable line <%s>" % (path, l))
+
+		return result
 
 	def get_metadata(self):
 		return pkginfo_as_metadata(self._info)
