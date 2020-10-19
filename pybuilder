@@ -755,17 +755,26 @@ class Package(object):
 				# Parse lines like:
 				# Added flit_core<4,>=3.0.0 from http://.../flit_core-3.0.0-py3-none-any.whl#md5=7648384867c294a95487e26bc451482d to build tracker
 				if req and ('Added' in l) and ('to build tracker' in l):
-					m = re.search('Added ([^ ]*)', l)
+					from urllib.parse import urldefrag, urlparse
+
+					m = re.search('Added ([^ ]*) from ([^ ]*)', l)
 					if not m:
 						raise ValueError("regex match failed")
+
 					r = Requirement(m.group(1))
+					url = m.group(2)
 
 					assert(req.name == r.name)
 					req.fullreq = str(r)
 
-					m = re.search('Added [^ ]* from https*:[^#]*#([^=]*)=([a-z0-9]*)', l)
-					if m:
-						req.add_hash(m.group(1), m.group(2))
+					url, frag = urldefrag(url)
+					if frag:
+						algo, md = frag.split('=')
+						req.add_hash(algo, md)
+
+					req.url = url
+					req.filename = os.path.basename(urlparse(url).path)
+					continue
 
 				if "to search for versions of" not in l:
 					continue
