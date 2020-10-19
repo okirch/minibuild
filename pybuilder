@@ -597,9 +597,11 @@ class Package(object):
 			else:
 				finder = BinaryDownloadFinder(req.name)
 
+			print("%s requires %s" % (self.name, finder.requirement))
+
 			p = finder.get_best_match(index)
 
-			print("Looking at %s" % p.filename)
+			print("  Best match available from package index: %s" % p.filename)
 			if req.version:
 				if req.version != p.version:
 					print("Building would pick %s-%s rather than %s-%s" % (
@@ -609,14 +611,21 @@ class Package(object):
 
 			match = False
 			for algo, md in req.hash.items():
-				print("Requirement %s %s %s" % (req.id(), algo, md))
-				print("  Available build %s %s %s" % (p.filename, algo, p.hash.get(algo)))
-				if p.hash.get(algo) == md:
+				print("  We are looking for %s %s %s" % (req.id(), algo, md))
+				have_md = p.hash.get(algo)
+				if have_md is None:
+					print("  => index does not provide %s hash for %s" % (algo, p.filename))
+					continue
+
+				print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
+				if have_md == md:
 					match = True
 
 			if not match:
-				print("%s was apparently rebuilt in the meantime" % p.filename)
+				print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
 				return True
+
+			print("Build requirement did not change")
 
 		return False
 
