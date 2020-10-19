@@ -301,7 +301,7 @@ class PackageInfo(object):
 		return [r.version for r in self.releases]
 
 class DownloadFinder(object):
-	def __init__(self, req_string):
+	def __init__(self, req_string, verbose):
 		from packaging.requirements import Requirement
 
 		req = Requirement(req_string)
@@ -310,6 +310,7 @@ class DownloadFinder(object):
 		self.name = req.name
 		self.allow_prereleases = False
 		self.request_specifier = None
+		self.verbose = verbose
 
 	def python_version_check(self, build):
 		if not build.python_version:
@@ -330,16 +331,16 @@ class DownloadFinder(object):
 		return True
 
 class SourceDownloadFinder(DownloadFinder):
-	def __init__(self, req_string):
-		super(SourceDownloadFinder, self).__init__(req_string)
+	def __init__(self, req_string, verbose = False):
+		super(SourceDownloadFinder, self).__init__(req_string, verbose)
 
 	def build_match(self, build):
 		# print("inspecting %s which is of type %s" % (build.filename, build.type))
 		return build.type == 'sdist'
 
 class BinaryDownloadFinder(DownloadFinder):
-	def __init__(self, req_string):
-		super(BinaryDownloadFinder, self).__init__(req_string)
+	def __init__(self, req_string, verbose = False):
+		super(BinaryDownloadFinder, self).__init__(req_string, verbose)
 
 	def build_match(self, build):
 		# print("inspecting %s which is of type %s" % (build.filename, build.type))
@@ -414,10 +415,10 @@ class PackageIndex(object):
 
 		return self.process_json(name, d)
 
-	def find_best_match(self, finder, verbose = False):
+	def find_best_match(self, finder):
 		info = self.get_package_info(finder.name)
 
-		if verbose:
+		if finder.verbose:
 			print("%s versions: %s" % (finder.name, ", ".join(info.versions())))
 
 		best_ver = None
@@ -425,7 +426,7 @@ class PackageIndex(object):
 
 		for release in info.releases:
 			if not finder.release_match(release):
-				if verbose:
+				if finder.verbose:
 					print("ignoring release %s" % release.id())
 				continue
 
@@ -440,14 +441,14 @@ class PackageIndex(object):
 		if not best_match:
 			raise ValueError("%s: unable to find a release that is compatible with my python version" % finder.name)
 
-		if verbose:
+		if finder.verbose:
 			print("Using %s" % best_match.id())
 
 		return best_match
 
 	def find_package(self, req_string, verbose = False):
-		finder = SourceDownloadFinder(req_string)
-		return self.find_best_match(finder, verbose)
+		finder = SourceDownloadFinder(req_string, verbose = verbose)
+		return self.find_best_match(finder)
 
 # For now, this is a very trivial downloader.
 # This could be something much more complex that uses caches, OBS, yadda yadda
