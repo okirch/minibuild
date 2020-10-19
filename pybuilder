@@ -330,6 +330,37 @@ class DownloadFinder(object):
 
 		return True
 
+	def get_best_match(self, index):
+		info = index.get_package_info(self.name)
+
+		if self.verbose:
+			print("%s versions: %s" % (self.name, ", ".join(info.versions())))
+
+		best_ver = None
+		best_match = None
+
+		for release in info.releases:
+			if not self.release_match(release):
+				if self.verbose:
+					print("ignoring release %s" % release.id())
+				continue
+
+			if best_ver and release.parsed_version <= best_ver:
+				continue
+
+			for build in release.builds:
+				if self.build_match(build):
+					best_match = build
+					best_ver = release.parsed_version
+
+		if not best_match:
+			raise ValueError("%s: unable to find a release that is compatible with my python version" % self.name)
+
+		if self.verbose:
+			print("Using %s" % best_match.id())
+
+		return best_match
+
 class SourceDownloadFinder(DownloadFinder):
 	def __init__(self, req_string, verbose = False):
 		super(SourceDownloadFinder, self).__init__(req_string, verbose)
@@ -414,37 +445,6 @@ class PackageIndex(object):
 		d = json.load(resp)
 
 		return self.process_json(name, d)
-
-	def find_best_match(self, finder):
-		info = self.get_package_info(finder.name)
-
-		if finder.verbose:
-			print("%s versions: %s" % (finder.name, ", ".join(info.versions())))
-
-		best_ver = None
-		best_match = None
-
-		for release in info.releases:
-			if not finder.release_match(release):
-				if finder.verbose:
-					print("ignoring release %s" % release.id())
-				continue
-
-			if best_ver and release.parsed_version <= best_ver:
-				continue
-
-			for build in release.builds:
-				if finder.build_match(build):
-					best_match = build
-					best_ver = release.parsed_version
-
-		if not best_match:
-			raise ValueError("%s: unable to find a release that is compatible with my python version" % finder.name)
-
-		if finder.verbose:
-			print("Using %s" % best_match.id())
-
-		return best_match
 
 # For now, this is a very trivial downloader.
 # This could be something much more complex that uses caches, OBS, yadda yadda
@@ -586,7 +586,7 @@ class Package(object):
 			else:
 				finder = BinaryDownloadFinder(req.name)
 
-			p = index.find_best_match(finder)
+			p = finder.get_best_match(index)
 
 			print("Looking at %s" % p.filename)
 			if req.version:
@@ -897,7 +897,7 @@ for file in args:
 		build = PackageBuildInfo.from_local_file(file)
 	else:
 		finder = SourceDownloadFinder(file, verbose = True)
-		build = packageIndex.find_best_match(finder)
+		build = finder.get_best_match(packageIndex)
 
 	print("=== Package %s ===" %(build.id()))
 
