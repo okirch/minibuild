@@ -381,6 +381,8 @@ class PackageIndex(object):
 	def __init__(self, url = 'https://pypi.org/pypi'):
 		self.url = url
 
+		self._pkg_url_template = "{index_url}/{pkg_name}/json"
+
 	@staticmethod
 	def printname(name, version):
 		if not version:
@@ -392,11 +394,13 @@ class PackageIndex(object):
 	# info is a dict of PKG-INFO stuff
 	# last_serial is an int, not sure what for
 	@staticmethod
-	def process_json(name, d):
+	def process_package_info(name, resp):
 		from packaging.specifiers import parse
+		import json
 
 		info = PackageInfo(name)
 
+		d = json.load(resp)
 		for (ver, files) in d['releases'].items():
 			relInfo = PackageReleaseInfo(name, ver)
 			info.add_release(relInfo)
@@ -435,16 +439,14 @@ class PackageIndex(object):
 	def get_package_info(self, name):
 		import urllib.request
 
-		url = self.url + "/" + name + "/json"
+		url = self._pkg_url_template.format(index_url = self.url, pkg_name = name)
+
 		resp = urllib.request.urlopen(url)
 		if resp.status != 200:
 			raise ValueError("Unable to get package info for %s: HTTP response %s (%s)" % (
 					name, resp.status, resp.reason))
 
-		import json
-		d = json.load(resp)
-
-		return self.process_json(name, d)
+		return self.process_package_info(name, resp)
 
 # For now, this is a very trivial downloader.
 # This could be something much more complex that uses caches, OBS, yadda yadda
