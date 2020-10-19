@@ -463,6 +463,9 @@ class Downloader(object):
 	def download(self, build):
 		import urllib.request
 
+		if build.local_path:
+			return build.local_path
+
 		assert(build.url)
 		assert(build.filename)
 
