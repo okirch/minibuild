@@ -378,23 +378,32 @@ class BinaryDownloadFinder(DownloadFinder):
 		return build.type == 'bdist_wheel'
 
 class PackageIndex(object):
-	def __init__(self, url = 'https://pypi.org/pypi'):
+	def __init__(self, url):
 		self.url = url
+		self._pkg_url_template = None
 
+	def get_package_info(self, name):
+		import urllib.request
+
+		url = self._pkg_url_template.format(index_url = self.url, pkg_name = name)
+
+		resp = urllib.request.urlopen(url)
+		if resp.status != 200:
+			raise ValueError("Unable to get package info for %s: HTTP response %s (%s)" % (
+					name, resp.status, resp.reason))
+
+		return self.process_package_info(name, resp)
+
+class JSONPackageIndex(PackageIndex):
+	def __init__(self, url = 'https://pypi.org/pypi'):
+		super(JSONPackageIndex, self).__init__(url)
 		self._pkg_url_template = "{index_url}/{pkg_name}/json"
-
-	@staticmethod
-	def printname(name, version):
-		if not version:
-			return name
-		return name + "-" + version
 
 	# JSON contains
 	# ['info', 'last_serial', 'releases', 'urls']
 	# info is a dict of PKG-INFO stuff
 	# last_serial is an int, not sure what for
-	@staticmethod
-	def process_package_info(name, resp):
+	def process_package_info(self, name, resp):
 		from packaging.specifiers import parse
 		import json
 
@@ -435,18 +444,6 @@ class PackageIndex(object):
 				relInfo.add_build(pkgInfo)
 
 		return info
-
-	def get_package_info(self, name):
-		import urllib.request
-
-		url = self._pkg_url_template.format(index_url = self.url, pkg_name = name)
-
-		resp = urllib.request.urlopen(url)
-		if resp.status != 200:
-			raise ValueError("Unable to get package info for %s: HTTP response %s (%s)" % (
-					name, resp.status, resp.reason))
-
-		return self.process_package_info(name, resp)
 
 # For now, this is a very trivial downloader.
 # This could be something much more complex that uses caches, OBS, yadda yadda
@@ -886,9 +883,9 @@ def build_option_parser():
 
 if False:
 	index_url = 'http://localhost:8081/repository/pypi-group/'
-	packageIndex = PackageIndex(url = index_url)
+	packageIndex = JSONPackageIndex(url = index_url)
 else:
-	packageIndex = PackageIndex()
+	packageIndex = JSONPackageIndex()
 
 downloader = Downloader()
 
