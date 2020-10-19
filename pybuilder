@@ -400,14 +400,10 @@ class PackageIndex(object):
 
 		return info
 
-	def find_best_match(self, finder, verbose = False):
-		from packaging.requirements import Requirement
+	def get_package_info(self, name):
 		import urllib.request
 
-		name = finder.name
-
-		url = self.url + "/" + name
-		url += "/json"
+		url = self.url + "/" + name + "/json"
 		resp = urllib.request.urlopen(url)
 		if resp.status != 200:
 			raise ValueError("Unable to get package info for %s: HTTP response %s (%s)" % (
@@ -416,10 +412,13 @@ class PackageIndex(object):
 		import json
 		d = json.load(resp)
 
-		info = self.process_json(name, d)
+		return self.process_json(name, d)
+
+	def find_best_match(self, finder, verbose = False):
+		info = self.get_package_info(finder.name)
 
 		if verbose:
-			print("%s versions: %s" % (name, ", ".join(info.versions())))
+			print("%s versions: %s" % (finder.name, ", ".join(info.versions())))
 
 		best_ver = None
 		best_match = None
@@ -439,7 +438,7 @@ class PackageIndex(object):
 					best_ver = release.parsed_version
 
 		if not best_match:
-			raise ValueError("%s: unable to find a release that is compatible with my python version" % name)
+			raise ValueError("%s: unable to find a release that is compatible with my python version" % finder.name)
 
 		if verbose:
 			print("Using %s" % best_match.id())
