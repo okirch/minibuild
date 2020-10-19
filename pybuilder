@@ -786,13 +786,6 @@ class Package(object):
 				req = PackageBuildInfo(m.group(1))
 				self.build_requires.append(req)
 
-		for req in self.build_requires:
-			if not req.hash:
-				raise ValueError("Unable to extract hash for build requirement \"%s\" from pip.log" % req.name)
-
-		if self.build_requires:
-			print("Build requires: %s" % ", ".join([r.name for r in self.build_requires]))
-
 	def upload(self, reponame):
 		print("Uploading %s to %s repository" % (self.path, reponame))
 		cmd = "twine upload --verbose --repository %s %s" % (reponame, self.path)
@@ -840,14 +833,16 @@ class Package(object):
 
 	def save_build_requires(self, savedir):
 		logfile = os.path.join(savedir, "build-requires")
-		with open(logfile, "w") as f:
-			for req in self.build_requires:
-				f.write("require %s\n" % req.name)
-				if req.fullreq:
-					f.write("  specifier %s\n" % req.fullreq);
-				if req.hash:
-					for (algo, md) in req.hash.items():
-						f.write("  hash %s %s\n" % (algo, md))
+		self.write_build_requires(self, open(logfile, "w"))
+
+	def write_build_requires(self, f):
+		for req in self.build_requires:
+			f.write("require %s\n" % req.name)
+			if req.fullreq:
+				f.write("  specifier %s\n" % req.fullreq);
+			if req.hash:
+				for (algo, md) in req.hash.items():
+					f.write("  hash %s %s\n" % (algo, md))
 
 	def parse_build_requires(self, savedir):
 		result = []
@@ -956,6 +951,18 @@ for file in args:
 
 		print("=== Inspecting build dependencies ===")
 		pkg.guess_build_dependencies()
+
+		for req in pkg.build_requires:
+			for algo in ('md5', 'sha256'):
+				if req.hash.get(algo) is None:
+					print("WARNING: No %s hash for %s" % (algo, req.name))
+					downloader.download(req)
+					req.update_hash(algo)
+
+		if pkg.build_requires:
+			print("Build requirements:")
+			pkg.write_build_requires(sys.stdout)
+
 
 		print("=== Checking whether artefacts changed from previous build ===")
 		if not opts.force and pkg.unchanged_from_previous_build(savedir):
