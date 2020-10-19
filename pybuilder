@@ -196,6 +196,20 @@ def is_version_more_recent(older, newer):
 	pyvers = get_python_version()
 	return pyvers in spec
 
+class PackageBuildInfo(object):
+	def __init__(self, name, version = None, type = None):
+		self.name = name.replace('-', '_')
+		self.version = version
+		self.type = type
+
+		self.fullreq = None
+		self.url = None
+		self.filename = None
+		self.hash = {}
+
+	def add_hash(self, algo, md):
+		self.hash[algo] = md
+
 class PackageIndex(object):
 	def __init__(self, url = 'https://pypi.org/pypi'):
 		self.url = url
@@ -342,15 +356,6 @@ class WheelArchive(object):
 			print("changed=" + ", ".join(changed_set))
 
 		return added_set, removed_set, changed_set
-
-class PackageBuildInfo(object):
-	def __init__(self, name):
-		self.name = name.replace('-', '_')
-		self.fullreq = None
-		self.hash = {}
-
-	def add_hash(self, algo, md):
-		self.hash[algo] = md
 
 class Package(object):
 	def __init__(self, path):
