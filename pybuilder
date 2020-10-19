@@ -448,34 +448,33 @@ class PackageIndex(object):
 
 	def find_package(self, req_string, verbose = False):
 		finder = SourceDownloadFinder(req_string)
-		pkgInfo = self.find_best_match(finder, verbose)
+		return self.find_best_match(finder, verbose)
 
-		assert(pkgInfo.url)
-		filename = self.download(pkgInfo)
-		if not filename:
-			return ValueError("Failed to download %s" % download['url'])
+# For now, this is a very trivial downloader.
+# This could be something much more complex that uses caches, OBS, yadda yadda
+class Downloader(object):
+	def __init__(self):
+		pass
 
-		pkg = Package(filename)
-
-		return pkg
-
-	def download(self, pkgInfo):
+	def download(self, build):
 		import urllib.request
 
-		assert(pkgInfo.url)
-		assert(pkgInfo.filename)
+		assert(build.url)
+		assert(build.filename)
 
-		url = pkgInfo.url
-		filename = pkgInfo.filename
+		url = build.url
 		resp = urllib.request.urlopen(url)
 		if resp.status != 200:
 			raise ValueError("Unable to download %s from %s (HTTP status %s %s)" % (
-					filename, url, resp.status, resp.reason))
+					build.filename, url, resp.status, resp.reason))
 
+		filename = build.filename
 		with open(filename, "wb") as f:
 			f.write(resp.read())
 
 		print("Downloaded %s from %s" % (filename, url))
+
+		build.local_path = filename
 		return filename
 
 class WheelArchive(object):
@@ -604,7 +603,7 @@ class Package(object):
 			match = False
 			for algo, md in req.hash.items():
 				print("Requirement %s %s %s" % (req.id(), algo, md))
-				print("  Available package %s %s %s" % (p.filename, algo, p.hash.get(algo)))
+				print("  Available build %s %s %s" % (p.filename, algo, p.hash.get(algo)))
 				if p.hash.get(algo) == md:
 					match = True
 
@@ -893,17 +892,22 @@ if False:
 else:
 	packageIndex = PackageIndex()
 
+downloader = Downloader()
+
 for file in args:
 	print("Examining %s" % file)
 
 	if os.path.exists(file):
 		build = PackageBuildInfo.from_local_file(file)
-		pkg = Package(build)
 	else:
-		pkg = packageIndex.find_package(file, verbose = True)
+		build = packageIndex.find_package(file, verbose = True)
 
-	print("=== Package %s ===" %(pkg.NV))
+	print("=== Package %s ===" %(build.id()))
 
+	if not build.local_path:
+		downloader.download(build)
+
+	pkg = Package(build)
 	pkg.check_python()
 
 	try:
