@@ -616,7 +616,7 @@ class Downloader(object):
 	def __init__(self):
 		pass
 
-	def download(self, build):
+	def download(self, build, destdir = None):
 		import urllib.request
 
 		if build.local_path:
@@ -632,6 +632,9 @@ class Downloader(object):
 					build.filename, url, resp.status, resp.reason))
 
 		filename = build.filename
+		if destdir:
+			filename = os.path.join(destdir, filename)
+
 		with open(filename, "wb") as f:
 			f.write(resp.read())
 
@@ -843,7 +846,7 @@ class BuildDirectory(object):
 		run_command(cmd)
 
 		wheels = glob.glob("dist/*.whl")
-		print("Successfully built %ss: %s" % (sdist.id(), ", ".join(wheels)))
+		print("Successfully built %s: %s" % (sdist.id(), ", ".join(wheels)))
 
 		for w in wheels:
 			w = os.path.join(os.getcwd(), w)
@@ -1289,7 +1292,7 @@ for file in args:
 			for algo in ('md5', 'sha256'):
 				if req.hash.get(algo) is None:
 					print("WARNING: No %s hash for %s" % (algo, req.name))
-					downloader.download(req)
+					downloader.download(req, unpacked_dir.location)
 					req.update_hash(algo)
 
 		if unpacked_dir.build_requires:
