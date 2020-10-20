@@ -1149,8 +1149,7 @@ for file in args:
 				p.upload(opts.upload_to)
 		else:
 			print("=== Leaving build results in %s ===" % savedir)
-			for p in built:
-				print("Built %s as %s" % (p.NV, p.path))
+			pkg.write_build_artefacts(sys.stdout)
 
 	except Exception as e:
 		print("FAILED to build %s" % pkg.NV)
