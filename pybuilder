@@ -577,9 +577,6 @@ class SimplePackageIndex(PackageIndex):
 		filename = os.path.basename(href)
 		assert(filename == anchor.text)
 
-		if filename == 'flit_core-3.0.0-py3-none-any.whl':
-			print("href=", href)
-
 		try:
 			name, version, type = PackageBuildInfo.parse_filename(filename)
 		except ValueError:
@@ -598,8 +595,6 @@ class SimplePackageIndex(PackageIndex):
 			build.requires_python = rpy
 
 		if hash:
-			if filename == 'flit_core-3.0.0-py3-none-any.whl':
-				print("hash=", hash)
 			algo, md = hash.split('=')
 			build.add_hash(algo, md)
 
