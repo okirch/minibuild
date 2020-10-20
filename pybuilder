@@ -29,6 +29,11 @@ import pkginfo
 import glob
 import shutil
 
+def run_command(cmd):
+	print("Running %s" % cmd)
+	if os.system(cmd) != 0:
+		raise ValueError("Command `%s' returned non-zero exit status" % cmd)
+
 def getinfo_pkginfo(path):
 
 	if path.endswith(".whl"):
@@ -780,59 +785,95 @@ class Package(object):
 
 		return False
 
-	def unpack(self, git = False):
-		archive = self.path
+class Builder(object):
+	def __init__(self, build_dir, state_dir, prefer_git = False):
+		self.build_dir = build_dir
+		self.state_dir = state_dir
+		self.prefer_git = prefer_git
+
+	def unpack(self, sdist):
+		archive = sdist.local_path
+		if not archive or not os.path.exists(archive):
+			raise ValueError("Unable to unpack %s: no local copy" % sdist.filename)
+
 		if os.path.exists(self.build_dir):
 			shutil.rmtree(self.build_dir)
 
-		if not git:
-			shutil.unpack_archive(archive, self.build_dir)
-			self._unpacked_dir = os.path.join(self.build_dir, self.NV)
-		else:
-			self.unpack_git()
-		print("Unpacked %s to %s" % (archive, self._unpacked_dir))
+		unpacked_dir = None
+		if self.prefer_git:
+			unpacked_dir = self.try_unpack_git(sdist)
 
-	def unpack_git(self):
+		if not unpacked_dir:
+			shutil.unpack_archive(archive, self.build_dir)
+			unpacked_dir = os.path.join(self.build_dir, sdist.id())
+
+		print("Unpacked %s to %s" % (archive, unpacked_dir))
+		return BuildDirectory(sdist, unpacked_dir)
+
+	def try_unpack_git(self, sdist):
+		repo_url = sdist.git_url()
+		if not repo_url:
+			return None
+
+		return self.unpack_git(repo_url)
+
+	def unpack_git(self, git_repo):
 		git_repo = self._info.home_page
 		git_repo = git_repo.replace('_', '-')
 		if not git_repo or not "github.com" in git_repo:
 			raise ValueError("Package homepage \"%s\" doesn't look like a git repo" % git_repo)
 
-		self._unpacked_dir = os.path.join(self.build_dir, self.NV)
-		self.run("git clone %s %s" % (git_repo, self._unpacked_dir))
+		unpacked_dir = os.path.join(self.build_dir, sdist.id())
+		self.run("git clone %s %s" % (git_repo, unpacked_dir))
 
 		cwd = os.getcwd()
 		try:
 			os.chdir(self._unpacked_dir)
-			self.run("git checkout %s" % self.version)
+			run_command("git checkout %s" % self.version)
 		finally:
 			os.chdir(cwd)
+
+		return unpacked_dir
+
+	def make_statedir(self, sdist):
+		savedir = os.path.join(self.state_dir, sdist.id())
+		return BuildState(savedir)
+
+class BuildDirectory(object):
+	def __init__(self, sdist, unpacked_dir):
+		self.sdist = sdist
+		self.unpacked_dir = unpacked_dir
+		self.quiet = False
+
+		self.artefacts = []
 
 	def build(self, quiet = False):
-		assert(self._unpacked_dir)
+		assert(self.unpacked_dir)
 
 		cwd = os.getcwd()
 		try:
-			os.chdir(self._unpacked_dir)
-			return self._do_build(quiet)
+			os.chdir(self.unpacked_dir)
+			return self._do_build()
 		finally:
 			os.chdir(cwd)
-	
-	def _do_build(self, quiet):
+
+	def _do_build(self):
+		sdist = self.sdist
+
 		cmd = "python3 setup.py bdist_wheel"
 		cmd = "pip3 wheel --wheel-dir dist ."
 		cmd += " --log pip.log"
 		cmd += " --no-deps"
 
-		if quiet:
+		if self.quiet:
 			cmd += " >build.log 2>&1"
 		else:
 			cmd += " 2>&1 | tee build.log"
 
-		self.run(cmd)
+		run_command(cmd)
 
 		wheels = glob.glob("dist/*.whl")
-		print("Successfully built %s-%s: %s" % (pkg.name, pkg.version, ", ".join(wheels)))
+		print("Successfully built %ss: %s" % (sdist.id(), ", ".join(wheels)))
 
 		for w in wheels:
 			w = os.path.join(os.getcwd(), w)
@@ -846,10 +887,12 @@ class Package(object):
 
 		return self.artefacts
 
-	def unchanged_from_previous_build(self, savedir):
+	def unchanged_from_previous_build(self, build_state):
 		samesame = True
 		for wheel in self.artefacts:
 			wheel_name = os.path.basename(wheel.local_path)
+
+			old_wheel_path = build_state.get_old_path(wheel_name)
 			old_wheel_path = os.path.join(savedir, wheel_name)
 			print("Checking %s vs %s" % (wheel.local_path, old_wheel_path))
 			if not os.path.exists(old_wheel_path):
@@ -864,9 +907,9 @@ class Package(object):
 				samesame = False
 				continue
 
-		path = os.path.join(savedir, "build-requires")
+		path = build_state.get_old_path("build-requires")
 		if not os.path.exists(path):
-			print("Previous build of %s did not write a build-requires file" % self.name)
+			print("Previous build of %s did not write a build-requires file" % self.sdist.id())
 			samesame = False
 		else:
 			build_req_string = io.StringIO()
@@ -911,10 +954,11 @@ class Package(object):
 		from packaging.requirements import Requirement
 		import re
 
-		logfile = os.path.join(self._unpacked_dir, "pip.log")
+		logfile = os.path.join(self.unpacked_dir, "pip.log")
 		if not os.path.exists(logfile):
 			return
 
+		print("Parsing %s" % logfile)
 		req = None
 
 		self.build_requires = []
@@ -962,32 +1006,25 @@ class Package(object):
 
 				req = PackageBuildInfo(m.group(1))
 				self.build_requires.append(req)
+				if not self.quiet:
+					print("Found requirement %s" % req.name)
 
-	def save_results(self, savedir):
-		if os.path.exists(savedir):
-			shutil.rmtree(savedir)
-		os.makedirs(savedir, mode = 0o755)
+	def prepare_results(self, build_state):
+		self.maybe_save_file(build_state, "build.log")
+		self.maybe_save_file(build_state, "pip.log")
 
-		logfile = os.path.join(self._unpacked_dir, "build.log")
-		if os.path.exists(logfile):
-			self.save_file(logfile, savedir)
-
-		logfile = os.path.join(self._unpacked_dir, "pip.log")
-		if os.path.exists(logfile):
-			self.save_file(logfile, savedir)
-
-		self.save_build_requires(savedir)
-		self.save_build_artefacts(savedir)
+		self.write_file(build_state, "build-requires", self.write_build_requires)
+		self.write_file(build_state, "build-artefacts", self.write_build_artefacts)
 
 		for wheel in self.artefacts:
-			wheel.local_path = self.save_file(wheel.local_path, savedir)
+			# Copy the wheel itself
+			wheel.local_path = build_state.save_file(wheel.local_path)
 
-			path = os.path.join(savedir, "%s-METADATA.txt" % wheel.id())
-			with open(path, "w") as f:
-				print("Writing %s metadata to %s" % (wheel.id(), path))
-
-				pi = getinfo_pkginfo(wheel.local_path)
-				f.write(pkginfo_as_metadata(pi))
+			name = "%s-METADATA.txt" % wheel.id()
+			pi = getinfo_pkginfo(wheel.local_path)
+			build_state.write_file(name,
+				pkginfo_as_metadata(pi),
+				"%s metadata" % wheel.id())
 
 	def save_build_artefacts(self, savedir):
 		path = os.path.join(savedir, "build-artefacts")
@@ -1001,14 +1038,6 @@ class Package(object):
 
 			for algo in ('md5', 'sha256'):
 				f.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
-
-	def save_file(self, src, dst):
-		print("Saving %s to %s" % (src, dst))
-		shutil.copy(src, dst)
-
-		if os.path.isdir(dst):
-			return os.path.join(dst, os.path.basename(src))
-		return dst
 
 	def save_build_requires(self, savedir):
 		path = os.path.join(savedir, "build-requires")
@@ -1059,6 +1088,85 @@ class Package(object):
 
 		return result
 
+	def maybe_save_file(self, build_state, name):
+		path = os.path.join(self.unpacked_dir, name)
+
+		if not os.path.exists(path):
+			print("Not saving %s (does not exist)" % path)
+			return None
+
+		return build_state.save_file(path)
+
+	def write_file(self, build_state, name, write_func):
+		buffer = io.StringIO()
+		write_func(buffer)
+		return build_state.write_file(name, buffer.getvalue())
+
+	def cleanup(self):
+		pass
+
+class BuildState(object):
+	def __init__(self, savedir):
+		import tempfile
+
+		self.savedir = savedir
+		self.tmpdir = tempfile.TemporaryDirectory(prefix = "pybuild-")
+
+	def __del__(self):
+		self.cleanup()
+
+	def commit(self):
+		if not self.tmpdir:
+			print("%s: changes already committed" % self.savedir)
+			return
+
+		# Clean up the savedir
+		if os.path.exists(savedir):
+			shutil.rmtree(savedir)
+		os.makedirs(savedir, mode = 0o755)
+
+		# And copy our data over it
+		print("Committing build state to %s:" % self.savedir, end = ' ')
+		for file in glob.glob(os.path.join(self.tmpdir.name, "*")):
+			print(os.path.basename(file), end = ' ')
+			shutil.copy(file, savedir)
+		print("")
+
+	def cleanup(self):
+		if self.tmpdir:
+			del self.tmpdir
+		self.tmpdir = None
+
+	def get_old_path(self, name):
+		return os.path.join(self.savedir, name)
+
+	def maybe_save_file(self, src, dst = None):
+		if not os.path.exists(src):
+			print("Not saving %s (does not exist)" % src)
+			return None
+
+		return self.save_file(src, dst)
+
+	def save_file(self, src):
+		dst = self.tmpdir.name
+
+		print("Saving %s to %s" % (src, dst))
+		shutil.copy(src, dst)
+
+		if os.path.isdir(dst):
+			return os.path.join(dst, os.path.basename(src))
+		return dst
+
+	def write_file(self, name, data, desc = None):
+		path = os.path.join(self.tmpdir.name, name)
+
+		if desc:
+			print("Writing %s to %s" % (desc, path))
+		else:
+			print("Writing %s" % path)
+		with open(path, "w") as f:
+			f.write(data)
+
 def build_option_parser():
 	import optparse
 
@@ -1095,6 +1203,8 @@ uploader = None
 if opts.upload_to:
 	uploader = Uploader(opts.upload_to)
 
+builder = Builder("BUILD", opts.output_dir, prefer_git = opts.git)
+
 for file in args:
 	print("Examining %s" % file)
 
@@ -1125,6 +1235,7 @@ for file in args:
 
 	try:
 		savedir = os.path.join(opts.output_dir, pkg.NV)
+		build_state = builder.make_statedir(sdist)
 
 		if opts.rebuild_if_needed:
 			print("=== Checking whether a rebuild is required ===")
@@ -1133,44 +1244,49 @@ for file in args:
 				continue
 
 		print("=== Unpacking %s ===" %(pkg.NV))
-		pkg.unpack(git = opts.git)
+		unpacked_dir = builder.unpack(pkg._source)
+		unpacked_dir.quiet = opts.quiet
 
 		print("=== Building %s ===" %(pkg.NV))
-		built = pkg.build(quiet = opts.quiet)
+		built = unpacked_dir.build()
 
 		if not built:
 			raise ValueError("%s: nothing got built" % file)
 
 		print("=== Inspecting build dependencies ===")
-		pkg.guess_build_dependencies()
+		unpacked_dir.guess_build_dependencies()
 
-		for req in pkg.build_requires:
+		for req in unpacked_dir.build_requires:
 			for algo in ('md5', 'sha256'):
 				if req.hash.get(algo) is None:
 					print("WARNING: No %s hash for %s" % (algo, req.name))
 					downloader.download(req)
 					req.update_hash(algo)
 
-		if pkg.build_requires:
+		if unpacked_dir.build_requires:
 			print("Build requirements:")
-			pkg.write_build_requires(sys.stdout)
-
-
-		print("=== Checking whether artefacts changed from previous build ===")
-		if not opts.force and pkg.unchanged_from_previous_build(savedir):
-			print("%s artefacts have not changed since previous build" % pkg.NV)
-			continue
+			unpacked_dir.write_build_requires(sys.stdout)
 
 		print("=== Storing build results ===")
-		pkg.save_results(savedir)
+		unpacked_dir.prepare_results(build_state)
+
+		print("=== Checking whether artefacts changed from previous build ===")
+		if not opts.force and unpacked_dir.unchanged_from_previous_build(build_state):
+			print("%s artefacts have not changed since previous build" % pkg.NV)
+			continue
 
 		if uploader:
 			print("=== Uploading build results to %s ===" % uploader.describe())
 			for p in built:
 				uploader.upload(p)
+
+			build_state.commit()
 		else:
 			print("=== Leaving build results in %s ===" % savedir)
-			pkg.write_build_artefacts(sys.stdout)
+			unpacked_dir.write_build_artefacts(sys.stdout)
+
+		unpacked_dir.cleanup()
+		build_state.cleanup()
 
 	except Exception as e:
 		print("FAILED to build %s" % pkg.NV)
