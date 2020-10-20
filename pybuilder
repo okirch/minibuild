@@ -203,22 +203,6 @@ def get_python_version():
 	vi = sys.version_info
 	return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
-def check_python_version(requires_python):
-	# We could also use Marker('python_version %s').evaluate()
-	from packaging.specifiers import SpecifierSet
-
-	spec = SpecifierSet(requires_python, prereleases = False)
-	pyvers = get_python_version()
-	return pyvers in spec
-
-def is_version_more_recent(older, newer):
-	from packaging.specifiers import parse
-
-	older = parse(older)
-	spec = SpecifierSet(requires_python, prereleases = False)
-	pyvers = get_python_version()
-	return pyvers in spec
-
 def canonical_package_name(name):
 	return name.replace('_', '-')
 
@@ -227,6 +211,7 @@ class PackageBuildInfo(object):
 		self.name = name.replace('_', '-')
 		self.version = version
 		self.type = type
+		self.requires_python = None
 
 		self.fullreq = None
 		self.url = None
@@ -251,6 +236,22 @@ class PackageBuildInfo(object):
 			m.update(f.read())
 
 		self.add_hash(algo, m.hexdigest())
+
+	def verify_requires_python(self):
+		# We could also use Marker('python_version %s').evaluate()
+		from packaging.specifiers import SpecifierSet, InvalidSpecifier
+
+		requires_python = self.requires_python
+		if requires_python is None:
+			return True
+
+		try:
+			spec = SpecifierSet(requires_python, prereleases = False)
+		except InvalidSpecifier:
+			print("Warning: %s has invalid requires_python specifier \"%s\"" % (self.id(), requires_python))
+			return False
+
+		return get_python_version() in spec
 
 	@staticmethod
 	def parse_filename(filename):
@@ -306,8 +307,6 @@ class PackageReleaseInfo(object):
 
 		self.parsed_version = parsed_version
 
-		self.python_version = None
-
 		self.builds = []
 
 	def id(self):
@@ -346,15 +345,7 @@ class DownloadFinder(object):
 		self.request_specifier = None
 		self.verbose = verbose
 
-	def python_version_check(self, build):
-		if not build.python_version:
-			return True
-		return check_python_version(build.python_version)
-
 	def release_match(self, release):
-		if not self.python_version_check(release):
-			return False
-
 		assert(release.parsed_version)
 		if not self.allow_prereleases and release.parsed_version.is_prerelease:
 			return False
@@ -384,6 +375,11 @@ class DownloadFinder(object):
 
 			for build in release.builds:
 				if self.build_match(build):
+					if not build.verify_requires_python():
+						if self.verbose:
+							print("ignoring build %s (incompatible python requirement)" % build.filename)
+						continue
+
 					best_match = build
 					best_ver = release.parsed_version
 
@@ -468,6 +464,7 @@ class JSONPackageIndex(PackageIndex):
 
 				pkgInfo.filename = filename
 				pkgInfo.url = download['url']
+				pkgInfo.requires_python = download['requires_python']
 
 				md = download.get('md5_digest')
 				if md:
@@ -590,8 +587,6 @@ class SimplePackageIndex(PackageIndex):
 
 		rpy = anchor.attrib.get('data-requires-python')
 		if rpy:
-			# This does not really belong in the build info, but for the
-			# time being we put it there.
 			build.requires_python = rpy
 
 		if hash:
@@ -702,7 +697,7 @@ class Package(object):
 		assert(build.filename)
 
 		self._source = build
-		self._info = getinfo_pkginfo(self.path)
+		self._info = getinfo_pkginfo(build.local_path)
 
 		self.build_dir = "BUILD"
 		self._unpacked_dir = None
@@ -741,17 +736,6 @@ class Package(object):
 		print("Running %s" % cmd)
 		if os.system(cmd) != 0:
 			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
-
-	def check_python(self):
-		requires_python = self._info.requires_python
-		if not requires_python:
-			# any python version is okay
-			return
-
-		if not check_python_version(requires_python):
-			raise ValueError("Cannot build %s: requires python_version %s" % (self.NV, requires_python))
-
-		print("OK: satisfied python_version requirement %s" % (requires_python))
 
 	def rebuild_required(self, savedir, index):
 		if not os.path.exists(savedir):
@@ -1075,9 +1059,6 @@ class Package(object):
 
 		return result
 
-	def get_metadata(self):
-		return pkginfo_as_metadata(self._info)
-
 def build_option_parser():
 	import optparse
 
@@ -1119,6 +1100,18 @@ for file in args:
 
 	if os.path.exists(file):
 		sdist = PackageBuildInfo.from_local_file(file)
+
+		if sdist.type != "sdist":
+			print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
+			continue
+
+		# DownloadFinder will never return an sdist that
+		# requires a python version incompatible with ours.
+		# For an sdist provided directly on the command line,
+		# it might be nice to check for this explicitly, but that's a
+		# lot of work. Not the least because many sdist tarballs
+		# do not contain structured build information, but provide
+		# a more or less messy setup.py
 	else:
 		finder = SourceDownloadFinder(file, verbose = True)
 		sdist = finder.get_best_match(packageIndex)
@@ -1129,7 +1122,6 @@ for file in args:
 		downloader.download(sdist)
 
 	pkg = Package(sdist)
-	pkg.check_python()
 
 	try:
 		savedir = os.path.join(opts.output_dir, pkg.NV)
