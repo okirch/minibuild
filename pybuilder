@@ -742,49 +742,6 @@ class Package(object):
 		if os.system(cmd) != 0:
 			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
 
-	def rebuild_required(self, savedir, index):
-		if not os.path.exists(savedir):
-			return True
-
-		req_list = self.parse_build_requires(savedir)
-		for req in req_list:
-			if req.fullreq:
-				finder = BinaryDownloadFinder(req.fullreq)
-			else:
-				finder = BinaryDownloadFinder(req.name)
-
-			print("%s requires %s" % (self.name, finder.requirement))
-
-			p = finder.get_best_match(index)
-
-			print("  Best match available from package index: %s" % p.filename)
-			if req.version:
-				if req.version != p.version:
-					print("Building would pick %s-%s rather than %s-%s" % (
-						p.name, p.version,
-						req.name, req.version))
-					return True
-
-			match = False
-			for algo, md in req.hash.items():
-				print("  We are looking for %s %s %s" % (req.id(), algo, md))
-				have_md = p.hash.get(algo)
-				if have_md is None:
-					print("  => index does not provide %s hash for %s" % (algo, p.filename))
-					continue
-
-				print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
-				if have_md == md:
-					match = True
-
-			if not match:
-				print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
-				return True
-
-			print("Build requirement did not change")
-
-		return False
-
 class Builder(object):
 	def __init__(self, build_dir, state_dir, prefer_git = False):
 		self.build_dir = build_dir
@@ -837,7 +794,7 @@ class Builder(object):
 
 	def make_statedir(self, sdist):
 		savedir = os.path.join(self.state_dir, sdist.id())
-		return BuildState(savedir)
+		return PythonBuildState(savedir)
 
 class BuildDirectory(object):
 	def __init__(self, sdist, unpacked_dir):
@@ -1046,41 +1003,6 @@ class BuildDirectory(object):
 					b.write("  hash %s %s\n" % (algo, md))
 		return b.getvalue()
 
-	def parse_build_requires(self, savedir):
-		result = []
-
-		path = os.path.join(savedir, "build-requires")
-		with open(path, 'r') as f:
-			req = None
-			for l in f.readlines():
-				if not l:
-					continue
-
-				if l.startswith("require"):
-					name = l[7:].strip()
-					req = PackageBuildInfo(name)
-					result.append(req)
-					continue
-
-				if req is None:
-					raise ValueError("%s: no build info in this context" % (path, ))
-
-				if l.startswith(' '):
-					words = l.strip().split()
-					if not words:
-						continue
-					if words[0] == 'specifier':
-						req.fullreq = words[1]
-						continue
-
-					if words[0] == 'hash':
-						req.add_hash(words[1], words[2])
-						continue
-
-				raise ValueError("%s: unparseable line <%s>" % (path, l))
-
-		return result
-
 	def maybe_save_file(self, build_state, name):
 		path = os.path.join(self.unpacked_dir, name)
 
@@ -1160,6 +1082,97 @@ class BuildState(object):
 		with open(path, "w") as f:
 			f.write(data)
 
+class PythonBuildState(BuildState):
+	def __init__(self, savedir):
+		super(PythonBuildState, self).__init__(savedir)
+
+	def rebuild_required(self, index):
+		path = self.get_old_path("build-artefacts")
+		if not os.path.exists(path):
+			return True
+
+		path = self.get_old_path("build-requires")
+		if not os.path.exists(path):
+			return True
+
+		try:
+			req_list = self.parse_build_requires(path)
+		except:
+			print("Cannot parse build-requires file at %s" % path)
+			return True
+
+		for req in req_list:
+			if req.fullreq:
+				finder = BinaryDownloadFinder(req.fullreq)
+			else:
+				finder = BinaryDownloadFinder(req.name)
+
+			print("Build requires %s" % (finder.requirement))
+
+			p = finder.get_best_match(index)
+
+			print("  Best match available from package index: %s" % p.filename)
+			if req.version:
+				if req.version != p.version:
+					print("Building would pick %s-%s rather than %s-%s" % (
+						p.name, p.version,
+						req.name, req.version))
+					return True
+
+			match = False
+			for algo, md in req.hash.items():
+				print("  We are looking for %s %s %s" % (req.id(), algo, md))
+				have_md = p.hash.get(algo)
+				if have_md is None:
+					print("  => index does not provide %s hash for %s" % (algo, p.filename))
+					continue
+
+				print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
+				if have_md == md:
+					match = True
+
+			if not match:
+				print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
+				return True
+
+			print("Build requirement did not change")
+
+		return False
+
+	def parse_build_requires(self, path):
+		result = []
+
+		with open(path, 'r') as f:
+			req = None
+			for l in f.readlines():
+				if not l:
+					continue
+
+				if l.startswith("require"):
+					name = l[7:].strip()
+					req = PackageBuildInfo(name)
+					result.append(req)
+					continue
+
+				if req is None:
+					raise ValueError("%s: no build info in this context" % (path, ))
+
+				if l.startswith(' '):
+					words = l.strip().split()
+					if not words:
+						continue
+					if words[0] == 'specifier':
+						req.fullreq = words[1]
+						continue
+
+					if words[0] == 'hash':
+						req.add_hash(words[1], words[2])
+						continue
+
+				raise ValueError("%s: unparseable line <%s>" % (path, l))
+
+		return result
+
 def build_option_parser():
 	import optparse
 
@@ -1232,7 +1245,7 @@ for file in args:
 
 		if opts.rebuild_if_needed:
 			print("=== Checking whether a rebuild is required ===")
-			if not pkg.rebuild_required(savedir, packageIndex):
+			if not build_state.rebuild_required(packageIndex):
 				print("=== No rebuild required for %s ===" %(pkg.NV))
 				continue
 
