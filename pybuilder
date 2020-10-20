@@ -912,8 +912,7 @@ class BuildDirectory(object):
 			print("Previous build of %s did not write a build-requires file" % self.sdist.id())
 			samesame = False
 		else:
-			build_req_string = io.StringIO()
-			self.write_build_requires(build_req_string)
+			build_req_string = self.build_requires_as_string()
 
 			with open(path, "r") as f:
 				if f.read() != build_req_string:
@@ -1013,8 +1012,8 @@ class BuildDirectory(object):
 		self.maybe_save_file(build_state, "build.log")
 		self.maybe_save_file(build_state, "pip.log")
 
-		self.write_file(build_state, "build-requires", self.write_build_requires)
-		self.write_file(build_state, "build-artefacts", self.write_build_artefacts)
+		build_state.write_file("build-requires", self.build_requires_as_string())
+		build_state.write_file("build-artefacts", self.build_artefacts_as_string())
 
 		for wheel in self.artefacts:
 			# Copy the wheel itself
@@ -1026,32 +1025,26 @@ class BuildDirectory(object):
 				pkginfo_as_metadata(pi),
 				"%s metadata" % wheel.id())
 
-	def save_build_artefacts(self, savedir):
-		path = os.path.join(savedir, "build-artefacts")
-		print("Writing %s" % path)
-		self.write_build_artefacts(open(path, "w"))
-
-	def write_build_artefacts(self, f):
+	def build_artefacts_as_string(self):
+		b = io.StringIO()
 		for wheel in self.artefacts:
-			f.write("wheel %s\n" % wheel.name)
-			f.write("  version %s\n" % wheel.version)
+			b.write("wheel %s\n" % wheel.name)
+			b.write("  version %s\n" % wheel.version)
 
 			for algo in ('md5', 'sha256'):
-				f.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
+				b.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
+		return b.getvalue()
 
-	def save_build_requires(self, savedir):
-		path = os.path.join(savedir, "build-requires")
-		print("Writing %s" % path)
-		self.write_build_requires(open(path, "w"))
-
-	def write_build_requires(self, f):
+	def build_requires_as_string(self):
+		b = io.StringIO()
 		for req in self.build_requires:
-			f.write("require %s\n" % req.name)
+			b.write("require %s\n" % req.name)
 			if req.fullreq:
-				f.write("  specifier %s\n" % req.fullreq);
+				b.write("  specifier %s\n" % req.fullreq);
 			if req.hash:
 				for (algo, md) in req.hash.items():
-					f.write("  hash %s %s\n" % (algo, md))
+					b.write("  hash %s %s\n" % (algo, md))
+		return b.getvalue()
 
 	def parse_build_requires(self, savedir):
 		result = []
@@ -1265,7 +1258,7 @@ for file in args:
 
 		if unpacked_dir.build_requires:
 			print("Build requirements:")
-			unpacked_dir.write_build_requires(sys.stdout)
+			sys.stdout.write(unpacked_dir.build_requires_as_string())
 
 		print("=== Storing build results ===")
 		unpacked_dir.prepare_results(build_state)
@@ -1283,7 +1276,7 @@ for file in args:
 			build_state.commit()
 		else:
 			print("=== Leaving build results in %s ===" % savedir)
-			unpacked_dir.write_build_artefacts(sys.stdout)
+			sys.stdout.write(unpacked_dir.build_artefacts_as_string())
 
 		unpacked_dir.cleanup()
 		build_state.cleanup()
