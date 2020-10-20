@@ -1285,11 +1285,8 @@ for file in args:
 		sdist = finder.get_best_match(packageIndex)
 
 	print("=== Package %s ===" %(sdist.id()))
-
 	if not sdist.local_path:
 		downloader.download(sdist)
-
-	pkg = Package(sdist)
 
 	try:
 		build_state = builder.make_statedir(sdist)
@@ -1297,14 +1294,14 @@ for file in args:
 		if opts.rebuild_if_needed:
 			print("=== Checking whether a rebuild is required ===")
 			if not build_state.rebuild_required(packageIndex):
-				print("=== No rebuild required for %s ===" %(pkg.NV))
+				print("=== No rebuild required for %s ===" %(sdist.id()))
 				continue
 
-		print("=== Unpacking %s ===" %(pkg.NV))
-		unpacked_dir = builder.unpack(pkg._source)
+		print("=== Unpacking %s ===" %(sdist.id()))
+		unpacked_dir = builder.unpack(sdist)
 		unpacked_dir.quiet = opts.quiet
 
-		print("=== Building %s ===" %(pkg.NV))
+		print("=== Building %s ===" %(sdist.id()))
 		built = unpacked_dir.build()
 
 		if not built:
@@ -1324,7 +1321,7 @@ for file in args:
 
 		print("=== Checking whether artefacts changed from previous build ===")
 		if not opts.force and unpacked_dir.unchanged_from_previous_build(build_state):
-			print("%s artefacts have not changed since previous build" % pkg.NV)
+			print("%s artefacts have not changed since previous build" % sdist.id())
 			continue
 
 		if uploader:
@@ -1346,7 +1343,7 @@ for file in args:
 		build_state.cleanup()
 
 	except Exception as e:
-		print("FAILED to build %s" % pkg.NV)
+		print("FAILED to build %s" % sdist.id())
 		import traceback
 		print(e)
 		traceback.print_tb(sys.exc_info()[2])
