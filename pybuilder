@@ -1089,17 +1089,17 @@ for file in args:
 	print("Examining %s" % file)
 
 	if os.path.exists(file):
-		build = PackageBuildInfo.from_local_file(file)
+		sdist = PackageBuildInfo.from_local_file(file)
 	else:
 		finder = SourceDownloadFinder(file, verbose = True)
-		build = finder.get_best_match(packageIndex)
+		sdist = finder.get_best_match(packageIndex)
 
-	print("=== Package %s ===" %(build.id()))
+	print("=== Package %s ===" %(sdist.id()))
 
-	if not build.local_path:
-		downloader.download(build)
+	if not sdist.local_path:
+		downloader.download(sdist)
 
-	pkg = Package(build)
+	pkg = Package(sdist)
 	pkg.check_python()
 
 	try:
