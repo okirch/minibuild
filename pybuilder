@@ -469,6 +469,133 @@ class JSONPackageIndex(PackageIndex):
 
 		return info
 
+class SimplePackageIndex(PackageIndex):
+	def __init__(self, url):
+		super(SimplePackageIndex, self).__init__(url)
+
+		# The trailing / is actually important, because otherwise
+		# urljoin(base_url, "../../packages/blah/fasel")
+		# will not do the right thing
+		self._pkg_url_template = "{index_url}/simple/{pkg_name}/"
+
+	# HTML response contains
+	# <head>...
+	#  <meta name="api-version" value="2"/>
+	# </head>
+	# <body><h1>Links for flit</h1>
+        # <a href="../../packages/flit/0.1/$filename#sha256=$hexdigest" rel="internal" data-requires-python="3" >$filename</a><br/>
+	# ...
+	def process_package_info(self, name, resp):
+		import xml.etree.ElementTree as ET
+		tree = ET.parse(resp)
+		root = tree.getroot()
+
+		info = None
+		if root.tag == 'html':
+			for node in root:
+				if node.tag == 'head':
+					self.process_html_head(node)
+				elif node.tag == 'body':
+					if info:
+						raise ValueError("Server response contains several <body> elements")
+					info = self.process_html_body(resp.url, node)
+		else:
+			info = self.process_html_body(resp.url, root)
+
+		if not info:
+			raise ValueError("Server response lacks a <body> element")
+
+		return info
+
+	def process_html_head(self, node):
+		for m in node.findall('meta'):
+			name = m.attrib.get('name')
+			if name != 'api-version':
+				continue
+
+			value = m.attrib.get('value')
+			if value != '2':
+				raise ValueError("Unable to deal with pypi simple index API version %s" % value)
+
+			# print("Found API version %s; good" % value)
+
+		# all is well
+
+	def process_html_body(self, request_url, node):
+		builds = []
+
+		for anchor in node.findall(".//a"):
+			build = self.process_html_a(request_url, anchor)
+			if build:
+				builds.append(build)
+
+		if not builds:
+			raise ValueError("No <a> elements found in server response")
+
+		name = builds[0].name
+		for b in builds:
+			if b.name != name:
+				raise ValueError("Server response contains a mix of packages (%s and %s)" % (name, b.name))
+
+		releases = dict()
+		for b in builds:
+			r = releases.get(b.version)
+			if not r:
+				r = PackageReleaseInfo(name, b.version)
+				releases[r.version] = r
+
+			r.add_build(b)
+
+		info = PackageInfo(name)
+		for release in sorted(releases.values(), key = lambda r: r.parsed_version):
+			info.add_release(release)
+
+		return info
+
+	def process_html_a(self, request_url, anchor):
+		from urllib.parse import urljoin, urldefrag
+
+		rel = anchor.attrib.get('rel')
+		if rel != "internal":
+			print("IGNORING anchor with rel=%s" % rel)
+			return None
+
+		href = anchor.attrib['href']
+		href, hash = urldefrag(href)
+
+		# FIXME: this only works on systems that use '/' as the path separator
+		filename = os.path.basename(href)
+		assert(filename == anchor.text)
+
+		if filename == 'flit_core-3.0.0-py3-none-any.whl':
+			print("href=", href)
+
+		try:
+			name, version, type = PackageBuildInfo.parse_filename(filename)
+		except ValueError:
+			return None
+
+		build = PackageBuildInfo(name, version, type)
+		build.filename = filename
+
+		build.url = urljoin(request_url, href)
+		# print("%s plus %s -> %s" % (request_url, href, build.url))
+
+		rpy = anchor.attrib.get('data-requires-python')
+		if rpy:
+			# This does not really belong in the build info, but for the
+			# time being we put it there.
+			build.requires_python = rpy
+
+		if hash:
+			if filename == 'flit_core-3.0.0-py3-none-any.whl':
+				print("hash=", hash)
+			algo, md = hash.split('=')
+			build.add_hash(algo, md)
+
+		return build
+
+
 # For now, this is a very trivial downloader.
 # This could be something much more complex that uses caches, OBS, yadda yadda
 class Downloader(object):
@@ -950,9 +1077,9 @@ def build_option_parser():
 
 (opts, args) = build_option_parser().parse_args()
 
-if False:
+if True:
 	index_url = 'http://localhost:8081/repository/pypi-group/'
-	packageIndex = JSONPackageIndex(url = index_url)
+	packageIndex = SimplePackageIndex(url = index_url)
 else:
 	packageIndex = JSONPackageIndex()
 
