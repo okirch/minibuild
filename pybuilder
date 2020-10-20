@@ -1139,10 +1139,12 @@ class PythonBuildState(BuildState):
 	def rebuild_required(self, index):
 		path = self.get_old_path("build-artefacts")
 		if not os.path.exists(path):
+			print("Previous build did not create build-artefacts file")
 			return True
 
 		path = self.get_old_path("build-requires")
 		if not os.path.exists(path):
+			print("Previous build did not create build-requires file")
 			return True
 
 		try:
