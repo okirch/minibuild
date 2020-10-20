@@ -29,6 +29,8 @@ import pkginfo
 import glob
 import shutil
 
+REQUIRED_HASHES = ('md5', 'sha256')
+
 def run_command(cmd):
 	print("Running %s" % cmd)
 	if os.system(cmd) != 0:
@@ -304,8 +306,8 @@ class PackageBuildInfo(object):
 		build.filename = filename
 		build.local_path = path
 
-		build.update_hash('md5')
-		build.update_hash('sha256')
+		for algo in REQUIRED_HASHES:
+			build.update_hash(algo)
 
 		return build
 
@@ -853,7 +855,7 @@ class BuildDirectory(object):
 
 			build = PackageBuildInfo.from_local_file(w)
 
-			for algo in ('md5', 'sha256'):
+			for algo in REQUIRED_HASHES:
 				build.update_hash(algo)
 
 			self.artefacts.append(build)
@@ -1009,7 +1011,7 @@ class BuildDirectory(object):
 			b.write("wheel %s\n" % wheel.name)
 			b.write("  version %s\n" % wheel.version)
 
-			for algo in ('md5', 'sha256'):
+			for algo in REQUIRED_HASHES:
 				b.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
 		return b.getvalue()
 
