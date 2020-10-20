@@ -805,6 +805,7 @@ class Package(object):
 			self.save_file(logfile, savedir)
 
 		self.save_build_requires(savedir)
+		self.save_build_artefacts(savedir)
 
 		for wheel in self.artefacts:
 			wheel.path = self.save_file(wheel.path, savedir)
@@ -814,14 +815,18 @@ class Package(object):
 				print("Writing %s metadata to %s" % (wheel.NV, path))
 				f.write(wheel.get_metadata())
 
+	def save_build_artefacts(self, savedir):
 		path = os.path.join(savedir, "build-artefacts")
-		with open(path, "w") as f:
-			for wheel in self.artefacts:
-				f.write("wheel %s\n" % wheel.name)
-				f.write("  version %s\n" % wheel.version)
+		print("Writing %s" % path)
+		self.write_build_artefacts(open(path, "w"))
 
-				for md in ('md5', 'sha256'):
-					f.write("  hash %s %s\n" % (md, wheel.get_hash(md)))
+	def write_build_artefacts(self, f):
+		for wheel in self.artefacts:
+			f.write("wheel %s\n" % wheel.name)
+			f.write("  version %s\n" % wheel.version)
+
+			for algo in ('md5', 'sha256'):
+				f.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
 
 	def save_file(self, src, dst):
 		print("Saving %s to %s" % (src, dst))
