@@ -231,17 +231,6 @@ class PackageBuildInfo(object):
 
 		self.add_hash(algo, m.hexdigest())
 
-	# We should introduce an uploader class for this
-	def upload(self, reponame):
-		assert(self.local_path)
-
-		print("Uploading %s to %s repository" % (self.local_path, reponame))
-		cmd = "twine upload --verbose --repository %s %s" % (reponame, self.local_path)
-
-		print("Running %s" % cmd)
-		if os.system(cmd) != 0:
-			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
-
 	@staticmethod
 	def parse_filename(filename):
 		# try to detect version and type by looking at the file name
@@ -625,6 +614,26 @@ class Downloader(object):
 
 		build.local_path = filename
 		return filename
+
+# For now, a very trivial uploader.
+class Uploader(object):
+	def __init__(self, repo):
+		self.repo = repo
+
+	def describe(self):
+		return "Python repository \"%s\"" % self.repo
+
+	def upload(self, build):
+		assert(build.local_path)
+
+		print("Uploading %s to %s repository" % (build.local_path, self.repo))
+		cmd = "twine upload --verbose "
+		cmd += " --disable-progress-bar"
+		cmd += " --repository %s %s" % (self.repo, build.local_path)
+
+		print("Running %s" % cmd)
+		if os.system(cmd) != 0:
+			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
 
 class WheelArchive(object):
 	def __init__(self, path):
@@ -1085,6 +1094,10 @@ else:
 
 downloader = Downloader()
 
+uploader = None
+if opts.upload_to:
+	uploader = Uploader(opts.upload_to)
+
 for file in args:
 	print("Examining %s" % file)
 
@@ -1143,10 +1156,10 @@ for file in args:
 		print("=== Storing build results ===")
 		pkg.save_results(savedir)
 
-		if opts.upload_to:
-			print("=== Uploading build results to %s ===" % opts.upload_to)
+		if uploader:
+			print("=== Uploading build results to %s ===" % uploader.describe())
 			for p in built:
-				p.upload(opts.upload_to)
+				uploader.upload(p)
 		else:
 			print("=== Leaving build results in %s ===" % savedir)
 			pkg.write_build_artefacts(sys.stdout)
