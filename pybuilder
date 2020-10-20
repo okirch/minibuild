@@ -988,6 +988,27 @@ class BuildDirectory(object):
 				if not self.quiet:
 					print("Found requirement %s" % req.name)
 
+	def finalize_build_depdendencies(self, downloader):
+		tempdir = None
+		for req in self.build_requires:
+			missing_some = False
+			for algo in REQUIRED_HASHES:
+				if req.hash.get(algo) is None:
+					if not missing_some:
+						print("%s: update missing hash(es)" % req.id())
+
+					if not tempdir:
+						import tempfile
+
+						tempdir = tempfile.TemporaryDirectory(prefix = "pyreqs-")
+
+					downloader.download(req, tempdir.name)
+					req.update_hash(algo)
+					missing_some = True
+
+		if tempdir:
+			tempdir.cleanup()
+
 	def prepare_results(self, build_state):
 		self.maybe_save_file(build_state, "build.log")
 		self.maybe_save_file(build_state, "pip.log")
@@ -1290,12 +1311,7 @@ for file in args:
 		print("=== Inspecting build dependencies ===")
 		unpacked_dir.guess_build_dependencies()
 
-		for req in unpacked_dir.build_requires:
-			for algo in ('md5', 'sha256'):
-				if req.hash.get(algo) is None:
-					print("WARNING: No %s hash for %s" % (algo, req.name))
-					downloader.download(req, unpacked_dir.location)
-					req.update_hash(algo)
+		unpacked_dir.finalize_build_depdendencies(downloader)
 
 		if unpacked_dir.build_requires:
 			print("Build requirements:")
