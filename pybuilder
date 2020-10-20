@@ -881,12 +881,14 @@ class BuildDirectory(object):
 			print("Previous build of %s did not write a build-requires file" % self.sdist.id())
 			samesame = False
 		else:
-			build_req_string = self.build_requires_as_string()
+			new_path = build_state.get_new_path("build-requires")
 
-			with open(path, "r") as f:
-				if f.read() != build_req_string:
-					print("Build requirements changed")
-					samesame = False
+			with open(path, "r") as old_f:
+				with open(new_path, "r") as new_f:
+					if old_f.read() != new_f.read():
+						print("Build requirements changed")
+						os.system("diff -u %s %s" % (path, new_path))
+						samesame = False
 
 		return samesame
 
@@ -1069,6 +1071,9 @@ class BuildState(object):
 
 	def get_old_path(self, name):
 		return os.path.join(self.savedir, name)
+
+	def get_new_path(self, name):
+		return os.path.join(self.tmpdir.name, name)
 
 	def maybe_save_file(self, src, dst = None):
 		if not os.path.exists(src):
