@@ -242,6 +242,10 @@ class PackageBuildInfo(object):
 
 		self.add_hash(algo, m.hexdigest())
 
+	@property
+	def is_source(self):
+		return self.type == 'sdist'
+
 	def verify_requires_python(self):
 		# We could also use Marker('python_version %s').evaluate()
 		from packaging.specifiers import SpecifierSet, InvalidSpecifier
@@ -1288,8 +1292,13 @@ for file in args:
 
 		if uploader:
 			print("=== Uploading build results to %s ===" % uploader.describe())
+			uploaded_source = False
 			for p in built:
 				uploader.upload(p)
+				if p.is_source:
+					uploaded_source = True
+			if not uploaded_source:
+				uploader.upload(sdist)
 
 			build_state.commit()
 		else:
