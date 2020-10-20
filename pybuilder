@@ -711,7 +711,7 @@ class WheelArchive(object):
 
 		return added_set, removed_set, changed_set
 
-class Builder(object):
+class PythonBuildFactory(object):
 	def __init__(self, build_dir, state_dir, prefer_git = False):
 		self.build_dir = build_dir
 		self.state_dir = state_dir
@@ -734,7 +734,7 @@ class Builder(object):
 			unpacked_dir = os.path.join(self.build_dir, sdist.id())
 
 		print("Unpacked %s to %s" % (archive, unpacked_dir))
-		return BuildDirectory(sdist, unpacked_dir)
+		return PythonBuildDirectory(sdist, unpacked_dir)
 
 	def try_unpack_git(self, sdist):
 		repo_url = sdist.git_url()
@@ -765,7 +765,7 @@ class Builder(object):
 		savedir = os.path.join(self.state_dir, sdist.id())
 		return PythonBuildState(savedir)
 
-class BuildDirectory(object):
+class PythonBuildDirectory(object):
 	def __init__(self, sdist, unpacked_dir):
 		self.sdist = sdist
 		self.unpacked_dir = unpacked_dir
@@ -1216,7 +1216,7 @@ uploader = None
 if opts.upload_to:
 	uploader = Uploader(opts.upload_to)
 
-builder = Builder("BUILD", opts.output_dir, prefer_git = opts.git)
+build_factory = PythonBuildFactory("BUILD", opts.output_dir, prefer_git = opts.git)
 
 for file in args:
 	print("Examining %s" % file)
@@ -1244,7 +1244,7 @@ for file in args:
 		downloader.download(sdist)
 
 	try:
-		build_state = builder.make_statedir(sdist)
+		build_state = build_factory.make_statedir(sdist)
 
 		if opts.rebuild_if_needed:
 			print("=== Checking whether a rebuild is required ===")
@@ -1253,7 +1253,7 @@ for file in args:
 				continue
 
 		print("=== Unpacking %s ===" %(sdist.id()))
-		unpacked_dir = builder.unpack(sdist)
+		unpacked_dir = build_factory.unpack(sdist)
 		unpacked_dir.quiet = opts.quiet
 
 		print("=== Building %s ===" %(sdist.id()))
