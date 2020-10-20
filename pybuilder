@@ -197,9 +197,12 @@ def is_version_more_recent(older, newer):
 	pyvers = get_python_version()
 	return pyvers in spec
 
+def canonical_package_name(name):
+	return name.replace('_', '-')
+
 class PackageBuildInfo(object):
 	def __init__(self, name, version = None, type = None):
-		self.name = name.replace('-', '_')
+		self.name = name.replace('_', '-')
 		self.version = version
 		self.type = type
 
@@ -272,7 +275,7 @@ class PackageBuildInfo(object):
 
 class PackageReleaseInfo(object):
 	def __init__(self, name, version, parsed_version = None):
-		self.name = name.replace('-', '_')
+		self.name = canonical_package_name(name)
 		self.version = version
 
 		if not parsed_version:
@@ -300,7 +303,7 @@ class PackageReleaseInfo(object):
 
 class PackageInfo(object):
 	def __init__(self, name):
-		self.name = name.replace('-', '_')
+		self.name = canonical_package_name(name)
 		self.releases = []
 
 	def add_release(self, release):
@@ -764,7 +767,16 @@ class Package(object):
 					r = Requirement(m.group(1))
 					url = m.group(2)
 
-					assert(req.name == r.name)
+					# This is needed to deal with some oddities of pip.
+					# For instance, package flit requires flit_core. However,
+					# pip will change that name to flit-core, and look for it
+					# in the index by this name.
+					# pypi has both flit_core and flit-core wheels, but they have
+					# different hash digests, causing our rebuild checks to
+					# fire without need.
+					if req.name != r.name:
+						r.name = canonical_package_name(r.name)
+						assert(req.name == r.name)
 					req.fullreq = str(r)
 
 					url, frag = urldefrag(url)
