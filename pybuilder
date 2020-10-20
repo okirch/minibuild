@@ -859,7 +859,6 @@ class BuildDirectory(object):
 			wheel_name = os.path.basename(wheel.local_path)
 
 			old_wheel_path = build_state.get_old_path(wheel_name)
-			old_wheel_path = os.path.join(savedir, wheel_name)
 			print("Checking %s vs %s" % (wheel.local_path, old_wheel_path))
 			if not os.path.exists(old_wheel_path):
 				print("%s does not exist" % old_wheel_path)
@@ -1045,15 +1044,15 @@ class BuildState(object):
 			return
 
 		# Clean up the savedir
-		if os.path.exists(savedir):
-			shutil.rmtree(savedir)
-		os.makedirs(savedir, mode = 0o755)
+		if os.path.exists(self.savedir):
+			shutil.rmtree(self.savedir)
+		os.makedirs(self.savedir, mode = 0o755)
 
 		# And copy our data over it
 		print("Committing build state to %s:" % self.savedir, end = ' ')
 		for file in glob.glob(os.path.join(self.tmpdir.name, "*")):
 			print(os.path.basename(file), end = ' ')
-			shutil.copy(file, savedir)
+			shutil.copy(file, self.savedir)
 		print("")
 
 	def cleanup(self):
@@ -1249,7 +1248,6 @@ for file in args:
 	pkg = Package(sdist)
 
 	try:
-		savedir = os.path.join(opts.output_dir, pkg.NV)
 		build_state = builder.make_statedir(sdist)
 
 		if opts.rebuild_if_needed:
@@ -1301,11 +1299,11 @@ for file in args:
 				uploader.upload(sdist)
 
 			build_state.commit()
+			unpacked_dir.cleanup()
 		else:
-			print("=== Leaving build results in %s ===" % savedir)
+			print("=== Leaving build results in %s ===" % unpacked_dir.unpacked_dir)
 			sys.stdout.write(unpacked_dir.build_artefacts_as_string())
 
-		unpacked_dir.cleanup()
 		build_state.cleanup()
 
 	except Exception as e:
