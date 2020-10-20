@@ -711,51 +711,6 @@ class WheelArchive(object):
 
 		return added_set, removed_set, changed_set
 
-class Package(object):
-	def __init__(self, build):
-		assert(build.filename)
-
-		self._source = build
-		self._info = getinfo_pkginfo(build.local_path)
-
-		self.build_dir = "BUILD"
-		self._unpacked_dir = None
-		self.build_requires = []
-		self.artefacts = []
-
-	@property
-	def name(self):
-		return self._info.name
-
-	@property
-	def version(self):
-		return self._info.version
-
-	@property
-	def path(self):
-		return self._source.local_path
-
-	@property
-	def NV(self):
-		return "%s-%s" % (self.name, self.version)
-
-	def get_hash(self, md):
-		import hashlib
-
-		m = hashlib.new(md)
-		with open(self.local_path, "rb") as f:
-			m.update(f.read())
-
-		return m.hexdigest()
-
-	def print_info(self):
-		pkginfo_print(self._info)
-
-	def run(self, cmd):
-		print("Running %s" % cmd)
-		if os.system(cmd) != 0:
-			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
-
 class Builder(object):
 	def __init__(self, build_dir, state_dir, prefer_git = False):
 		self.build_dir = build_dir
