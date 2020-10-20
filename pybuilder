@@ -875,8 +875,9 @@ class Package(object):
 		return dst
 
 	def save_build_requires(self, savedir):
-		logfile = os.path.join(savedir, "build-requires")
-		self.write_build_requires(self, open(logfile, "w"))
+		path = os.path.join(savedir, "build-requires")
+		print("Writing %s" % path)
+		self.write_build_requires(open(path, "w"))
 
 	def write_build_requires(self, f):
 		for req in self.build_requires:
