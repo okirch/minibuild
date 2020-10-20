@@ -813,6 +813,10 @@ class BuildDirectory(object):
 
 		self.artefacts = []
 
+	@property
+	def location(self):
+		return self.unpacked_dir
+
 	def build(self, quiet = False):
 		assert(self.unpacked_dir)
 
@@ -1313,7 +1317,7 @@ for file in args:
 			build_state.commit()
 			unpacked_dir.cleanup()
 		else:
-			print("=== Leaving build results in %s ===" % unpacked_dir.unpacked_dir)
+			print("=== Leaving build results in %s ===" % unpacked_dir.location)
 			sys.stdout.write(unpacked_dir.build_artefacts_as_string())
 
 		build_state.cleanup()
