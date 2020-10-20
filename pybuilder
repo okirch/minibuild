@@ -854,6 +854,10 @@ class BuildDirectory(object):
 		return self.artefacts
 
 	def unchanged_from_previous_build(self, build_state):
+		if not build_state.exists():
+			print("%s was never built before" % self.sdist.id())
+			return False
+
 		samesame = True
 		for wheel in self.artefacts:
 			wheel_name = os.path.basename(wheel.local_path)
@@ -1037,6 +1041,9 @@ class BuildState(object):
 
 	def __del__(self):
 		self.cleanup()
+
+	def exists(self):
+		return os.path.exists(self.savedir)
 
 	def commit(self):
 		if not self.tmpdir:
