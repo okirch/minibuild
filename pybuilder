@@ -3,6 +3,7 @@
 import sys
 import os
 import os.path
+import io
 import pkginfo
 import glob
 import shutil
@@ -711,6 +712,19 @@ class Package(object):
 				print("%s differs from previous build" % wheel_name)
 				samesame = False
 				continue
+
+		path = os.path.join(savedir, "build-requires")
+		if not os.path.exists(path):
+			print("Previous build of %s did not write a build-requires file" % self.name)
+			samesame = False
+		else:
+			build_req_string = io.StringIO()
+			self.write_build_requires(build_req_string)
+
+			with open(path, "r") as f:
+				if f.read() != build_req_string:
+					print("Build requirements changed")
+					samesame = False
 
 		return samesame
 
