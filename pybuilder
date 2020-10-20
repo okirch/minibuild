@@ -266,6 +266,10 @@ class PackageBuildInfo(object):
 			_name = filename[:-7]
 			_name, _version = _name.rsplit('-', 1)
 			_type = 'sdist'
+		elif filename.endswith(".zip"):
+			_name = filename[:-4]
+			_name, _version = _name.rsplit('-', 1)
+			_type = 'sdist'
 		elif filename.endswith(".whl"):
 			_name, _version, _crap = filename.split('-', 2)
 			_type = 'bdist_wheel'
