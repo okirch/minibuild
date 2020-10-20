@@ -553,7 +553,7 @@ class SimplePackageIndex(PackageIndex):
 				builds.append(build)
 
 		if not builds:
-			raise ValueError("No <a> elements found in server response")
+			raise ValueError("No <a> elements found in server response - package not found")
 
 		name = builds[0].name
 		for b in builds:
