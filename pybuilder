@@ -231,6 +231,17 @@ class PackageBuildInfo(object):
 
 		self.add_hash(algo, m.hexdigest())
 
+	# We should introduce an uploader class for this
+	def upload(self, reponame):
+		assert(self.local_path)
+
+		print("Uploading %s to %s repository" % (self.local_path, reponame))
+		cmd = "twine upload --verbose --repository %s %s" % (reponame, self.local_path)
+
+		print("Running %s" % cmd)
+		if os.system(cmd) != 0:
+			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
+
 	@staticmethod
 	def parse_filename(filename):
 		# try to detect version and type by looking at the file name
@@ -566,7 +577,7 @@ class Package(object):
 		import hashlib
 
 		m = hashlib.new(md)
-		with open(self.path, "rb") as f:
+		with open(self.local_path, "rb") as f:
 			m.update(f.read())
 
 		return m.hexdigest()
@@ -691,23 +702,27 @@ class Package(object):
 			w = os.path.join(os.getcwd(), w)
 
 			build = PackageBuildInfo.from_local_file(w)
-			self.artefacts.append(Package(build))
+
+			for algo in ('md5', 'sha256'):
+				build.update_hash(algo)
+
+			self.artefacts.append(build)
 
 		return self.artefacts
 
 	def unchanged_from_previous_build(self, savedir):
 		samesame = True
 		for wheel in self.artefacts:
-			wheel_name = os.path.basename(wheel.path)
+			wheel_name = os.path.basename(wheel.local_path)
 			old_wheel_path = os.path.join(savedir, wheel_name)
-			print("Checking %s vs %s" % (wheel.path, old_wheel_path))
+			print("Checking %s vs %s" % (wheel.local_path, old_wheel_path))
 			if not os.path.exists(old_wheel_path):
 				print("%s does not exist" % old_wheel_path)
 				samesame = False
 				continue
 
 			old_wheel = WheelArchive(old_wheel_path)
-			new_wheel = WheelArchive(wheel.path)
+			new_wheel = WheelArchive(wheel.local_path)
 			if not self.wheels_identical(old_wheel, new_wheel):
 				print("%s differs from previous build" % wheel_name)
 				samesame = False
@@ -812,11 +827,6 @@ class Package(object):
 				req = PackageBuildInfo(m.group(1))
 				self.build_requires.append(req)
 
-	def upload(self, reponame):
-		print("Uploading %s to %s repository" % (self.path, reponame))
-		cmd = "twine upload --verbose --repository %s %s" % (reponame, self.path)
-		self.run(cmd)
-
 	def save_results(self, savedir):
 		if os.path.exists(savedir):
 			shutil.rmtree(savedir)
@@ -834,12 +844,14 @@ class Package(object):
 		self.save_build_artefacts(savedir)
 
 		for wheel in self.artefacts:
-			wheel.path = self.save_file(wheel.path, savedir)
+			wheel.local_path = self.save_file(wheel.local_path, savedir)
 
-			path = os.path.join(savedir, "%s-METADATA.txt" % wheel.NV)
+			path = os.path.join(savedir, "%s-METADATA.txt" % wheel.id())
 			with open(path, "w") as f:
-				print("Writing %s metadata to %s" % (wheel.NV, path))
-				f.write(wheel.get_metadata())
+				print("Writing %s metadata to %s" % (wheel.id(), path))
+
+				pi = getinfo_pkginfo(wheel.local_path)
+				f.write(pkginfo_as_metadata(pi))
 
 	def save_build_artefacts(self, savedir):
 		path = os.path.join(savedir, "build-artefacts")
