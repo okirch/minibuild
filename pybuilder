@@ -351,7 +351,7 @@ class DownloadFinder(object):
 
 		self.name = req.name
 		self.allow_prereleases = False
-		self.request_specifier = None
+		self.request_specifier = req.specifier
 		self.verbose = verbose
 
 	def release_match(self, release):
@@ -383,6 +383,7 @@ class DownloadFinder(object):
 				continue
 
 			for build in release.builds:
+				# print("%s: inspecting build %s" % (release.id(), build.filename))
 				if self.build_match(build):
 					if not build.verify_requires_python():
 						if self.verbose:
