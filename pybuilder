@@ -1246,6 +1246,7 @@ if opts.upload_to:
 
 build_factory = PythonBuildFactory("BUILD", opts.output_dir, prefer_git = opts.git)
 
+exit_code = 0
 for file in args:
 	print("Examining %s" % file)
 
@@ -1331,5 +1332,7 @@ for file in args:
 		print(e)
 		traceback.print_tb(sys.exc_info()[2])
 		traceback.format_exc()
+		exit_code = 1
 
 print("=== Done ===")
+exit(exit_code)
