@@ -54,6 +54,10 @@ def build_option_parser():
 
 (opts, args) = build_option_parser().parse_args()
 
+if not args:
+	print("Nothing to be done.")
+	exit(0)
+
 engine = brcoti_core.Engine.factory("python", opts)
 
 downloader = engine.downloader
