@@ -308,3 +308,19 @@ class Engine(Object):
 			import brcoti_python
 
 			return brcoti_python.engine_factory(opts)
+
+	# General helper function: clone a git repo to the given destdir, and
+	# optionally check out the tag requested (HEAD otherwise)
+	def unpack_git_helper(self, git_repo, tag = None, destdir = None):
+		if destdir:
+			run_command("git clone %s %s" % (git_repo, destdir))
+		else:
+			run_command("git clone %s" % (git_repo))
+
+		if tag:
+			cwd = os.getcwd()
+			try:
+				os.chdir(destdir)
+				run_command("git checkout %s" % tag)
+			finally:
+				os.chdir(cwd)

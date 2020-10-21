@@ -714,52 +714,9 @@ class WheelArchive(object):
 		return added_set, removed_set, changed_set
 
 class PythonBuildFactory(object):
-	def __init__(self, build_dir, state_dir, prefer_git = False):
+	def __init__(self, build_dir, state_dir):
 		self.build_dir = build_dir
 		self.state_dir = state_dir
-		self.prefer_git = prefer_git
-
-	def unpack(self, sdist):
-		archive = sdist.local_path
-		if not archive or not os.path.exists(archive):
-			raise ValueError("Unable to unpack %s: no local copy" % sdist.filename)
-
-		if os.path.exists(self.build_dir):
-			shutil.rmtree(self.build_dir)
-
-		unpacked_dir = None
-		if self.prefer_git:
-			unpacked_dir = self.try_unpack_git(sdist)
-			if not unpacked_dir:
-				raise ValueError("Unable to build from git - cannot determine git url")
-
-		if not unpacked_dir:
-			shutil.unpack_archive(archive, self.build_dir)
-			name, version, type = PythonBuildInfo.parse_filename(archive)
-			unpacked_dir = os.path.join(self.build_dir, name + "-" + version)
-
-		print("Unpacked %s to %s" % (archive, unpacked_dir))
-		return PythonBuildDirectory(sdist, unpacked_dir)
-
-	def try_unpack_git(self, sdist):
-		repo_url = sdist.git_url()
-		if not repo_url:
-			return None
-
-		return self.unpack_git(repo_url)
-
-	def unpack_git(self, git_repo):
-		unpacked_dir = os.path.join(self.build_dir, sdist.id())
-		self.run("git clone %s %s" % (git_repo, unpacked_dir))
-
-		cwd = os.getcwd()
-		try:
-			os.chdir(self._unpacked_dir)
-			brcoti_core.run_command("git checkout %s" % self.version)
-		finally:
-			os.chdir(cwd)
-
-		return unpacked_dir
 
 	def make_statedir(self, sdist, index):
 		savedir = os.path.join(self.state_dir, sdist.id())
@@ -1137,6 +1094,8 @@ class PythonEngine(brcoti_core.Engine):
 		else:
 			packageIndex = JSONPackageIndex()
 
+		self.prefer_git = opts.git
+
 		self.index = packageIndex
 
 		self.downloader = brcoti_core.Downloader()
@@ -1144,7 +1103,7 @@ class PythonEngine(brcoti_core.Engine):
 		if opts.upload_to:
 			self.uploader = PythonUploader(opts.upload_to)
 
-		self.build_factory = PythonBuildFactory("BUILD", opts.output_dir, prefer_git = opts.git)
+		self.build_factory = PythonBuildFactory("BUILD", opts.output_dir)
 
 	def build_info_from_local_file(self, path):
 		return PythonBuildInfo.from_local_file(file)
@@ -1154,10 +1113,42 @@ class PythonEngine(brcoti_core.Engine):
 		return finder.get_best_match(self.index)
 
 	def build_state_factory(self, sdist):
-		return self.build_factory.make_statedir(sdist, self.index)
+		savedir = os.path.join(self.build_factory.state_dir, sdist.id())
+		return PythonBuildState(savedir, self.index)
 
 	def build_unpack(self, sdist):
-		return self.build_factory.unpack(sdist)
+		archive = sdist.local_path
+		if not archive or not os.path.exists(archive):
+			raise ValueError("Unable to unpack %s: no local copy" % sdist.filename)
+
+		build_dir = self.build_factory.build_dir
+		if os.path.exists(build_dir):
+			shutil.rmtree(build_dir)
+
+		unpacked_dir = None
+		if self.prefer_git:
+			unpacked_dir = self.try_unpack_git(sdist, build_dir)
+
+		if not unpacked_dir:
+			shutil.unpack_archive(archive, build_dir)
+			name, version, type = PythonBuildInfo.parse_filename(archive)
+			unpacked_dir = os.path.join(build_dir, name + "-" + version)
+
+		print("Unpacked %s to %s" % (archive, unpacked_dir))
+		return PythonBuildDirectory(sdist, unpacked_dir)
+
+	def try_unpack_git(self, sdist, build_dir):
+		repo_url = sdist.git_url()
+		if not repo_url:
+			raise ValueError("Unable to build from git - cannot determine git url")
+
+		return self.unpack_git(sdist, repo_url, build_dir)
+
+	def unpack_git(self, sdist, git_repo, build_dir):
+		unpacked_dir = os.path.join(build_dir, sdist.id())
+		self.unpack_git_helper(git_repo, tag = sdist.version, destdir = unpacked_dir)
+		return unpacked_dir
+
 
 def engine_factory(opts):
 	return PythonEngine(opts)
