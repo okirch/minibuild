@@ -248,6 +248,18 @@ class PackageBuildInfo(object):
 
 		self.add_hash(algo, m.hexdigest())
 
+	def git_url(self):
+		url = self.home_page
+		if not url:
+			return None
+
+		url = url.replace('_', '-')
+		if not url or not "github.com" in url:
+			print("WARNING: Package homepage \"%s\" doesn't look like a git repo" % url)
+			return None
+
+		return url
+
 	@property
 	def is_source(self):
 		return self.type == 'sdist'
@@ -791,6 +803,8 @@ class PythonBuildFactory(object):
 		unpacked_dir = None
 		if self.prefer_git:
 			unpacked_dir = self.try_unpack_git(sdist)
+			if not unpacked_dir:
+				raise ValueError("Unable to build from git - cannot determine git url")
 
 		if not unpacked_dir:
 			shutil.unpack_archive(archive, self.build_dir)
@@ -807,11 +821,6 @@ class PythonBuildFactory(object):
 		return self.unpack_git(repo_url)
 
 	def unpack_git(self, git_repo):
-		git_repo = self._info.home_page
-		git_repo = git_repo.replace('_', '-')
-		if not git_repo or not "github.com" in git_repo:
-			raise ValueError("Package homepage \"%s\" doesn't look like a git repo" % git_repo)
-
 		unpacked_dir = os.path.join(self.build_dir, sdist.id())
 		self.run("git clone %s %s" % (git_repo, unpacked_dir))
 
