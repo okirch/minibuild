@@ -33,6 +33,11 @@ REQUIRED_HASHES = ('md5', 'sha256')
 
 def run_command(cmd):
 	print("Running %s" % cmd)
+
+	# Avoid messing up the order of our output and the output of subprocesses when
+	# stdout is redirected
+	sys.stdout.flush()
+	sys.stderr.flush()
 	if os.system(cmd) != 0:
 		raise ValueError("Command `%s' returned non-zero exit status" % cmd)
 
