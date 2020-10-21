@@ -303,8 +303,29 @@ class PackageBuildInfo(object):
 			_type = 'sdist'
 		elif _suffix == "whl":
 			# Remove the "py*-platform-arch" stuff from the version string
+			# FIXME: we should really return this information
 			_version = "-".join(_version.split("-")[:-3])
 			_type = 'bdist_wheel'
+		elif _suffix == "egg":
+			_version = "-".join(_version.split("-")[:-1])
+			_type = 'bdist_egg'
+		elif _suffix == "rpm":
+			# ipython and others distribute rpms via pypi
+			# split before the RPM arch specifier
+			k = _version.rindex('.')
+			_version = _version[:k]
+			_type = "rpm"
+		elif _suffix == "exe":
+			# Not sure if there's a standard naming scheme for windows executables
+			# Remove ".win-bla-somthing" if we find it
+			k = _version.find(".win")
+			if k > 0:
+				_version = _version[:k]
+			else:
+				k = _version.find(".py")
+				if k > 0:
+					_version = _version[:k]
+			_type = "exe"
 		else:
 			raise ValueError("Unable to parse file name \"%s\"" % filename)
 
@@ -419,7 +440,7 @@ class DownloadFinder(object):
 				if self.build_match(build):
 					if not build.verify_requires_python():
 						if self.verbose:
-							print("ignoring build %s (incompatible python requirement)" % build.filename)
+							print("ignoring build %s (requires python %s)" % (build.filename, build.requires_python))
 						continue
 
 					best_match = build
@@ -621,6 +642,9 @@ class SimplePackageIndex(PackageIndex):
 			# print("%s => (\"%s\", \"%s\", \"%s\")" % (filename, name, version, type))
 		except ValueError:
 			print("WARNING: Unable to parse filename \"%s\" in SimpleIndex response" % filename)
+			return None
+
+		if type == 'rpm' or type == 'exe':
 			return None
 
 		build = PackageBuildInfo(name, version, type)
