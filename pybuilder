@@ -808,7 +808,8 @@ class PythonBuildFactory(object):
 
 		if not unpacked_dir:
 			shutil.unpack_archive(archive, self.build_dir)
-			unpacked_dir = os.path.join(self.build_dir, sdist.id())
+			name, version, type = PackageBuildInfo.parse_filename(archive)
+			unpacked_dir = os.path.join(self.build_dir, name + "-" + version)
 
 		print("Unpacked %s to %s" % (archive, unpacked_dir))
 		return PythonBuildDirectory(sdist, unpacked_dir)
