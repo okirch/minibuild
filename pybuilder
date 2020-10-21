@@ -290,6 +290,8 @@ class PackageBuildInfo(object):
 		def split_suffix(name):
 			if name.endswith(".tar.gz"):
 				k = -7
+			elif name.endswith(".tar.bz2"):
+				k = -8
 			else:
 				k = name.rindex('.')
 			suffix = name[k+1:]
@@ -318,9 +320,7 @@ class PackageBuildInfo(object):
 		# weirdo names like jedi-0.8.0-final0
 		_name, _version = split_version(_name)
 
-		if _suffix == "tar.gz":
-			_type = 'sdist'
-		elif _suffix == "zip":
+		if _suffix in ("tar.gz", "tar.bz2", "zip"):
 			_type = 'sdist'
 		elif _suffix == "whl":
 			# Remove the "py*-platform-arch" stuff from the version string
