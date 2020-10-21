@@ -278,8 +278,11 @@ class BuildState(Object):
 			f.write(data)
 
 class Engine(Object):
-	def __init__(self, name):
+	def __init__(self, name, opts):
 		self.name = name
+
+		self.state_dir = opts.output_dir
+		self.build_dir = "BUILD"
 
 		self.downloader = None
 		self.uploader = None
@@ -298,6 +301,9 @@ class Engine(Object):
 
 	def build_state_factory(self, sdist):
 		self.mni()
+
+	def build_state_path(self, artefact_name):
+		return os.path.join(self.state_dir, artefact_name)
 
 	def build_unpack(self, sdist):
 		self.mni()

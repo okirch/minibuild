@@ -713,15 +713,6 @@ class WheelArchive(object):
 
 		return added_set, removed_set, changed_set
 
-class PythonBuildFactory(object):
-	def __init__(self, build_dir, state_dir):
-		self.build_dir = build_dir
-		self.state_dir = state_dir
-
-	def make_statedir(self, sdist, index):
-		savedir = os.path.join(self.state_dir, sdist.id())
-		return PythonBuildState(savedir, index)
-
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, sdist, unpacked_dir):
 		self.sdist = sdist
@@ -1086,7 +1077,7 @@ class PythonBuildState(brcoti_core.BuildState):
 
 class PythonEngine(brcoti_core.Engine):
 	def __init__(self, opts):
-		super(PythonEngine, self).__init__("python")
+		super(PythonEngine, self).__init__("python", opts)
 
 		if True:
 			index_url = 'http://localhost:8081/repository/pypi-group/'
@@ -1103,8 +1094,6 @@ class PythonEngine(brcoti_core.Engine):
 		if opts.upload_to:
 			self.uploader = PythonUploader(opts.upload_to)
 
-		self.build_factory = PythonBuildFactory("BUILD", opts.output_dir)
-
 	def build_info_from_local_file(self, path):
 		return PythonBuildInfo.from_local_file(file)
 
@@ -1113,7 +1102,7 @@ class PythonEngine(brcoti_core.Engine):
 		return finder.get_best_match(self.index)
 
 	def build_state_factory(self, sdist):
-		savedir = os.path.join(self.build_factory.state_dir, sdist.id())
+		savedir = self.build_state_path(sdist.id())
 		return PythonBuildState(savedir, self.index)
 
 	def build_unpack(self, sdist):
@@ -1121,7 +1110,7 @@ class PythonEngine(brcoti_core.Engine):
 		if not archive or not os.path.exists(archive):
 			raise ValueError("Unable to unpack %s: no local copy" % sdist.filename)
 
-		build_dir = self.build_factory.build_dir
+		build_dir = self.build_dir
 		if os.path.exists(build_dir):
 			shutil.rmtree(build_dir)
 
