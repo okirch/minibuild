@@ -1242,7 +1242,7 @@ class PythonBuildState(BuildState):
 					if not words:
 						continue
 					if words[0] == 'specifier':
-						req.fullreq = words[1]
+						req.fullreq = " ".join(words[1:])
 						continue
 
 					if words[0] == 'hash':
