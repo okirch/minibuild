@@ -1281,36 +1281,36 @@ for file in args:
 				continue
 
 		print("=== Unpacking %s ===" %(sdist.id()))
-		unpacked_dir = build_factory.unpack(sdist)
-		unpacked_dir.quiet = opts.quiet
+		build = build_factory.unpack(sdist)
+		build.quiet = opts.quiet
 
 		print("=== Building %s ===" %(sdist.id()))
-		built = unpacked_dir.build()
+		artefacts = build.build()
 
-		if not built:
+		if not artefacts:
 			raise ValueError("%s: nothing got built" % file)
 
 		print("=== Inspecting build dependencies ===")
-		unpacked_dir.guess_build_dependencies()
+		build.guess_build_dependencies()
 
-		unpacked_dir.finalize_build_depdendencies(downloader)
+		build.finalize_build_depdendencies(downloader)
 
-		if unpacked_dir.build_requires:
+		if build.build_requires:
 			print("Build requirements:")
-			sys.stdout.write(unpacked_dir.build_requires_as_string())
+			sys.stdout.write(build.build_requires_as_string())
 
 		print("=== Storing build results ===")
-		unpacked_dir.prepare_results(build_state)
+		build.prepare_results(build_state)
 
 		print("=== Checking whether artefacts changed from previous build ===")
-		if not opts.force and unpacked_dir.unchanged_from_previous_build(build_state):
+		if not opts.force and build.unchanged_from_previous_build(build_state):
 			print("%s artefacts have not changed since previous build" % sdist.id())
 			continue
 
 		if uploader:
 			print("=== Uploading build results to %s ===" % uploader.describe())
 			uploaded_source = False
-			for p in built:
+			for p in artefacts:
 				uploader.upload(p)
 				if p.is_source:
 					uploaded_source = True
@@ -1318,10 +1318,10 @@ for file in args:
 				uploader.upload(sdist)
 
 			build_state.commit()
-			unpacked_dir.cleanup()
+			build.cleanup()
 		else:
-			print("=== Leaving build results in %s ===" % unpacked_dir.location)
-			sys.stdout.write(unpacked_dir.build_artefacts_as_string())
+			print("=== Leaving build results in %s ===" % build.location)
+			sys.stdout.write(build.build_artefacts_as_string())
 
 		build_state.cleanup()
 
