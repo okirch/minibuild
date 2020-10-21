@@ -955,8 +955,15 @@ class PythonBuildDirectory(object):
 
 		return samesame
 
+	# Detect build requirements by parsing the pip.log file.
 	# There must be a smarter way to extract the build requirements than
 	# this...
+	#
+	# Note: this approach currently covers /all/ build requirements, direct
+	# as well as expanded. For instance, gri requires setuptools_scm, which
+	# in turn has a "requires-dist: toml; extra = 'toml'" in its metadata.
+	# This will also show up in pip.log as pip tries to install all
+	# required dependencies.
 	def guess_build_dependencies(self):
 		from packaging.requirements import Requirement
 		import re
@@ -976,8 +983,15 @@ class PythonBuildDirectory(object):
 				if req and ('Added' in l) and ('to build tracker' in l):
 					from urllib.parse import urldefrag, urlparse
 
-					m = re.search('Added ([^ ]*) from ([^ ]*)', l)
+					if " (from " in l:
+						# This is a dist requirement expanded from some direct build requirement.
+						# We don't do anything special with this for now; we just add it to our
+						# published set of build reqs
+						pass
+
+					m = re.search('Added (.*) from ([^ ]*)', l)
 					if not m:
+						print("Tried to match %s - regex failed" % l)
 						raise ValueError("regex match failed")
 
 					r = Requirement(m.group(1))
@@ -1009,6 +1023,7 @@ class PythonBuildDirectory(object):
 
 				m = re.search('to search for versions of (.*):', l)
 				if not m:
+					print("Tried to match %s - regex failed" % l)
 					raise ValueError("regex match failed")
 
 				req = PackageBuildInfo(m.group(1))
