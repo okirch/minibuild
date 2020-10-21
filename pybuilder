@@ -211,7 +211,7 @@ def get_python_version():
 	return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 def canonical_package_name(name):
-	return name.replace('_', '-').lower()
+	return name.replace('_', '-')
 
 class PackageBuildInfo(object):
 	def __init__(self, name, version = None, type = None):
@@ -581,9 +581,9 @@ class SimplePackageIndex(PackageIndex):
 		if not builds:
 			raise ValueError("No <a> elements found in server response - package not found")
 
-		name = builds[0].name
+		name = builds[0].name.lower()
 		for b in builds:
-			if b.name != name:
+			if b.name.lower() != name:
 				raise ValueError("Server response contains a mix of packages (%s and %s)" % (name, b.name))
 
 		releases = dict()
