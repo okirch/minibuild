@@ -266,21 +266,47 @@ class PackageBuildInfo(object):
 
 	@staticmethod
 	def parse_filename(filename):
-		# try to detect version and type by looking at the file name
-		_name = filename
-		if filename.endswith(".tar.gz"):
-			_name = filename[:-7]
-			_name, _version = _name.rsplit('-', 1)
+		def split_suffix(name):
+			if name.endswith(".tar.gz"):
+				k = -7
+			else:
+				k = name.rindex('.')
+			suffix = name[k+1:]
+			name = name[:k]
+			return name, suffix
+
+		def split_version(name):
+			components = name.split('-')
+			nlist = []
+			while components:
+				c = components[0]
+				if c[0].isdigit():
+					break
+				nlist.append(c)
+				del components[0]
+
+			name = "-".join(nlist)
+			version = "-".join(components)
+			return name, version
+
+		# First, separate the suffix from the file name
+		_name, _suffix = split_suffix(filename)
+
+		# Then, split the name into package name and version.
+		# Things get a bit hairy because we need to deal with
+		# weirdo names like jedi-0.8.0-final0
+		_name, _version = split_version(_name)
+
+		if _suffix == "tar.gz":
 			_type = 'sdist'
-		elif filename.endswith(".zip"):
-			_name = filename[:-4]
-			_name, _version = _name.rsplit('-', 1)
+		elif _suffix == "zip":
 			_type = 'sdist'
-		elif filename.endswith(".whl"):
-			_name, _version, _crap = filename.split('-', 2)
+		elif _suffix == "whl":
+			# Remove the "py*-platform-arch" stuff from the version string
+			_version = "-".join(_version.split("-")[:-3])
 			_type = 'bdist_wheel'
 		else:
-			raise ValueError("Unable to parse file name \"%s\"" % _name)
+			raise ValueError("Unable to parse file name \"%s\"" % filename)
 
 		return _name, _version, _type
 
@@ -592,7 +618,9 @@ class SimplePackageIndex(PackageIndex):
 
 		try:
 			name, version, type = PackageBuildInfo.parse_filename(filename)
+			# print("%s => (\"%s\", \"%s\", \"%s\")" % (filename, name, version, type))
 		except ValueError:
+			print("WARNING: Unable to parse filename \"%s\" in SimpleIndex response" % filename)
 			return None
 
 		build = PackageBuildInfo(name, version, type)
