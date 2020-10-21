@@ -226,6 +226,10 @@ class PackageBuildInfo(object):
 		self.local_path = None
 		self.hash = {}
 
+		# package info
+		self.home_page = None
+		self.author = None
+
 	def id(self):
 		if not self.version:
 			return self.name
@@ -503,6 +507,13 @@ class JSONPackageIndex(PackageIndex):
 		info = PackageInfo(name)
 
 		d = json.load(resp)
+		print(d['info'].keys())
+
+		ji = d['info']
+		info.home_page = ji['home_page']
+		info.author = ji['author']
+		print("home page is", info.home_page)
+
 		for (ver, files) in d['releases'].items():
 			relInfo = PackageReleaseInfo(name, ver)
 			info.add_release(relInfo)
