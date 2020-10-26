@@ -984,96 +984,41 @@ class PythonBuildState(brcoti_core.BuildState):
 
 		self.index = index
 
-	def rebuild_required(self):
-		index = self.index
+	def build_changed(self, req):
+		if req.fullreq:
+			finder = PythonBinaryDownloadFinder(req.fullreq)
+		else:
+			finder = PythonBinaryDownloadFinder(req.name)
 
-		path = self.get_old_path("build-artefacts")
-		if not os.path.exists(path):
-			print("Previous build did not create build-artefacts file")
-			return True
+		print("Build requires %s" % (finder.requirement))
 
-		path = self.get_old_path("build-requires")
-		if not os.path.exists(path):
-			print("Previous build did not create build-requires file")
-			return True
+		p = finder.get_best_match(self.index)
 
-		try:
-			req_list = self.parse_build_requires(path)
-		except:
-			print("Cannot parse build-requires file at %s" % path)
-			return True
-
-		for req in req_list:
-			if req.fullreq:
-				finder = PythonBinaryDownloadFinder(req.fullreq)
-			else:
-				finder = PythonBinaryDownloadFinder(req.name)
-
-			print("Build requires %s" % (finder.requirement))
-
-			p = finder.get_best_match(index)
-
-			print("  Best match available from package index: %s" % p.filename)
-			if req.version:
-				if req.version != p.version:
-					print("Building would pick %s-%s rather than %s-%s" % (
-						p.name, p.version,
-						req.name, req.version))
-					return True
-
-			match = False
-			for algo, md in req.hash.items():
-				print("  We are looking for %s %s %s" % (req.id(), algo, md))
-				have_md = p.hash.get(algo)
-				if have_md is None:
-					print("  => index does not provide %s hash for %s" % (algo, p.filename))
-					continue
-
-				print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
-				if have_md == md:
-					match = True
-
-			if not match:
-				print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
+		print("  Best match available from package index: %s" % p.filename)
+		if req.version:
+			if req.version != p.version:
+				print("Building would pick %s-%s rather than %s-%s" % (
+					p.name, p.version,
+					req.name, req.version))
 				return True
 
-			print("Build requirement did not change")
+		match = False
+		for algo, md in req.hash.items():
+			print("  We are looking for %s %s %s" % (req.id(), algo, md))
+			have_md = p.hash.get(algo)
+			if have_md is None:
+				print("  => index does not provide %s hash for %s" % (algo, p.filename))
+				continue
 
-		return False
+			print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
+			if have_md == md:
+				match = True
 
-	def parse_build_requires(self, path):
-		result = []
+		if not match:
+			print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
+			return True
 
-		with open(path, 'r') as f:
-			req = None
-			for l in f.readlines():
-				if not l:
-					continue
-
-				if l.startswith("require"):
-					name = l[7:].strip()
-					req = PythonBuildInfo(name)
-					result.append(req)
-					continue
-
-				if req is None:
-					raise ValueError("%s: no build info in this context" % (path, ))
-
-				if l.startswith(' '):
-					words = l.strip().split()
-					if not words:
-						continue
-					if words[0] == 'specifier':
-						req.fullreq = " ".join(words[1:])
-						continue
-
-					if words[0] == 'hash':
-						req.add_hash(words[1], words[2])
-						continue
-
-				raise ValueError("%s: unparseable line <%s>" % (path, l))
-
-		return result
+		print("Build requirement did not change")
 
 class PythonEngine(brcoti_core.Engine):
 	def __init__(self, opts):

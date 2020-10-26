@@ -277,6 +277,66 @@ class BuildState(Object):
 		with open(path, "w") as f:
 			f.write(data)
 
+	def rebuild_required(self):
+		path = self.get_old_path("build-artefacts")
+		if not os.path.exists(path):
+			print("Previous build did not create build-artefacts file")
+			return True
+
+		path = self.get_old_path("build-requires")
+		if not os.path.exists(path):
+			print("Previous build did not create build-requires file")
+			return True
+
+		try:
+			req_list = self.parse_build_requires(path)
+		except:
+			print("Cannot parse build-requires file at %s" % path)
+			return True
+
+		for req in req_list:
+			if self.build_changed(req):
+				return True
+
+			print("Build requirement %s did not change" % req.id())
+
+		return False
+
+	def parse_build_requires(self, path):
+		result = []
+
+		with open(path, 'r') as f:
+			req = None
+			for l in f.readlines():
+				if not l:
+					continue
+
+				if l.startswith("require"):
+					name = l[7:].strip()
+					req = PythonBuildInfo(name)
+					result.append(req)
+					continue
+
+				if req is None:
+					raise ValueError("%s: no build info in this context" % (path, ))
+
+				if l.startswith(' '):
+					words = l.strip().split()
+					if not words:
+						continue
+					if words[0] == 'specifier':
+						req.fullreq = " ".join(words[1:])
+						continue
+
+					if words[0] == 'hash':
+						req.add_hash(words[1], words[2])
+						continue
+
+				raise ValueError("%s: unparseable line <%s>" % (path, l))
+
+		return result
+
+
 class Engine(Object):
 	def __init__(self, name, opts):
 		self.name = name
