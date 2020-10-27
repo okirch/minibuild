@@ -28,15 +28,24 @@ import io
 import glob
 import shutil
 
-def run_command(cmd, ignore_exitcode = False):
-	print("Running %s" % cmd)
-
+def __pre_command():
 	# Avoid messing up the order of our output and the output of subprocesses when
 	# stdout is redirected
 	sys.stdout.flush()
 	sys.stderr.flush()
+
+def run_command(cmd, ignore_exitcode = False):
+	print("Running %s" % cmd)
+
+	__pre_command()
 	if os.system(cmd) != 0 and not ignore_exitcode:
 		raise ValueError("Command `%s' returned non-zero exit status" % cmd)
+
+def popen(cmd, mode = 'r'):
+	print("Running %s" % cmd)
+
+	__pre_command()
+	return os.popen(cmd, mode)
 
 class Object(object):
 	def mni(self):
