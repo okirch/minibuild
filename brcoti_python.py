@@ -754,70 +754,8 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 
 		return self.artefacts
 
-	def unchanged_from_previous_build(self, build_state):
-		if not build_state.exists():
-			print("%s was never built before" % self.sdist.id())
-			return False
-
-		samesame = True
-		for wheel in self.artefacts:
-			wheel_name = os.path.basename(wheel.local_path)
-
-			old_wheel_path = build_state.get_old_path(wheel_name)
-			print("Checking %s vs %s" % (wheel.local_path, old_wheel_path))
-			if not os.path.exists(old_wheel_path):
-				print("%s does not exist" % old_wheel_path)
-				samesame = False
-				continue
-
-			old_wheel = WheelArchive(old_wheel_path)
-			new_wheel = WheelArchive(wheel.local_path)
-			if not self.wheels_identical(old_wheel, new_wheel):
-				print("%s differs from previous build" % wheel_name)
-				samesame = False
-				continue
-
-		path = build_state.get_old_path("build-requires")
-		if not os.path.exists(path):
-			print("Previous build of %s did not write a build-requires file" % self.sdist.id())
-			samesame = False
-		else:
-			new_path = build_state.get_new_path("build-requires")
-
-			with open(path, "r") as old_f:
-				with open(new_path, "r") as new_f:
-					if old_f.read() != new_f.read():
-						print("Build requirements changed")
-						brcoti_core.run_command("diff -u %s %s" % (path, new_path), ignore_exitcode = True)
-						samesame = False
-
-		return samesame
-
-	def wheels_identical(self, old_wheel, new_wheel):
-		def print_delta(wheel, how, name_set):
-			print("%s: %s %d file(s)" % (wheel.basename, how, len(name_set)))
-			for name in name_set:
-				print("  %s" % name)
-
-		added_set, removed_set, changed_set = old_wheel.compare(new_wheel)
-
-		samesame = True
-		if added_set:
-			print_delta(new_wheel, "added", added_set)
-			samesame = False
-
-		if removed_set:
-			print_delta(new_wheel, "removed", removed_set)
-			samesame = False
-
-		if changed_set:
-			print_delta(new_wheel, "changed", changed_set)
-			samesame = False
-
-		if samesame:
-			print("%s: unchanged" % new_wheel.basename)
-
-		return samesame
+	def compare_build_artefacts(self, old_path, new_path):
+		return WheelArchive(old_path).compare(WheelArchive(new_path))
 
 	# Detect build requirements by parsing the pip.log file.
 	# There must be a smarter way to extract the build requirements than

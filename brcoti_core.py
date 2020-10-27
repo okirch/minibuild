@@ -215,6 +215,70 @@ class BuildDirectory(Object):
 	def build_requires_as_string(self):
 		self.mni()
 
+	def unchanged_from_previous_build(self, build_state):
+		if not build_state.exists():
+			print("%s was never built before" % self.sdist.id())
+			return False
+
+		samesame = True
+		for build in self.artefacts:
+			artefact_name = os.path.basename(build.local_path)
+
+			new_path = build.local_path
+			old_path = build_state.get_old_path(artefact_name)
+			print("Checking %s vs %s" % (new_path, old_path))
+			if not os.path.exists(old_path):
+				print("%s does not exist" % old_path)
+				samesame = False
+				continue
+
+			if not self.artefacts_identical(old_path, new_path):
+				print("%s differs from previous build" % artefact_name)
+				samesame = False
+				continue
+
+		path = build_state.get_old_path("build-requires")
+		if not os.path.exists(path):
+			print("Previous build of %s did not write a build-requires file" % self.sdist.id())
+			samesame = False
+		else:
+			new_path = build_state.get_new_path("build-requires")
+
+			with open(path, "r") as old_f:
+				with open(new_path, "r") as new_f:
+					if old_f.read() != new_f.read():
+						print("Build requirements changed")
+						brcoti_core.run_command("diff -u %s %s" % (path, new_path), ignore_exitcode = True)
+						samesame = False
+
+		return samesame
+
+	def artefacts_identical(self, old_path, new_path):
+		def print_delta(build, how, name_set):
+			print("%s: %s %d file(s)" % (build.basename, how, len(name_set)))
+			for name in name_set:
+				print("  %s" % name)
+
+		added_set, removed_set, changed_set = self.compare_build_artefacts(old_path, new_path)
+
+		samesame = True
+		if added_set:
+			print_delta(new_path, "added", added_set)
+			samesame = False
+
+		if removed_set:
+			print_delta(new_path, "removed", removed_set)
+			samesame = False
+
+		if changed_set:
+			print_delta(new_path, "changed", changed_set)
+			samesame = False
+
+		if samesame:
+			print("%s: unchanged" % new_path)
+
+		return samesame
+
 class BuildState(Object):
 	def __init__(self, savedir):
 		import tempfile
