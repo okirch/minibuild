@@ -28,8 +28,6 @@ import shutil
 
 import brcoti_core
 
-REQUIRED_HASHES = ('md5', 'sha256')
-
 def getinfo_pkginfo(path):
 
 	if path.endswith(".whl"):
@@ -361,7 +359,7 @@ class PythonBuildInfo(brcoti_core.PackageBuildInfo):
 		build.filename = filename
 		build.local_path = path
 
-		for algo in REQUIRED_HASHES:
+		for algo in PythonEngine.REQUIRED_HASHES:
 			build.update_hash(algo)
 
 		return build
@@ -754,7 +752,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 
 			build = PythonBuildInfo.from_local_file(w)
 
-			for algo in REQUIRED_HASHES:
+			for algo in PythonEngine.REQUIRED_HASHES:
 				build.update_hash(algo)
 
 			self.artefacts.append(build)
@@ -906,7 +904,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		tempdir = None
 		for req in self.build_requires:
 			missing_some = False
-			for algo in REQUIRED_HASHES:
+			for algo in PythonEngine.REQUIRED_HASHES:
 				if req.hash.get(algo) is None:
 					if not missing_some:
 						print("%s: update missing hash(es)" % req.id())
@@ -946,7 +944,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 			b.write("wheel %s\n" % wheel.name)
 			b.write("  version %s\n" % wheel.version)
 
-			for algo in REQUIRED_HASHES:
+			for algo in PythonEngine.REQUIRED_HASHES:
 				b.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
 		return b.getvalue()
 
@@ -1021,6 +1019,8 @@ class PythonBuildState(brcoti_core.BuildState):
 		print("Build requirement did not change")
 
 class PythonEngine(brcoti_core.Engine):
+	REQUIRED_HASHES = ('md5', 'sha256')
+
 	def __init__(self, opts):
 		super(PythonEngine, self).__init__("python", opts)
 
