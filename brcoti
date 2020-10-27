@@ -64,6 +64,8 @@ if not args:
 
 engine = brcoti_core.Engine.factory(opts.engine, opts)
 
+engine.prepare_environment()
+
 downloader = engine.downloader
 uploader = engine.uploader
 

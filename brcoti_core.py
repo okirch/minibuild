@@ -420,6 +420,10 @@ class Engine(Object):
 		self.downloader = None
 		self.uploader = None
 
+	def prepare_environment(self):
+		# This is a no-op by default
+		pass
+
 	def downloader(self):
 		return Downloader()
 
