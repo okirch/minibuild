@@ -34,6 +34,10 @@ def build_option_parser():
 	import optparse
 
 	parser = optparse.OptionParser(usage = "blah")
+
+	parser.add_option('--engine', default = "python",
+		help = "Build engine to use (defaults to python)")
+
 	parser.add_option('--debug', default = False, action = 'store_true',
                 help = "Enable debugging output")
 	parser.add_option('--quiet', default = False, action = 'store_true',
@@ -58,7 +62,7 @@ if not args:
 	print("Nothing to be done.")
 	exit(0)
 
-engine = brcoti_core.Engine.factory("python", opts)
+engine = brcoti_core.Engine.factory(opts.engine, opts)
 
 downloader = engine.downloader
 uploader = engine.uploader
