@@ -482,10 +482,18 @@ class Engine(Object):
 
 	@staticmethod
 	def factory(name, opts):
+		print("Create %s engine" % name)
 		if name == 'python':
 			import brcoti_python
 
 			return brcoti_python.engine_factory(opts)
+
+		if name == 'ruby':
+			import brcoti_ruby
+
+			return brcoti_ruby.engine_factory(opts)
+
+		raise NotImplementedError("No build engine for \"%s\"" % name)
 
 	# General helper function: clone a git repo to the given destdir, and
 	# optionally check out the tag requested (HEAD otherwise)
