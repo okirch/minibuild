@@ -71,7 +71,7 @@ exit_code = 0
 for file in args:
 	print("Examining %s" % file)
 
-	if os.path.exists(file):
+	if os.path.isfile(file):
 		sdist = engine.build_info_from_local_file(file)
 
 		if not sdist.is_source:
