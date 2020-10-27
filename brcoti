@@ -88,6 +88,11 @@ for file in args:
 	else:
 		sdist = engine.build_source_locate(file)
 
+		if sdist is None:
+			print("FAILED to locate source for %s" % file)
+			exit_code = 1
+			continue
+
 	print("=== Package %s ===" %(sdist.id()))
 	try:
 		build_state = engine.build_state_factory(sdist)
