@@ -119,7 +119,7 @@ for file in args:
 		print("=== Inspecting build dependencies ===")
 		build.guess_build_dependencies()
 
-		build.finalize_build_depdendencies(downloader)
+		engine.finalize_build_depdendencies(build)
 
 		if build.build_requires:
 			print("Build requirements:")

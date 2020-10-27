@@ -441,6 +441,45 @@ class Engine(Object):
 	def build_unpack(self, sdist):
 		self.mni()
 
+	def finalize_build_depdendencies(self, build):
+		tempdir = None
+		for req in build.build_requires:
+			missing = []
+			for algo in self.REQUIRED_HASHES:
+				if req.get_hash(algo) is None:
+					missing.append(algo)
+
+			if not missing:
+				continue
+
+			print("%s: update missing hash(es): %s" % (req.id(), " ".join(missing)))
+
+			if not tempdir:
+				import tempfile
+
+				tempdir = tempfile.TemporaryDirectory(prefix = "build-deps-")
+
+			if req.url is not None:
+				self.downloader.download(req, tempdir.name)
+				for algo in missing:
+					req.update_hash(algo)
+			else:
+				resolved_req = self.resolve_build_req(req)
+				if not resolved_req:
+					raise ValueError("Unable to resolve build dependency %s" % req.name)
+				self.downloader.download(resolved_req, tempdir.name)
+
+				for algo in missing:
+					resolved_req.update_hash(algo)
+					req.add_hash(algo, resolved_req.hash[algo])
+
+		if tempdir:
+			tempdir.cleanup()
+
+
+	def resolve_build_req(self, req):
+		self.mni()
+
 	@staticmethod
 	def factory(name, opts):
 		if name == 'python':

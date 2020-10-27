@@ -833,27 +833,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 				if not self.quiet:
 					print("Found requirement %s" % req.name)
 
-	def finalize_build_depdendencies(self, downloader):
-		tempdir = None
-		for req in self.build_requires:
-			missing_some = False
-			for algo in PythonEngine.REQUIRED_HASHES:
-				if req.hash.get(algo) is None:
-					if not missing_some:
-						print("%s: update missing hash(es)" % req.id())
-
-					if not tempdir:
-						import tempfile
-
-						tempdir = tempfile.TemporaryDirectory(prefix = "pyreqs-")
-
-					downloader.download(req, tempdir.name)
-					req.update_hash(algo)
-					missing_some = True
-
-		if tempdir:
-			tempdir.cleanup()
-
 	def prepare_results(self, build_state):
 		self.maybe_save_file(build_state, "build.log")
 		self.maybe_save_file(build_state, "pip.log")
@@ -1016,6 +995,8 @@ class PythonEngine(brcoti_core.Engine):
 		self.unpack_git_helper(git_repo, tag = sdist.version, destdir = unpacked_dir)
 		return unpacked_dir
 
+	def resolve_build_req(self, req):
+		pass
 
 def engine_factory(opts):
 	return PythonEngine(opts)
