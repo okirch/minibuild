@@ -51,8 +51,13 @@ def build_option_parser():
 
 	parser.add_option('--output-dir', default = "OUTPUT",
 		help = "Directory to write output files to (defaults to OUTPUT)")
+
 	parser.add_option('--upload-to', default = None,
 		help = "Repository to upload packages to")
+	parser.add_option('--repo-user', default = None,
+		help = "Repository user for uploading packages")
+	parser.add_option('--repo-password', default = None,
+		help = "Repository password for uploading packages")
 
 	return parser
 

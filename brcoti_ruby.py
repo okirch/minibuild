@@ -307,11 +307,17 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		# platform is usually "ruby", but can also be "java-something"
 		gem_list = self._latest_specs()
 
+		print("Locating %s in %s/latest_specs" % (name, self.url))
 		version = None
 		for gem in gem_list:
 			if gem[0] == name:
 				version_list = gem[1]
-				version = version_list[0]
+				# weird. rubygems.org always gives us an array of versions,
+				# but nexus seems to give us a single version object
+				if isinstance(version_list, ruby_utils.Ruby.GemVersion):
+					version = str(version_list)
+				else:
+					version = version_list[0]
 				if gem[2] != 'ruby':
 					raise ValueError("Cannot use %s-%s: platform is \"%s\"" % (name, version, gem[2]))
 				break
@@ -424,19 +430,44 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 
 		return resp.status == 200
 
-# Upload package using twine
+# Upload package using "gem nexus"
+# You need to have the nexus gem installed for this
 class RubyUploader(brcoti_core.Uploader):
-	def __init__(self, repo):
-		self.repo = repo
+	def __init__(self, url, user, password):
+		self.url = url
+		self.config_written = False
+
+		assert(user)
+		assert(password)
+
+		self.user = user
+		self.password = password
 
 	def describe(self):
-		return "Ruby repository \"%s\"" % self.repo
+		return "Ruby repository \"%s\"" % self.url
 
 	def upload(self, build):
 		assert(build.local_path)
 
-		print("Uploading %s to %s repository" % (build.local_path, self.repo))
-		raise NotImplementedError("Upload to gemspec repo not yet implemented")
+		self.prepare_config()
+
+		print("Uploading %s to %s repository" % (build.local_path, self.url))
+		brcoti_core.run_command("gem nexus %s" % build.local_path)
+
+	def prepare_config(self):
+		if not self.config_written:
+			import basicauth
+
+			home = os.getenv("HOME")
+			assert(home)
+			path = os.path.join(home, ".gem", "nexus")
+
+			with open(path, "w") as f:
+				f.writelines("---\n:url: %s\n:authorization: %s\n" % (
+					self.url,
+					basicauth.encode(self.user, self.password)))
+
+			self.config_written = True
 
 class GemFile(object):
 	def __init__(self, path):
@@ -702,15 +733,32 @@ class RubyEngine(brcoti_core.Engine):
 	def __init__(self, opts):
 		super(RubyEngine, self).__init__("ruby", opts)
 
-		index_url = 'http://localhost:8081/repository/ruby-group/'
-		self.index = RubySpecIndex(url = index_url)
+		self.index_url = 'http://localhost:8081/repository/ruby-group/'
+		self.index = RubySpecIndex(url = self.index_url)
 
 		self.prefer_git = opts.git
 
 		self.downloader = brcoti_core.Downloader()
 
 		if opts.upload_to:
-			self.uploader = RubyUploader(opts.upload_to)
+			url = self.index_url.replace("/ruby-group", "/ruby-" + opts.upload_to)
+			self.uploader = RubyUploader(url, user = opts.repo_user, password = opts.repo_password)
+
+	def prepare_environment(self):
+		urls = []
+		need_to_add = False
+
+		with brcoti_core.popen("gem sources --list") as f:
+			for l in f.readlines():
+				l = l.strip()
+				if l == self.index_url:
+					need_to_add = False
+				elif l.startswith("http"):
+					urls.append(l)
+		for url in urls:
+			brcoti_core.run_command("gem sources --remove %s" % url)
+		if need_to_add:
+			brcoti_core.run_command("gem sources --add %s" % self.index_url)
 
 	def build_info_from_local_file(self, path):
 		return RubyBuildInfo.from_local_file(path)
