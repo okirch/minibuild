@@ -82,7 +82,7 @@ class RubyBuildInfo(brcoti_core.PackageBuildInfo):
 
 	@property
 	def is_source(self):
-		return self.type == 'sdist'
+		return self.type == 'source'
 
 	def verify_minimum_version(self, my_version, req_version):
 		import ruby_utils
