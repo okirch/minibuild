@@ -67,11 +67,20 @@ class PackageBuildInfo(Object):
 		self.url = None
 		self.local_path = None
 
+		self.hash = {}
+
 	def id(self):
 		self.nmi()
 
 	def git_url(self):
 		self.nmi()
+
+	def get_hash(self, algo):
+		return self.hash.get(algo)
+
+	def add_hash(self, algo, md):
+		# print("%s %s=%s" % (self.filename, algo, md))
+		self.hash[algo] = md
 
 	@property
 	def is_source(self):

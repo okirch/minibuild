@@ -214,7 +214,6 @@ class PythonBuildInfo(brcoti_core.PackageBuildInfo):
 
 		self.fullreq = None
 		self.filename = None
-		self.hash = {}
 
 		# package info
 		self.home_page = None
@@ -224,10 +223,6 @@ class PythonBuildInfo(brcoti_core.PackageBuildInfo):
 		if not self.version:
 			return self.name
 		return "%s-%s" % (self.name, self.version)
-
-	def add_hash(self, algo, md):
-		# print("%s %s=%s" % (self.filename, algo, md))
-		self.hash[algo] = md
 
 	def update_hash(self, algo):
 		import hashlib
