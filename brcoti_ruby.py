@@ -713,7 +713,7 @@ class RubyEngine(brcoti_core.Engine):
 			self.uploader = RubyUploader(opts.upload_to)
 
 	def build_info_from_local_file(self, path):
-		return RubyBuildInfo.from_local_file(file)
+		return RubyBuildInfo.from_local_file(path)
 
 	def build_source_locate(self, req_string, verbose = False):
 		finder = RubySourceDownloadFinder(req_string, verbose)
