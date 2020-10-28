@@ -214,36 +214,101 @@ class Ruby:
 	def parse_dependency(string):
 		return Ruby.GemDependency.parse(string)
 
+	class GemSpec_2_x:
+		signature = (
+				# 'specification_version',
+				'unknown1',		# int, usually 4
+				'name',			# string
+				'version',		# Gem::Version
+				'date',			# Time() with instance vars
+				'summary',		# string
+				'required_ruby_version', # Gem::Dependency
+				'required_rubygems_version', # Gem::Dependency
+				'platform',		# string
+				'dependencies',		# array of Gem::Dependencies
+				'unknown2',		# usually empty string
+				'email',		# string or array of strings
+				'author',		# string or array of strings
+				'description',		# string
+				'homepage',		# string
+				'unknown3',		# boolean
+				'unknown4',		# dup of platform (ie "ruby")
+				'licenses',		# array of strings
+				'metadata',		# hash
+		)
+
 	class GemSpecification(object):
 		def __init__(self):
-			pass
+			self.name = None
+			self.version = None
+			self.summary = None
+			self.dependencies = None
+			self.required_ruby_version = None
+			self._required_rubygems_version = None
+			self.metadata = None
+			self._emails = []
+			self._authors = []
 
-		_load_sig = (
-				'specification_version',
-				'unknown1',
-				'name',
-				'version',
-				'date',
-				'summary',
-				'required_ruby_version',
-				'required_rubygems_version',
-				'platform',
-				'dependencies',
-				'unknown2',
-				'email',
-				'authors',
-				'description',
-				'homepage',
-				'unknown3',		# boolean
-				'unknown4',		# yet another requirement - dup of required_rubygems_version?
-				'licenses',
-				'metadata',
-		)
+		@property
+		def email(self):
+			if len(self._emails):
+				return self._emails[0]
+			return None
+
+		@email.setter
+		def email(self, value):
+			if type(value) == list:
+				self._emails = value
+			else:
+				self._emails = [value]
+
+		@property
+		def author(self):
+			if len(self._authors):
+				return self._authors[0]
+			return None
+
+		@author.setter
+		def author(self, value):
+			if type(value) == list:
+				self._authors = value
+			else:
+				self._authors = [value]
+
+		@property
+		def required_rubygems_version(self):
+			return self._required_rubygems_version
+
+		@required_rubygems_version.setter
+		def required_rubygems_version(self, value):
+			if not isinstance(value, Ruby.GemRequirement):
+				raise ValueError("marshalled gemspec for %s-%s specifies invalid required_rubygems_version=\"%s\"" % (
+					self.name, self.version, value
+				))
+				return
+			self._required_rubygems_version = value
 
 		def load(self, data):
 			assert(isinstance(data, RubyTypes.Array))
 
-			for attr_name, obj in zip(self._load_sig, data.value):
+			gemspec_version = data.value.pop(0).convert()
+			if gemspec_version.startswith("2.") or \
+			   gemspec_version.startswith("3."):
+				sig = Ruby.GemSpec_2_x.signature
+			else:
+				if True:
+					print("Unknown gemspec version %s" % gemspec_version)
+					print("Data:")
+					for i in range(len(data.value)):
+						print(i, data.value[i])
+
+				raise ValueError("Don't know how to deal with gemspec version %s data" % gemspec_version)
+
+			if len(data.value) != len(sig):
+				print("WARNING: GemSpecification.load: gemspec ver %s has %u elements (expected %u)" % (
+					gemspec_version, len(data.value), len(sig)))
+
+			for attr_name, obj in zip(sig, data.value):
 				try:
 					if obj is not None and type(obj) != bool:
 						value = obj.convert()

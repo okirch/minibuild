@@ -403,10 +403,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		build.filename = "%s-%s.gem" % (gemspec.name, gemspec.version)
 		build.url = "%s/gems/%s" % (self.url, build.filename)
 
-		if type(gemspec.authors) == list:
-			build.author = gemspec.authors[0]
-		else:
-			build.author = gemspec.authors
+		build.author = gemspec.author
 		build.homepage = gemspec.homepage
 
 		if False:
