@@ -142,13 +142,8 @@ for file in args:
 
 		if uploader:
 			print("=== Uploading build results to %s ===" % uploader.describe())
-			uploaded_source = False
 			for p in artefacts:
 				uploader.upload(p)
-				if p.is_source:
-					uploaded_source = True
-			if not uploaded_source:
-				uploader.upload(sdist)
 
 			build_state.commit()
 			build.cleanup()

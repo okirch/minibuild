@@ -850,6 +850,10 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 				pkginfo_as_metadata(pi),
 				"%s metadata" % wheel.id())
 
+		# Always upload the source tarball with the build artefacts
+		if self.sdist not in self.artefacts:
+			self.artefacts.append(self.sdist)
+
 	def build_artefacts_as_string(self):
 		b = io.StringIO()
 		for wheel in self.artefacts:
