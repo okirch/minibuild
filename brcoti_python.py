@@ -828,7 +828,14 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 					print("Tried to match %s - regex failed" % l)
 					raise ValueError("regex match failed")
 
-				req = PythonBuildInfo(m.group(1))
+				name = m.group(1)
+				if name == 'pip':
+					# We do not explicitly track dependencies on pip and possibly
+					# other packages that are already installed.
+					req = None
+					continue
+
+				req = PythonBuildInfo(name)
 				self.build_requires.append(req)
 				if not self.quiet:
 					print("Found requirement %s" % req.name)
