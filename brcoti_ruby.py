@@ -537,12 +537,12 @@ class GemFile(object):
 			# Forces a mis-compare in the caller
 			return self.path
 
-		return tarfile.TarFile(fileobj = f, mode = 'r')
+		return tarfile.open(fileobj = f, mode = 'r:gz')
 
 	@staticmethod
 	def tar_member_names(tar_file):
 		result = set()
-		for member in tar_file.members():
+		for member in tar_file.getmembers():
 			if member.isfile():
 				result.add(member.name)
 
@@ -550,7 +550,7 @@ class GemFile(object):
 
 	@staticmethod
 	def get_member_data(tar_file, name):
-		return tar_file.extractfile(name)
+		return tar_file.extractfile(name).read()
 
 	def get_metadata(self):
 		import gzip

@@ -263,8 +263,8 @@ class BuildDirectory(Object):
 		return samesame
 
 	def artefacts_identical(self, old_path, new_path):
-		def print_delta(build, how, name_set):
-			print("%s: %s %d file(s)" % (build.basename, how, len(name_set)))
+		def print_delta(path, how, name_set):
+			print("%s: %s %d file(s)" % (path, how, len(name_set)))
 			for name in name_set:
 				print("  %s" % name)
 
