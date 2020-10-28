@@ -383,9 +383,9 @@ class RubyTypes:
 			return obj
 
 	class UserMarshal(GenericObject):
-		def __init__(self, clazz, value):
+		def __init__(self, clazz):
 			super(RubyTypes.UserMarshal, self).__init__(clazz)
-			self.value = value
+			self.value = None
 
 		def _constructor(self):
 			return self.clazz + ".marshal_load(" + str(self.value) + ")"
@@ -396,11 +396,13 @@ class RubyTypes:
 			return obj
 
 	class UserDefined(GenericObject):
-		def __init__(self, clazz, data):
+		def __init__(self, clazz):
 			super(RubyTypes.UserDefined, self).__init__(clazz)
-			self.data = data
+			self.data = None
 
 		def _constructor(self):
+			if self.data is None:
+				return "<>"
 			if len(self.data) > 100:
 				return self.clazz + ".load(" + str(self.data[:100]) + "...)"
 			else:
@@ -478,7 +480,7 @@ class Unmarshal(object):
 	def from_bytes(data, quiet = True):
 		import io
 
-		return Unmarshal.from_file(io.BytesIO(data))
+		return Unmarshal.from_file(io.BytesIO(data), quiet)
 
 	@staticmethod
 	def from_path(path, quiet = True):
@@ -571,12 +573,12 @@ class Unmarshal(object):
 			return self.process_symbol()
 		if cc == b';':
 			return self.process_symbol_reference()
+		if cc == b'i':
+			return self.process_int()
 		if cc == b'@':
 			return self.process_object_reference()
 
-		if cc == b'i':
-			result = self.process_int()
-		elif cc == b'[':
+		if cc == b'[':
 			result = self.process_array()
 		elif cc == b'I':
 			result = self.process_object_with_instance_vars()
@@ -593,14 +595,15 @@ class Unmarshal(object):
 		else:
 			raise NotImplementedError("Unknown object type %s" % cc)
 
-		self.display("%s = %s" % (result.__class__.__name__, result))
 		self.register_object(result)
+		self.display("%d: %s = %s" % (result.id, result.__class__.__name__, result))
 
 		return result
 
 	def process_object_reference(self):
-		obj = self.lookup_object(self.next_fixnum())
-		self.display("Referenced object %s" % obj)
+		obj_id = self.next_fixnum()
+		obj = self.lookup_object(obj_id)
+		self.display("Referenced object %d: %s" % (obj_id, obj))
 		return obj
 
 	def process_array(self):
@@ -608,6 +611,9 @@ class Unmarshal(object):
 		self.display("Decoding array with %d objects" % count)
 
 		result = RubyTypes.Array()
+
+		# Register the array before we start processing its members;
+		# otherwise object references will be off.
 		self.register_object(result)
 
 		for i in range(count):
@@ -633,10 +639,13 @@ class Unmarshal(object):
 		h = self.hush()
 
 		classname = self.process()
+
+		object = RubyTypes.GenericObject(classname)
+		self.register_object(object)
+
 		count = self.next_fixnum()
 		self.display("Defining %s with %d instance variable(s)" % (classname, count))
 
-		object = RubyTypes.GenericObject(classname)
 		for i in range(count):
 			name = self.process()
 			value = self.process()
@@ -646,14 +655,22 @@ class Unmarshal(object):
 
 	def process_user_marshal(self):
 		symbol = self.process()
-		data = self.process()
 
-		return RubyTypes.UserMarshal(symbol, data)
+		object = RubyTypes.UserMarshal(symbol)
+		self.register_object(object)
+
+		object.value = self.process()
+
+		return object
 
 	def process_user_defined(self):
 		symbol = self.process()
-		data = self.next_byteseq()
-		return RubyTypes.UserDefined(symbol, data)
+
+		object = RubyTypes.UserDefined(symbol)
+		self.register_object(object)
+
+		object.data = self.next_byteseq()
+		return object
 
 	def process_hash(self):
 		result = RubyTypes.Hash()
