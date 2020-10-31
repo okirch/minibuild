@@ -201,10 +201,28 @@ class Uploader(Object):
 class BuildDirectory(Object):
 	def __init__(self, build_dir):
 		self.unpacked_dir = build_dir
+		self.directory = None
+
+	def cleanup(self):
+		if self.directory:
+			self.directory.rmtree()
 
 	@property
 	def location(self):
 		return self.unpacked_dir
+
+	# General helper function: clone a git repo to the given destdir, and
+	# optionally check out the tag requested (HEAD otherwise)
+	def unpack_git_helper(self, git_repo, tag = None, destdir = None):
+		assert(destdir) # for now
+
+		if destdir:
+			self.compute.run_command("git clone %s %s" % (git_repo, destdir))
+		else:
+			self.compute.run_command("git clone %s" % (git_repo))
+
+		if tag:
+			self.compute.run_command("git checkout %s" % tag, working_dir = destdir)
 
 	def build(self, quiet = False):
 		self.mni()
@@ -431,6 +449,12 @@ class ComputeResourceFS(Object):
 	def basename(self):
 		return os.path.basename(self.path)
 
+	def rmtree(self):
+		path = self.hostpath()
+		if os.path.exists(path):
+			print("Recursively remove %s" % path)
+			shutil.rmtree(path)
+
 	def hostpath(self):
 		self.mni()
 
@@ -617,16 +641,3 @@ class Engine(Object):
 			return brcoti_ruby.engine_factory(compute, opts)
 
 		raise NotImplementedError("No build engine for \"%s\"" % name)
-
-	# General helper function: clone a git repo to the given destdir, and
-	# optionally check out the tag requested (HEAD otherwise)
-	def unpack_git_helper(self, git_repo, tag = None, destdir = None):
-		assert(destdir) # for now
-
-		if destdir:
-			self.compute.run_command("git clone %s %s" % (git_repo, destdir))
-		else:
-			self.compute.run_command("git clone %s" % (git_repo))
-
-		if tag:
-			self.compute.run_command("git checkout %s" % tag, working_dir = destdir)

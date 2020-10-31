@@ -707,13 +707,49 @@ class WheelArchive(object):
 		return added_set, removed_set, changed_set
 
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
-	def __init__(self, compute, sdist, unpacked_dir):
+	def __init__(self, compute, build_base):
 		self.compute = compute
-		self.sdist = sdist
-		self.directory = self.compute.get_directory(unpacked_dir)
+		self.sdist = None
+		self.directory = None
+		self.build_base = self.compute.get_directory(build_base)
 		self.quiet = False
 
 		self.artefacts = []
+
+	def unpacked_dir(self):
+		if not self.directory:
+			return "<none>"
+
+		return self.directory.path
+
+	def unpack_archive(self, sdist):
+		archive = sdist.local_path
+		if not archive or not os.path.exists(archive):
+			raise ValueError("Unable to unpack %s: you need to download the archive first" % sdist.filename)
+
+		name, version, type = PythonBuildInfo.parse_filename(archive)
+		relative_unpack_dir = name + "-" + version
+
+		d = self.build_base.lookup(relative_unpack_dir)
+		if d is not None:
+			d.rmtree()
+
+		shutil.unpack_archive(archive, self.build_base.hostpath())
+
+		self.directory = self.build_base.lookup(relative_unpack_dir)
+		if not self.directory or not self.directory.isdir():
+			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
+
+		self.sdist = sdist
+
+	def unpack_git(self, sdist, destdir):
+		repo_url = sdist.git_url()
+		if not repo_url:
+			raise ValueError("Unable to build from git - cannot determine git url")
+
+		self.unpack_git_helper(repo_url, tag = sdist.version, destdir = sdist.id())
+
+		self.sdist = sdist
 
 	def build(self, quiet = False):
 		assert(self.directory)
@@ -889,9 +925,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		write_func(buffer)
 		return build_state.write_file(name, buffer.getvalue())
 
-	def cleanup(self):
-		pass
-
 class PythonBuildState(brcoti_core.BuildState):
 	def __init__(self, savedir, index):
 		super(PythonBuildState, self).__init__(savedir)
@@ -970,39 +1003,14 @@ class PythonEngine(brcoti_core.Engine):
 		return PythonBuildState(savedir, self.index)
 
 	def build_unpack(self, sdist):
-		archive = sdist.local_path
-		if not archive or not os.path.exists(archive):
-			raise ValueError("Unable to unpack %s: no local copy" % sdist.filename)
-
-		# This should happen inside the ComputeNode
-		build_dir = self.build_dir
-		if os.path.exists(build_dir):
-			shutil.rmtree(build_dir)
-
-		unpacked_dir = None
+		bd = PythonBuildDirectory(self.compute, self.build_dir)
 		if self.prefer_git:
-			unpacked_dir = self.try_unpack_git(sdist, build_dir)
+			bd.unpack_git(sdist, sdist.id())
+		else:
+			bd.unpack_archive(sdist)
 
-		if not unpacked_dir:
-			# This should happen inside the ComputeNode
-			shutil.unpack_archive(archive, build_dir)
-			name, version, type = PythonBuildInfo.parse_filename(archive)
-			unpacked_dir = os.path.join(build_dir, name + "-" + version)
-
-		print("Unpacked %s to %s" % (archive, unpacked_dir))
-		return PythonBuildDirectory(self.compute, sdist, unpacked_dir)
-
-	def try_unpack_git(self, sdist, build_dir):
-		repo_url = sdist.git_url()
-		if not repo_url:
-			raise ValueError("Unable to build from git - cannot determine git url")
-
-		return self.unpack_git(sdist, repo_url, build_dir)
-
-	def unpack_git(self, sdist, git_repo, build_dir):
-		unpacked_dir = os.path.join(build_dir, sdist.id())
-		self.unpack_git_helper(git_repo, tag = sdist.version, destdir = unpacked_dir)
-		return unpacked_dir
+		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
+		return bd
 
 	def resolve_build_req(self, req):
 		pass
