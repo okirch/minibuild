@@ -708,48 +708,13 @@ class WheelArchive(object):
 
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, build_base):
-		self.compute = compute
-		self.sdist = None
-		self.directory = None
-		self.build_base = self.compute.get_directory(build_base)
-		self.quiet = False
+		super(PythonBuildDirectory, self).__init__(compute, build_base)
 
-		self.artefacts = []
-
-	def unpacked_dir(self):
-		if not self.directory:
-			return "<none>"
-
-		return self.directory.path
-
-	def unpack_archive(self, sdist):
-		archive = sdist.local_path
-		if not archive or not os.path.exists(archive):
-			raise ValueError("Unable to unpack %s: you need to download the archive first" % sdist.filename)
-
-		name, version, type = PythonBuildInfo.parse_filename(archive)
-		relative_unpack_dir = name + "-" + version
-
-		d = self.build_base.lookup(relative_unpack_dir)
-		if d is not None:
-			d.rmtree()
-
-		shutil.unpack_archive(archive, self.build_base.hostpath())
-
-		self.directory = self.build_base.lookup(relative_unpack_dir)
-		if not self.directory or not self.directory.isdir():
-			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
-
-		self.sdist = sdist
-
-	def unpack_git(self, sdist, destdir):
-		repo_url = sdist.git_url()
-		if not repo_url:
-			raise ValueError("Unable to build from git - cannot determine git url")
-
-		self.unpack_git_helper(repo_url, tag = sdist.version, destdir = sdist.id())
-
-		self.sdist = sdist
+	# Most of the unpacking happens in the BuildDirectory base class.
+	# The only python specific piece is guessing which directory an archive is extracted to
+	def archive_get_unpack_directory(self, sdist):
+		name, version, type = PythonBuildInfo.parse_filename(sdist.local_path)
+		return name + "-" + version
 
 	def build(self, quiet = False):
 		assert(self.directory)

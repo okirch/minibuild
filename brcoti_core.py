@@ -199,9 +199,14 @@ class Uploader(Object):
 		self.mni()
 
 class BuildDirectory(Object):
-	def __init__(self, build_dir):
-		self.unpacked_dir = build_dir
+	def __init__(self, compute, build_base):
+		self.compute = compute
+		self.build_base = self.compute.get_directory(build_base)
 		self.directory = None
+		self.sdist = None
+		self.quiet = False
+
+		self.artefacts = []
 
 	def cleanup(self):
 		if self.directory:
@@ -209,7 +214,40 @@ class BuildDirectory(Object):
 
 	@property
 	def location(self):
-		return self.unpacked_dir
+		return self.build_base.path
+
+	def unpacked_dir(self):
+		if not self.directory:
+			return "<none>"
+
+		return self.directory.path
+
+	def unpack_archive(self, sdist):
+		archive = sdist.local_path
+		if not archive or not os.path.exists(archive):
+			raise ValueError("Unable to unpack %s: you need to download the archive first" % sdist.filename)
+
+		relative_unpack_dir = self.archive_get_unpack_directory(sdist)
+
+		d = self.build_base.lookup(relative_unpack_dir)
+		if d is not None:
+			d.rmtree()
+
+		shutil.unpack_archive(archive, self.build_base.hostpath())
+
+		self.directory = self.build_base.lookup(relative_unpack_dir)
+		if not self.directory or not self.directory.isdir():
+			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
+
+		self.sdist = sdist
+
+	def unpack_git(self, sdist, destdir):
+		repo_url = sdist.git_url()
+		if not repo_url:
+			raise ValueError("Unable to build from git - cannot determine git url")
+
+		self.unpack_git_helper(repo_url, tag = sdist.version, destdir = sdist.id())
+		self.sdist = sdist
 
 	# General helper function: clone a git repo to the given destdir, and
 	# optionally check out the tag requested (HEAD otherwise)
