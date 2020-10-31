@@ -934,6 +934,9 @@ class PythonBuildState(brcoti_core.BuildState):
 
 		print("Build requirement did not change")
 
+	def create_empty_requires(self, name):
+		return PythonBuildInfo(name)
+
 class PythonEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 

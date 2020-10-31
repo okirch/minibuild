@@ -374,8 +374,9 @@ class BuildState(Object):
 
 		try:
 			req_list = self.parse_build_requires(path)
-		except:
+		except Exception as e:
 			print("Cannot parse build-requires file at %s" % path)
+			print(e)
 			return True
 
 		for req in req_list:
@@ -397,7 +398,7 @@ class BuildState(Object):
 
 				if l.startswith("require"):
 					name = l[7:].strip()
-					req = PythonBuildInfo(name)
+					req = self.create_empty_requires(name)
 					result.append(req)
 					continue
 
@@ -419,6 +420,9 @@ class BuildState(Object):
 				raise ValueError("%s: unparseable line <%s>" % (path, l))
 
 		return result
+
+	def create_empty_requires(self, name):
+		self.mni()
 
 class ComputeResourceFS(Object):
 	def __init__(self, path):
