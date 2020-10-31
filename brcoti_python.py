@@ -938,7 +938,9 @@ class PythonBuildState(brcoti_core.BuildState):
 class PythonEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, compute, opts):
+	def __init__(self, compute_backend, opts):
+		compute = compute_backend.spawn("python3")
+
 		super(PythonEngine, self).__init__("python", compute, opts)
 
 		if True:

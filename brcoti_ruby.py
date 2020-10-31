@@ -732,7 +732,9 @@ class RubyBuildState(brcoti_core.BuildState):
 class RubyEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, compute, opts):
+	def __init__(self, compute_backend, opts):
+		compute = compute_backend.spawn("ruby")
+
 		super(RubyEngine, self).__init__("ruby", compute, opts)
 
 		self.index_url = 'http://localhost:8081/repository/ruby-group/'

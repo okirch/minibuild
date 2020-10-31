@@ -31,7 +31,7 @@ class LocalCompute(brcoti_core.Compute):
 	def __init__(self, opts):
 		pass
 
-	def spawn(self):
+	def spawn(self, flavor):
 		return LocalComputeNode()
 
 class LocalFile(brcoti_core.ComputeResourceFile):

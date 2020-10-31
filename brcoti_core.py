@@ -577,7 +577,7 @@ class ComputeNode(Object):
 
 
 class Compute(Object):
-	def spawn(self):
+	def spawn(self, flavor):
 		self.mni()
 
 	@staticmethod
