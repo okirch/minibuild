@@ -67,7 +67,10 @@ if not args:
 	print("Nothing to be done.")
 	exit(0)
 
-engine = brcoti_core.Engine.factory(opts.engine, opts)
+backend = brcoti_core.Compute.factory('local', opts)
+compute = backend.spawn()
+
+engine = brcoti_core.Engine.factory(compute, opts.engine, opts)
 
 engine.prepare_environment()
 

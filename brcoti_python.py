@@ -707,24 +707,16 @@ class WheelArchive(object):
 		return added_set, removed_set, changed_set
 
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
-	def __init__(self, sdist, unpacked_dir):
+	def __init__(self, compute, sdist, unpacked_dir):
+		self.compute = compute
 		self.sdist = sdist
-		self.unpacked_dir = unpacked_dir
+		self.directory = self.compute.get_directory(unpacked_dir)
 		self.quiet = False
 
 		self.artefacts = []
 
 	def build(self, quiet = False):
-		assert(self.unpacked_dir)
-
-		cwd = os.getcwd()
-		try:
-			os.chdir(self.unpacked_dir)
-			return self._do_build()
-		finally:
-			os.chdir(cwd)
-
-	def _do_build(self):
+		assert(self.directory)
 		sdist = self.sdist
 
 		cmd = "python3 setup.py bdist_wheel"
@@ -737,13 +729,14 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		else:
 			cmd += " 2>&1 | tee build.log"
 
-		brcoti_core.run_command(cmd)
+		self.compute.run_command(cmd, working_dir = self.directory)
 
-		wheels = glob.glob("dist/*.whl")
-		print("Successfully built %s: %s" % (sdist.id(), ", ".join(wheels)))
+		# glob_files returns a list of ComputeResource* objects
+		wheels = self.directory.glob_files(os.path.join("dist", "*.whl"))
 
+		print("Successfully built %s: %s" % (sdist.id(), ", ".join([w.basename() for w in wheels])))
 		for w in wheels:
-			w = os.path.join(os.getcwd(), w)
+			w = w.hostpath()
 
 			build = PythonBuildInfo.from_local_file(w)
 
@@ -770,15 +763,16 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		from packaging.requirements import Requirement
 		import re
 
-		logfile = os.path.join(self.unpacked_dir, "pip.log")
-		if not os.path.exists(logfile):
+		logfile = self.directory.lookup("pip.log")
+		if logfile is None:
+			print("No pip.log found... expect problems")
 			return
 
-		print("Parsing %s" % logfile)
+		print("Parsing pip.log")
 		req = None
 
 		self.build_requires = []
-		with open(logfile, "r") as f:
+		with logfile.open() as f:
 			for l in f.readlines():
 				# Parse lines like:
 				# Added flit_core<4,>=3.0.0 from http://.../flit_core-3.0.0-py3-none-any.whl#md5=7648384867c294a95487e26bc451482d to build tracker
@@ -883,13 +877,12 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		return b.getvalue()
 
 	def maybe_save_file(self, build_state, name):
-		path = os.path.join(self.unpacked_dir, name)
-
-		if not os.path.exists(path):
-			print("Not saving %s (does not exist)" % path)
+		fh = self.directory.lookup(name)
+		if fh is None:
+			print("Not saving %s (does not exist)" % name)
 			return None
 
-		return build_state.save_file(path)
+		return build_state.save_file(fh)
 
 	def write_file(self, build_state, name, write_func):
 		buffer = io.StringIO()
@@ -944,8 +937,8 @@ class PythonBuildState(brcoti_core.BuildState):
 class PythonEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, opts):
-		super(PythonEngine, self).__init__("python", opts)
+	def __init__(self, compute, opts):
+		super(PythonEngine, self).__init__("python", compute, opts)
 
 		if True:
 			index_url = 'http://localhost:8081/repository/pypi-group/'
@@ -978,6 +971,7 @@ class PythonEngine(brcoti_core.Engine):
 		if not archive or not os.path.exists(archive):
 			raise ValueError("Unable to unpack %s: no local copy" % sdist.filename)
 
+		# This should happen inside the ComputeNode
 		build_dir = self.build_dir
 		if os.path.exists(build_dir):
 			shutil.rmtree(build_dir)
@@ -987,12 +981,13 @@ class PythonEngine(brcoti_core.Engine):
 			unpacked_dir = self.try_unpack_git(sdist, build_dir)
 
 		if not unpacked_dir:
+			# This should happen inside the ComputeNode
 			shutil.unpack_archive(archive, build_dir)
 			name, version, type = PythonBuildInfo.parse_filename(archive)
 			unpacked_dir = os.path.join(build_dir, name + "-" + version)
 
 		print("Unpacked %s to %s" % (archive, unpacked_dir))
-		return PythonBuildDirectory(sdist, unpacked_dir)
+		return PythonBuildDirectory(self.compute, sdist, unpacked_dir)
 
 	def try_unpack_git(self, sdist, build_dir):
 		repo_url = sdist.git_url()
@@ -1009,5 +1004,5 @@ class PythonEngine(brcoti_core.Engine):
 	def resolve_build_req(self, req):
 		pass
 
-def engine_factory(opts):
-	return PythonEngine(opts)
+def engine_factory(compute, opts):
+	return PythonEngine(compute, opts)

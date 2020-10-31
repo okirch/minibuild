@@ -340,6 +340,8 @@ class BuildState(Object):
 		return self.save_file(src, dst)
 
 	def save_file(self, src):
+		if isinstance(src, ComputeResourceFS):
+			src = src.hostpath()
 		dst = self.tmpdir.name
 
 		print("Saving %s to %s" % (src, dst))
@@ -418,10 +420,114 @@ class BuildState(Object):
 
 		return result
 
+class ComputeResourceFS(Object):
+	def __init__(self, path):
+		self.path = path
+
+	def basename(self):
+		return os.path.basename(self.path)
+
+	def hostpath(self):
+		self.mni()
+
+class ComputeResourceFile(ComputeResourceFS):
+	def __init__(self, path):
+		super(ComputeResourceFile, self).__init__(path)
+
+	def open(self, mode = 'r'):
+		self.mni()
+
+	def isreg(self):
+		return True
+
+	def isdir(self):
+		return False
+
+class ComputeResourceDirectory(ComputeResourceFS):
+	def __init__(self, path):
+		super(ComputeResourceDirectory, self).__init__(path)
+
+	def file_exists(self, path):
+		self.mni()
+
+	def lookup(self, path):
+		self.mni()
+
+	def open(self, path, mode = 'r'):
+		self.mni()
+
+	def glob_files(self, path_pattern):
+		self.mni()
+
+	def isreg(self):
+		return False
+
+	def isdir(self):
+		return True
+
+class ComputeNode(Object):
+	def __init__(self):
+		pass
+
+	def run_command(self, cmd, working_dir = None, ignore_exitcode = False):
+		if not working_dir:
+			print("Running %s" % cmd)
+		else:
+			print("Running %s [in directory %s]" % (cmd, working_dir))
+
+		# Avoid messing up the order of our output and the output of subprocesses when
+		# stdout is redirected
+		sys.stdout.flush()
+		sys.stderr.flush()
+
+		exit_code = self._run_command(cmd, working_dir)
+
+		if exit_code != 0 and not ignore_exitcode:
+			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
+
+		return exit_code
+
+	def _run_commandx(self, cmd, working_dir = None):
+		self.mni()
+
+	def popen(self, cmd, mode = 'r'):
+		print("Running %s" % cmd)
+
+		# Avoid messing up the order of our output and the output of subprocesses when
+		# stdout is redirected
+		sys.stdout.flush()
+		sys.stderr.flush()
+
+		return self._popen(cmd, mode)
+
+	def _popen(self, cmd, mode):
+		self.mni()
+
+	def get_directory(self, path):
+		self.mni()
+
+	def shutdown(self):
+		self.mni()
+
+
+class Compute(Object):
+	def spawn(self):
+		self.mni()
+
+	@staticmethod
+	def factory(name, opts):
+		print("Create %s compute backend" % name)
+		if name == 'local':
+			import brcoti_local
+
+			return brcoti_local.compute_factory(opts)
+
+		raise NotImplementedError("No compute backend for \"%s\"" % name)
 
 class Engine(Object):
-	def __init__(self, name, opts):
+	def __init__(self, name, compute, opts):
 		self.name = name
+		self.compute = compute
 
 		self.state_dir = opts.output_dir
 		self.build_dir = "BUILD"
@@ -494,32 +600,29 @@ class Engine(Object):
 		self.mni()
 
 	@staticmethod
-	def factory(name, opts):
+	def factory(compute, name, opts):
 		print("Create %s engine" % name)
 		if name == 'python':
 			import brcoti_python
 
-			return brcoti_python.engine_factory(opts)
+			return brcoti_python.engine_factory(compute, opts)
 
 		if name == 'ruby':
 			import brcoti_ruby
 
-			return brcoti_ruby.engine_factory(opts)
+			return brcoti_ruby.engine_factory(compute, opts)
 
 		raise NotImplementedError("No build engine for \"%s\"" % name)
 
 	# General helper function: clone a git repo to the given destdir, and
 	# optionally check out the tag requested (HEAD otherwise)
 	def unpack_git_helper(self, git_repo, tag = None, destdir = None):
+		assert(destdir) # for now
+
 		if destdir:
-			run_command("git clone %s %s" % (git_repo, destdir))
+			self.compute.run_command("git clone %s %s" % (git_repo, destdir))
 		else:
-			run_command("git clone %s" % (git_repo))
+			self.compute.run_command("git clone %s" % (git_repo))
 
 		if tag:
-			cwd = os.getcwd()
-			try:
-				os.chdir(destdir)
-				run_command("git checkout %s" % tag)
-			finally:
-				os.chdir(cwd)
+			self.compute.run_command("git checkout %s" % tag, working_dir = destdir)
