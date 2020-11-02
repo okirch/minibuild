@@ -313,7 +313,7 @@ class BuildDirectory(Object):
 				with open(new_path, "r") as new_f:
 					if old_f.read() != new_f.read():
 						print("Build requirements changed")
-						brcoti_core.run_command("diff -u %s %s" % (path, new_path), ignore_exitcode = True)
+						run_command("diff -u %s %s" % (path, new_path), ignore_exitcode = True)
 						samesame = False
 
 		return samesame
