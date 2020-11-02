@@ -551,7 +551,10 @@ class ComputeResourceDirectory(ComputeResourceFS):
 
 class ComputeNode(Object):
 	def __init__(self):
-		pass
+		self.cleanup_on_exit = True
+
+	def noclean(self):
+		self.cleanup_on_exit = False
 
 	def default_build_dir(self):
 		self.mni()

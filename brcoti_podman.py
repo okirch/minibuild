@@ -121,6 +121,9 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		print("Created container %s; root=%s" % (self.container_id, self.container_root))
 
 	def __del__(self):
+		if not self.cleanup_on_exit:
+			return
+
 		if self.container_root:
 			brcoti_core.run_command("podman umount %s" % self.container_id)
 		if self.container_id:
