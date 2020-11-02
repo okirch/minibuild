@@ -760,6 +760,14 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	# in turn has a "requires-dist: toml; extra = 'toml'" in its metadata.
 	# This will also show up in pip.log as pip tries to install all
 	# required dependencies.
+	#
+	# This could be simpler. Current pip versions log lines like these:
+	#   1 location(s) to search for versions of poetry-core:
+	#   ...
+	#   Using version 1.0.0 (newest of versions: 1.0.0)
+	#   Collecting poetry-core>=1.0.0
+	#   ...
+	#
 	def guess_build_dependencies(self):
 		from packaging.requirements import Requirement
 		import re
