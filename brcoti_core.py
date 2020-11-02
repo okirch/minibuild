@@ -396,11 +396,12 @@ class BuildState(Object):
 		return self.save_file(src, dst)
 
 	def save_file(self, src):
-		if isinstance(src, ComputeResourceFS):
-			src = src.hostpath()
 		dst = self.tmpdir.name
 
 		print("Saving %s to %s" % (src, dst))
+
+		if isinstance(src, ComputeResourceFS):
+			src = src.hostpath()
 		shutil.copy(src, dst)
 
 		if os.path.isdir(dst):
