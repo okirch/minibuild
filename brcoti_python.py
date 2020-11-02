@@ -644,19 +644,29 @@ class SimplePackageIndex(brcoti_core.HTTPPackageIndex):
 
 # Upload package using twine
 class PythonUploader(brcoti_core.Uploader):
-	def __init__(self, repo):
-		self.repo = repo
+	def __init__(self, url, user, password):
+		self.url = url
+		self.config_written = False
+
+		assert(user)
+		assert(password)
+
+		self.user = user
+		self.password = password
 
 	def describe(self):
-		return "Python repository \"%s\"" % self.repo
+		return "Python repository \"%s\"" % self.url
 
 	def upload(self, build):
 		assert(build.local_path)
 
-		print("Uploading %s to %s repository" % (build.local_path, self.repo))
+		print("Uploading %s to %s repository" % (build.local_path, self.url))
 		cmd = "twine upload --verbose "
 		cmd += " --disable-progress-bar"
-		cmd += " --repository %s %s" % (self.repo, build.local_path)
+		cmd += " --repository-url %s" % (self.url)
+		cmd += " --username %s" % (self.user)
+		cmd += " --password %s" % (self.password)
+		cmd += " " + build.local_path
 
 		brcoti_core.run_command(cmd)
 
@@ -971,7 +981,8 @@ class PythonEngine(brcoti_core.Engine):
 		self.downloader = brcoti_core.Downloader()
 
 		if opts.upload_to:
-			self.uploader = PythonUploader(opts.upload_to)
+			url = index_url.replace("/pypi-group", "/pypi-" + opts.upload_to)
+			self.uploader = PythonUploader(url, user = opts.repo_user, password = opts.repo_password)
 
 	def build_info_from_local_file(self, path):
 		return PythonBuildInfo.from_local_file(file)
