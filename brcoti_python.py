@@ -749,6 +749,8 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		for w in wheels:
 			w = w.hostpath()
 
+			# FIXME: use of hostpath is not pretty here. We should
+			# save this to a host side directory right away
 			build = PythonBuildInfo.from_local_file(w)
 
 			for algo in PythonEngine.REQUIRED_HASHES:
@@ -905,7 +907,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def maybe_save_file(self, build_state, name):
 		fh = self.directory.lookup(name)
 		if fh is None:
-			print("Not saving %s (does not exist)" % name)
+			print("Not saving %s/%s (does not exist)" % (self.directory, name))
 			return None
 
 		return build_state.save_file(fh)
