@@ -984,7 +984,14 @@ class PythonEngine(brcoti_core.Engine):
 		return bd
 
 	def resolve_build_req(self, req):
-		pass
+		req_string = req.fullreq
+		if not req_string:
+			req_string = req.name
+			if req.version:
+				req_string += "==" + req.version
+		assert(req_string)
+		finder = PythonBinaryDownloadFinder(req_string)
+		return finder.get_best_match(self.index)
 
 def engine_factory(compute, opts):
 	return PythonEngine(compute, opts)
