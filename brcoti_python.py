@@ -976,10 +976,8 @@ class PythonBuildState(brcoti_core.BuildState):
 class PythonEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, compute_backend, opts):
-		compute = compute_backend.spawn("python3")
-
-		super(PythonEngine, self).__init__("python", compute, opts)
+	def __init__(self, opts):
+		super(PythonEngine, self).__init__("python", opts)
 
 		if True:
 			self.index_url = 'http://localhost:8081/repository/pypi-group/'
@@ -995,17 +993,11 @@ class PythonEngine(brcoti_core.Engine):
 			url = self.index_url.replace("/pypi-group", "/pypi-" + opts.upload_to)
 			self.uploader = PythonUploader(url, user = opts.repo_user, password = opts.repo_password)
 
-	def prepare_environment(self):
+	def prepare_environment(self, compute_backend):
+		compute = compute_backend.spawn("python3")
 		url = self.index_url + "simple"
-		self.compute.putenv("PIP_INDEX_URL", self.compute.translate_url(url))
-		return
-
-		etcdir = self.compute.get_directory('/etc')
-		with etcdir.open("pip.conf", "w") as f:
-			f.write("[global]\n")
-			f.write("index = %spypi\n" % self.index_url)
-			f.write("index-url = %ssimple\n" % self.index_url)
-		print("Wrote %s" % etcdir.lookup("pip.conf"))
+		compute.putenv("PIP_INDEX_URL", compute.translate_url(url))
+		return compute
 
 	def build_info_from_local_file(self, path):
 		return PythonBuildInfo.from_local_file(file)
@@ -1018,8 +1010,8 @@ class PythonEngine(brcoti_core.Engine):
 		savedir = self.build_state_path(sdist.id())
 		return PythonBuildState(savedir, self.index)
 
-	def build_unpack(self, sdist):
-		bd = PythonBuildDirectory(self.compute, self.build_dir)
+	def build_unpack(self, compute, sdist):
+		bd = PythonBuildDirectory(compute, compute.default_build_dir())
 		if self.prefer_git:
 			bd.unpack_git(sdist, sdist.id())
 		else:
@@ -1038,5 +1030,5 @@ class PythonEngine(brcoti_core.Engine):
 		finder = PythonBinaryDownloadFinder(req_string)
 		return finder.get_best_match(self.index)
 
-def engine_factory(compute, opts):
-	return PythonEngine(compute, opts)
+def engine_factory(opts):
+	return PythonEngine(opts)

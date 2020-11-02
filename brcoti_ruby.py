@@ -735,10 +735,8 @@ class RubyBuildState(brcoti_core.BuildState):
 class RubyEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, compute_backend, opts):
-		compute = compute_backend.spawn("ruby")
-
-		super(RubyEngine, self).__init__("ruby", compute, opts)
+	def __init__(self, opts):
+		super(RubyEngine, self).__init__("ruby", opts)
 
 		self.index_url = 'http://localhost:8081/repository/ruby-group/'
 		self.index = RubySpecIndex(url = self.index_url)
@@ -751,11 +749,12 @@ class RubyEngine(brcoti_core.Engine):
 			url = self.index_url.replace("/ruby-group", "/ruby-" + opts.upload_to)
 			self.uploader = RubyUploader(url, user = opts.repo_user, password = opts.repo_password)
 
-	def prepare_environment(self):
+	def prepare_environment(self, compute_backend):
 		urls = []
 		need_to_add = False
 
-		with self.compute.popen("gem sources --list") as f:
+		compute = compute_backend.spawn("ruby")
+		with compute.popen("gem sources --list") as f:
 			for l in f.readlines():
 				l = l.strip()
 				if l == self.index_url:
@@ -763,9 +762,11 @@ class RubyEngine(brcoti_core.Engine):
 				elif l.startswith("http"):
 					urls.append(l)
 		for url in urls:
-			self.compute.run_command("gem sources --remove %s" % url)
+			compute.run_command("gem sources --remove %s" % url)
 		if need_to_add:
-			self.compute.run_command("gem sources --add %s" % self.index_url)
+			compute.run_command("gem sources --add %s" % self.index_url)
+
+		return compute
 
 	def build_info_from_local_file(self, path):
 		return RubyBuildInfo.from_local_file(path)
@@ -778,8 +779,8 @@ class RubyEngine(brcoti_core.Engine):
 		savedir = self.build_state_path(sdist.id())
 		return RubyBuildState(savedir, self.index)
 
-	def build_unpack(self, sdist):
-		bd = RubyBuildDirectory(self.compute, self.build_dir)
+	def build_unpack(self, compute, sdist):
+		bd = RubyBuildDirectory(compute, self.build_dir)
 		if self.prefer_git:
 			bd.unpack_git(sdist, sdist.id())
 		else:
@@ -795,5 +796,5 @@ class RubyEngine(brcoti_core.Engine):
 		finder = RubyBinaryDownloadFinder(req.fullreq, cooked_requirement = req.cooked_requirement)
 		return finder.get_best_match(self.index)
 
-def engine_factory(compute, opts):
-	return RubyEngine(compute, opts)
+def engine_factory(opts):
+	return RubyEngine(opts)

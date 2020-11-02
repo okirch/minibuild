@@ -629,19 +629,16 @@ class Compute(Object):
 		raise NotImplementedError("No compute backend for \"%s\"" % name)
 
 class Engine(Object):
-	def __init__(self, name, compute, opts):
+	def __init__(self, name, opts):
 		self.name = name
-		self.compute = compute
 
 		self.state_dir = opts.output_dir
-		self.build_dir = compute.default_build_dir()
-
 		self.downloader = None
 		self.uploader = None
 
+	# Returns a ComputeNode instance
 	def prepare_environment(self):
-		# This is a no-op by default
-		pass
+		self.mni()
 
 	def downloader(self):
 		return Downloader()
@@ -661,7 +658,7 @@ class Engine(Object):
 	def build_state_path(self, artefact_name):
 		return os.path.join(self.state_dir, artefact_name)
 
-	def build_unpack(self, sdist):
+	def build_unpack(self, compute, sdist):
 		self.mni()
 
 	def finalize_build_depdendencies(self, build):
@@ -704,16 +701,16 @@ class Engine(Object):
 		self.mni()
 
 	@staticmethod
-	def factory(compute, name, opts):
+	def factory(name, opts):
 		print("Create %s engine" % name)
 		if name == 'python':
 			import brcoti_python
 
-			return brcoti_python.engine_factory(compute, opts)
+			return brcoti_python.engine_factory(opts)
 
 		if name == 'ruby':
 			import brcoti_ruby
 
-			return brcoti_ruby.engine_factory(compute, opts)
+			return brcoti_ruby.engine_factory(opts)
 
 		raise NotImplementedError("No build engine for \"%s\"" % name)
