@@ -835,6 +835,10 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 				if not self.quiet:
 					print("Found requirement %s" % req.name)
 
+		for req in self.build_requires:
+			if not req.fullreq:
+				raise ValueError("pip log parser failed - unable to determine req string for build requirement %s" % req.name)
+
 	def prepare_results(self, build_state):
 		self.maybe_save_file(build_state, "build.log")
 		self.maybe_save_file(build_state, "pip.log")
