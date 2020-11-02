@@ -535,6 +535,9 @@ class ComputeNode(Object):
 	def __init__(self):
 		pass
 
+	def default_build_dir(self):
+		self.mni()
+
 	def run_command(self, cmd, working_dir = None, ignore_exitcode = False):
 		if not working_dir:
 			print("Running %s" % cmd)
@@ -596,7 +599,7 @@ class Engine(Object):
 		self.compute = compute
 
 		self.state_dir = opts.output_dir
-		self.build_dir = "BUILD"
+		self.build_dir = compute.default_build_dir()
 
 		self.downloader = None
 		self.uploader = None

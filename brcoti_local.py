@@ -86,6 +86,9 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 	def __init__(self):
 		super(LocalComputeNode, self).__init__()
 
+	def default_build_dir(self):
+		return "BUILD"
+
 	def _run_command(self, cmd, working_dir = None):
 		if working_dir is None:
 			exit_code = os.system(cmd)
