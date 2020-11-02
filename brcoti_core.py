@@ -608,6 +608,11 @@ class Compute(Object):
 
 			return brcoti_local.compute_factory(opts)
 
+		if name == 'podman':
+			import brcoti_podman
+
+			return brcoti_podman.compute_factory(opts)
+
 		raise NotImplementedError("No compute backend for \"%s\"" % name)
 
 class Engine(Object):

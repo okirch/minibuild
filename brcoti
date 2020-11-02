@@ -59,7 +59,7 @@ def build_option_parser():
 	parser.add_option('--repo-password', default = None,
 		help = "Repository password for uploading packages")
 
-	parser.add_option('--compute', default = 'local',
+	parser.add_option('--compute', default = 'podman',
 		help = "Compute backend to use (default %(default)s)")
 
 	return parser
