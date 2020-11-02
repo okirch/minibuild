@@ -289,6 +289,10 @@ class BuildDirectory(Object):
 		for build in self.artefacts:
 			artefact_name = os.path.basename(build.local_path)
 
+			if build.is_source:
+				print("Not checking %s..." % (artefact_name))
+				continue
+
 			new_path = build.local_path
 			old_path = build_state.get_old_path(artefact_name)
 			print("Checking %s vs %s" % (new_path, old_path))

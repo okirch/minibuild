@@ -854,19 +854,22 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		build_state.write_file("build-requires", self.build_requires_as_string())
 		build_state.write_file("build-artefacts", self.build_artefacts_as_string())
 
-		for wheel in self.artefacts:
-			# Copy the wheel itself
-			wheel.local_path = build_state.save_file(wheel.local_path)
-
-			name = "%s-METADATA.txt" % wheel.id()
-			pi = getinfo_pkginfo(wheel.local_path)
-			build_state.write_file(name,
-				pkginfo_as_metadata(pi),
-				"%s metadata" % wheel.id())
-
 		# Always upload the source tarball with the build artefacts
 		if self.sdist not in self.artefacts:
 			self.artefacts.append(self.sdist)
+
+		for artefact in self.artefacts:
+			# Copy the wheel/sdist itself
+			artefact.local_path = build_state.save_file(artefact.local_path)
+
+			if artefact.is_source:
+				continue
+
+			name = "%s-METADATA.txt" % artefact.id()
+			pi = getinfo_pkginfo(artefact.local_path)
+			build_state.write_file(name,
+				pkginfo_as_metadata(pi),
+				"%s metadata" % artefact.id())
 
 	def build_artefacts_as_string(self):
 		b = io.StringIO()
