@@ -546,6 +546,12 @@ class ComputeNode(Object):
 	def default_build_dir(self):
 		self.mni()
 
+	def translate_url(self, url):
+		return url
+
+	def trusted_hosts(self):
+		return []
+
 	def putenv(self, name, value):
 		self.mni()
 

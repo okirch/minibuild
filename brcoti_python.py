@@ -735,6 +735,14 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		cmd += " --log pip.log"
 		cmd += " --no-deps"
 
+		# If translate_url() was used to map https://localhost to a hostname
+		# that's working inside the container, we need to let pip know that
+		# it should trust this hostname
+		for hostname in self.compute.trusted_hosts():
+			cmd += " --trusted-host " + hostname
+
+		# FIXME: build.log is a host-side file. We should pass in the
+		# full path
 		if self.quiet:
 			cmd += " >build.log 2>&1"
 		else:
@@ -985,7 +993,8 @@ class PythonEngine(brcoti_core.Engine):
 			self.uploader = PythonUploader(url, user = opts.repo_user, password = opts.repo_password)
 
 	def prepare_environment(self):
-		self.compute.putenv("PIP_INDEX_URL", self.index_url + "simple")
+		url = self.index_url + "simple"
+		self.compute.putenv("PIP_INDEX_URL", self.compute.translate_url(url))
 		return
 
 		etcdir = self.compute.get_directory('/etc')
