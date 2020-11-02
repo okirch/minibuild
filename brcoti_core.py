@@ -205,6 +205,7 @@ class BuildDirectory(Object):
 		self.directory = None
 		self.sdist = None
 		self.quiet = False
+		self.build_log = None
 
 		self.artefacts = []
 
@@ -215,6 +216,12 @@ class BuildDirectory(Object):
 	@property
 	def location(self):
 		return self.build_base.path
+
+	def set_logging(self, quiet = None, build_log = None):
+		if quiet is not None:
+			self.quiet = quiet
+		if build_log is not None:
+			self.build_log = build_log
 
 	def unpacked_dir(self):
 		if not self.directory:
@@ -363,6 +370,9 @@ class BuildState(Object):
 
 	def rebuild_required(self):
 		self.mni()
+
+	def build_log_file(self):
+		return os.path.join(self.tmpdir.name, "build.log")
 
 	def commit(self):
 		if not self.tmpdir:

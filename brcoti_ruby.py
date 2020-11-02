@@ -581,16 +581,21 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 		self.sdist = sdist
 
-	def build(self, quiet = False):
+	def build(self):
 		assert(self.directory)
 		sdist = self.sdist
 
 		cmd = "gem build " + sdist.name
 
+		# build.log is a host-side file. Which is why we rely
+		# on the caller to give us its full path through a call to set_logging()
 		if self.quiet:
-			cmd += " >build.log 2>&1"
-		else:
-			cmd += " 2>&1 | tee build.log"
+			if self.build_log is not None:
+				cmd += " >%s 2>&1" % self.build_log
+			else:
+				cmd += " >/dev/null 2>&1"
+		elif self.build_log:
+			cmd += " 2>&1 | tee %s" % self.build_log
 
 		self.compute.run_command(cmd, working_dir = self.directory)
 
@@ -636,8 +641,6 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		return
 
 	def prepare_results(self, build_state):
-		self.maybe_save_file(build_state, "build.log")
-
 		build_state.write_file("build-requires", self.build_requires_as_string())
 		build_state.write_file("build-artefacts", self.build_artefacts_as_string())
 

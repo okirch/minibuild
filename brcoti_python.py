@@ -726,7 +726,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		name, version, type = PythonBuildInfo.parse_filename(sdist.local_path)
 		return name + "-" + version
 
-	def build(self, quiet = False):
+	def build(self):
 		assert(self.directory)
 		sdist = self.sdist
 
@@ -735,18 +735,22 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		cmd += " --log pip.log"
 		cmd += " --no-deps"
 
+		# KLUDGE ALERT
 		# If translate_url() was used to map https://localhost to a hostname
 		# that's working inside the container, we need to let pip know that
 		# it should trust this hostname
 		for hostname in self.compute.trusted_hosts():
 			cmd += " --trusted-host " + hostname
 
-		# FIXME: build.log is a host-side file. We should pass in the
-		# full path
+		# Unlike pip.log, build.log is a host-side file. Which is why we rely
+		# on the caller to give us its full path through a call to set_logging()
 		if self.quiet:
-			cmd += " >build.log 2>&1"
-		else:
-			cmd += " 2>&1 | tee build.log"
+			if self.build_log is not None:
+				cmd += " >%s 2>&1" % self.build_log
+			else:
+				cmd += " >/dev/null 2>&1"
+		elif self.build_log:
+			cmd += " 2>&1 | tee %s" % self.build_log
 
 		self.compute.run_command(cmd, working_dir = self.directory)
 
@@ -868,7 +872,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 				raise ValueError("pip log parser failed - unable to determine req string for build requirement %s" % req.name)
 
 	def prepare_results(self, build_state):
-		self.maybe_save_file(build_state, "build.log")
 		self.maybe_save_file(build_state, "pip.log")
 
 		build_state.write_file("build-requires", self.build_requires_as_string())

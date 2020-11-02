@@ -120,7 +120,7 @@ for file in args:
 			downloader.download(sdist)
 
 		build = engine.build_unpack(sdist)
-		build.quiet = opts.quiet
+		build.set_logging(opts.quiet, build_state.build_log_file())
 
 		print("=== Building %s ===" %(sdist.id()))
 		artefacts = build.build()
