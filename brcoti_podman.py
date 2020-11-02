@@ -131,6 +131,10 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		self.container_id = None
 		self.container_root = None
 
+		# For now, only root can do this. Sorry.
+		if os.getuid() != 0:
+			raise ValueError("podman backend: you need to be root to use this backend")
+
 		# Kludge to make https://localhost URLs work in the container
 		self._mapped_hostname = None
 
