@@ -546,6 +546,9 @@ class ComputeNode(Object):
 	def default_build_dir(self):
 		self.mni()
 
+	def putenv(self, name, value):
+		self.mni()
+
 	def run_command(self, cmd, working_dir = None, ignore_exitcode = False):
 		if not working_dir:
 			print("Running %s" % cmd)

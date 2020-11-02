@@ -971,20 +971,29 @@ class PythonEngine(brcoti_core.Engine):
 		super(PythonEngine, self).__init__("python", compute, opts)
 
 		if True:
-			index_url = 'http://localhost:8081/repository/pypi-group/'
-			packageIndex = SimplePackageIndex(url = index_url)
+			self.index_url = 'http://localhost:8081/repository/pypi-group/'
+			self.index = SimplePackageIndex(url = self.index_url)
 		else:
-			packageIndex = JSONPackageIndex()
+			self.index = JSONPackageIndex()
 
 		self.prefer_git = opts.git
-
-		self.index = packageIndex
 
 		self.downloader = brcoti_core.Downloader()
 
 		if opts.upload_to:
-			url = index_url.replace("/pypi-group", "/pypi-" + opts.upload_to)
+			url = self.index_url.replace("/pypi-group", "/pypi-" + opts.upload_to)
 			self.uploader = PythonUploader(url, user = opts.repo_user, password = opts.repo_password)
+
+	def prepare_environment(self):
+		self.compute.putenv("PIP_INDEX_URL", self.index_url + "simple")
+		return
+
+		etcdir = self.compute.get_directory('/etc')
+		with etcdir.open("pip.conf", "w") as f:
+			f.write("[global]\n")
+			f.write("index = %spypi\n" % self.index_url)
+			f.write("index-url = %ssimple\n" % self.index_url)
+		print("Wrote %s" % etcdir.lookup("pip.conf"))
 
 	def build_info_from_local_file(self, path):
 		return PythonBuildInfo.from_local_file(file)

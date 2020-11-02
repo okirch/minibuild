@@ -89,6 +89,9 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 	def default_build_dir(self):
 		return "BUILD"
 
+	def putenv(self, name, value):
+		os.putenv(name, value)
+
 	def _run_command(self, cmd, working_dir = None):
 		if working_dir is None:
 			exit_code = os.system(cmd)
