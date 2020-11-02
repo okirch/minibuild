@@ -27,6 +27,26 @@ import sys
 import brcoti_core
 import glob
 
+class PodmanCmd(object):
+	def __init__(self, *args):
+		self.cmd = "podman " + " ".join(args)
+
+	def run(self):
+		cmd = self.cmd
+
+		print("podman: " + self.cmd)
+		sys.stdout.flush()
+
+		if os.getuid() != 0:
+			cmd = "sudo -- " + cmd
+		return os.system(cmd)
+
+	def popen(self):
+		cmd = self.cmd
+		if os.getuid() != 0:
+			cmd = "sudo -- " + cmd
+		return os.popen(cmd)
+
 class PodmanCompute(brcoti_core.Compute):
 	def __init__(self, opts):
 		pass
@@ -125,26 +145,25 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 			return
 
 		if self.container_root:
-			brcoti_core.run_command("podman umount %s" % self.container_id)
+			PodmanCmd("umount", self.container_id).run()
 		if self.container_id:
-			brcoti_core.run_command("podman stop %s" % self.container_id)
+			PodmanCmd("stop", self.container_id).run()
 
 	def start(self, flavor):
 		assert(self.container_id is None)
 
 		self.setup_localhost_mapping()
 
-		exec = "podman run --rm -d"
+		args = []
 		for host in self.hosts:
-			exec += " --add-host %s" % host
-		exec += " brcoti-%s" % flavor
+			args.append("--add-host %s" % host)
+		args.append("brcoti-%s" % flavor)
 
-		f = brcoti_core.popen(exec)
-
+		f = PodmanCmd("run --rm -d", " ".join(args)).popen()
 		self.container_id = f.read().strip()
 		assert(self.container_id)
 
-		f = brcoti_core.popen("podman mount %s" % self.container_id)
+		f = PodmanCmd("mount", self.container_id).popen()
 		self.container_root = f.read().strip()
 		assert(self.container_root)
 
@@ -183,27 +202,27 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def putenv(self, name, value):
 		self.env[name] = value
 
-	def _run_command(self, cmd, working_dir = None):
-		exec = "podman exec"
+	def _make_command(self, cmd, working_dir):
+		args = []
 		if working_dir:
 			if isinstance(working_dir, brcoti_core.ComputeResourceFS):
 				working_dir = working_dir.path
-			exec += " --workdir \'%s\'" % working_dir
+			args.append("--workdir \'%s\'" % working_dir)
 
 		for name, value in self.env.items():
-			exec += " --env %s='%s'" % (name, value)
+			args.append(" --env %s='%s'" % (name, value))
 
 		# FIXME: make this configurable
-		exec += " --user build:build"
-		exec += " %s %s" % (self.container_id, cmd)
+		args.append(" --user build:build")
+		args.append(self.container_id)
 
-		print(exec)
-		sys.stdout.flush()
+		return PodmanCmd("exec", *args, cmd)
 
-		return os.system(exec)
+	def _run_command(self, cmd, working_dir = None):
+		return self._make_command(cmd, working_dir).run()
 
 	def _popen(self, cmd, mode = 'r'):
-		return os.popen(cmd, mode)
+		return self._make_command(cmd, working_dir).popen()
 
 	def get_directory(self, path):
 		assert(path.startswith('/'))
