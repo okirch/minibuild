@@ -30,36 +30,158 @@ import glob
 import shutil
 import brcoti_core
 
+DEFAULT_BUILD_COMPUTE = "podman"
+
+def prep_action(config, opts):
+	compute = opts.compute or "local"
+
+	raise NotImplementedError("Action prep not yet implemented")
+
+def build_action(config, opts):
+	compute = opts.compute or DEFAULT_BUILD_COMPUTE
+	compute_backend = brcoti_core.Compute.factory(compute, config)
+	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
+
+	downloader = engine.downloader
+	uploader = engine.uploader
+
+	exit_code = 0
+	for file in opts.packages:
+		print("Examining %s" % file)
+
+		# spawn a container/VM or whatever compute node we need
+		compute_node = engine.prepare_environment(compute_backend)
+
+		if os.path.isfile(file):
+			sdist = engine.build_info_from_local_file(file)
+
+			if not sdist.is_source:
+				print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
+				continue
+
+			# DownloadFinder will never return an sdist that
+			# requires a python version incompatible with ours.
+			# For an sdist provided directly on the command line,
+			# it might be nice to check for this explicitly, but that's a
+			# lot of work. Not the least because many sdist tarballs
+			# do not contain structured build information, but provide
+			# a more or less messy setup.py
+		else:
+			sdist = engine.build_source_locate(file)
+
+			if sdist is None:
+				print("FAILED to locate source for %s" % file)
+				exit_code = 1
+				continue
+
+		print("=== Package %s ===" %(sdist.id()))
+		try:
+			build_state = engine.build_state_factory(sdist)
+
+			if opts.rebuild_if_needed:
+				print("=== Checking whether a rebuild is required ===")
+				if not build_state.rebuild_required():
+					print("=== No rebuild required for %s ===" %(sdist.id()))
+					continue
+
+			print("=== Unpacking %s ===" %(sdist.id()))
+			if not sdist.local_path:
+				downloader.download(sdist)
+
+			build = engine.build_unpack(compute_node, sdist)
+			build.set_logging(opts.quiet, build_state.build_log_file())
+
+			print("=== Building %s ===" %(sdist.id()))
+			artefacts = build.build()
+
+			if not artefacts:
+				raise ValueError("%s: nothing got built" % file)
+
+			print("=== Inspecting build dependencies ===")
+			build.guess_build_dependencies()
+
+			engine.finalize_build_depdendencies(build)
+
+			if build.build_requires:
+				print("Build requirements:")
+				sys.stdout.write(build.build_requires_as_string())
+
+			print("=== Storing build results ===")
+			build.prepare_results(build_state)
+
+			print("=== Checking whether artefacts changed from previous build ===")
+			if not opts.force and build.unchanged_from_previous_build(build_state):
+				print("%s artefacts have not changed since previous build" % sdist.id())
+				continue
+
+			if uploader:
+				print("=== Uploading build results to %s ===" % uploader.describe())
+				for p in artefacts:
+					uploader.upload(p)
+
+				build_state.commit()
+				build.cleanup()
+			else:
+				print("=== Leaving build results in %s ===" % build.location)
+				sys.stdout.write(build.build_artefacts_as_string())
+
+			build_state.cleanup()
+
+		except Exception as e:
+			print("FAILED to build %s" % sdist.id())
+			import traceback
+			print(e)
+			traceback.print_tb(sys.exc_info()[2])
+			traceback.format_exc()
+			exit_code = 1
+
+	print("=== Done ===")
+
 def build_option_parser():
-	import optparse
+	import argparse
 
-	parser = optparse.OptionParser(usage = "blah")
+	parser = argparse.ArgumentParser(prog = "minibuild",
+		description = "Build artefacts for various native package managers")
 
-	parser.add_option('--config', default = [], action = 'append',
+	parser.add_argument('--config', default = [], action = 'append',
 		help = "Path to configuration file")
 
-	parser.add_option('--engine', default = "python3",
+	parser.add_argument('--engine', default = "python3",
 		help = "Build engine to use (defaults to python3)")
 
-	parser.add_option('--debug', default = False, action = 'store_true',
+	parser.add_argument('--debug', default = False, action = 'store_true',
                 help = "Enable debugging output")
-	parser.add_option('--quiet', default = False, action = 'store_true',
+	parser.add_argument('--quiet', default = False, action = 'store_true',
                 help = "Be less verbose")
-	parser.add_option('--git', default = False, action = 'store_true',
-                help = "Build from git repo rather than sdist")
-	parser.add_option('--rebuild-if-needed', default = False, action = 'store_true',
-                help = "Only rebuild package if needed")
-	parser.add_option('--force', default = False, action = 'store_true',
-                help = "Always store build results, even if they did not change")
 
-	parser.add_option('--compute', default = 'podman',
-		help = "Compute backend to use (default %(default)s)")
+	parser.add_argument('--compute', default = None,
+		help = "Compute backend to use (default is dependent on the action)")
+
+	subparsers = parser.add_subparsers(dest="action",
+		title = "action")
+
+	prep_parser = subparsers.add_parser('prep',
+		help = "Prepare new source package")
+
+	prep_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
+		help = "List of packages")
+
+	build_parser = subparsers.add_parser('build',
+		help = "Build package(s)")
+	build_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
+		help = "List of packages")
+	build_parser.add_argument('--git', default = False, action = 'store_true',
+                help = "Build from git repo rather than sdist")
+	build_parser.add_argument('--rebuild-if-needed', default = False, action = 'store_true',
+                help = "Only rebuild package if needed")
+	build_parser.add_argument('--force', default = False, action = 'store_true',
+                help = "Always store build results, even if they did not change")
 
 	return parser
 
-(opts, args) = build_option_parser().parse_args()
+opts = build_option_parser().parse_args()
 
-if not args:
+if not opts.packages:
 	print("Nothing to be done.")
 	exit(0)
 
@@ -68,101 +190,10 @@ config.load_file("/etc/pybuilder.json")
 for config_path in opts.config:
 	config.load_file(config_path)
 
-compute_backend = brcoti_core.Compute.factory(opts.compute, config)
-engine = brcoti_core.Engine.factory(opts.engine, config, opts)
-
-downloader = engine.downloader
-uploader = engine.uploader
-
-exit_code = 0
-for file in args:
-	print("Examining %s" % file)
-
-	# spawn a container/VM or whatever compute node we need
-	compute_node = engine.prepare_environment(compute_backend)
-
-	if os.path.isfile(file):
-		sdist = engine.build_info_from_local_file(file)
-
-		if not sdist.is_source:
-			print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
-			continue
-
-		# DownloadFinder will never return an sdist that
-		# requires a python version incompatible with ours.
-		# For an sdist provided directly on the command line,
-		# it might be nice to check for this explicitly, but that's a
-		# lot of work. Not the least because many sdist tarballs
-		# do not contain structured build information, but provide
-		# a more or less messy setup.py
-	else:
-		sdist = engine.build_source_locate(file)
-
-		if sdist is None:
-			print("FAILED to locate source for %s" % file)
-			exit_code = 1
-			continue
-
-	print("=== Package %s ===" %(sdist.id()))
-	try:
-		build_state = engine.build_state_factory(sdist)
-
-		if opts.rebuild_if_needed:
-			print("=== Checking whether a rebuild is required ===")
-			if not build_state.rebuild_required():
-				print("=== No rebuild required for %s ===" %(sdist.id()))
-				continue
-
-		print("=== Unpacking %s ===" %(sdist.id()))
-		if not sdist.local_path:
-			downloader.download(sdist)
-
-		build = engine.build_unpack(compute_node, sdist)
-		build.set_logging(opts.quiet, build_state.build_log_file())
-
-		print("=== Building %s ===" %(sdist.id()))
-		artefacts = build.build()
-
-		if not artefacts:
-			raise ValueError("%s: nothing got built" % file)
-
-		print("=== Inspecting build dependencies ===")
-		build.guess_build_dependencies()
-
-		engine.finalize_build_depdendencies(build)
-
-		if build.build_requires:
-			print("Build requirements:")
-			sys.stdout.write(build.build_requires_as_string())
-
-		print("=== Storing build results ===")
-		build.prepare_results(build_state)
-
-		print("=== Checking whether artefacts changed from previous build ===")
-		if not opts.force and build.unchanged_from_previous_build(build_state):
-			print("%s artefacts have not changed since previous build" % sdist.id())
-			continue
-
-		if uploader:
-			print("=== Uploading build results to %s ===" % uploader.describe())
-			for p in artefacts:
-				uploader.upload(p)
-
-			build_state.commit()
-			build.cleanup()
-		else:
-			print("=== Leaving build results in %s ===" % build.location)
-			sys.stdout.write(build.build_artefacts_as_string())
-
-		build_state.cleanup()
-
-	except Exception as e:
-		print("FAILED to build %s" % sdist.id())
-		import traceback
-		print(e)
-		traceback.print_tb(sys.exc_info()[2])
-		traceback.format_exc()
-		exit_code = 1
-
-print("=== Done ===")
+if opts.action == 'prep':
+	prep_action(config, opts)
+elif opts.action == 'build':
+	build_action(config, opts)
+else:
+	raise NotImplementedError("Action %s not yet implemented" % opts.action)
 exit(exit_code)
