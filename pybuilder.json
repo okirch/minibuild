@@ -1,0 +1,71 @@
+{
+	"credentials" : [
+		{
+			"name" : "nexus",
+			"user" :  "okir",
+			"password" :  "zappa"
+		}
+	],
+	"repositories" :  [
+		{
+			"type" :  "python",
+			"name" :  "rebuilds",
+			"url" :  "http://localhost:8081/repository/pypi-rebuilds/",
+			"repotype" : "simple",
+			"credentials" :  "nexus"
+		}, {
+			"type" :  "python",
+			"name" :  "all",
+			"url" :  "http://localhost:8081/repository/pypi-group/",
+			"repotype" : "simple"
+		}, {
+			"type" :  "ruby",
+			"name" :  "rebuilds",
+			"url" :  "http://localhost:8081/repository/ruby-rebuilds/",
+			"credentials" :  "nexus"
+		}, {
+			"type" :  "ruby",
+			"name" :  "all",
+			"url" :  "http://localhost:8081/repository/ruby-group/"
+		}
+	],
+	"engines" :  [
+		{
+			"name" :  "python3",
+			"type" :  "python",
+			"config" : {
+				"download-repo" :  "all",
+				"upload-repo" :  "rebuilds",
+				"pip" : "pip3"
+			}
+		}, {
+			"name" :  "ruby",
+			"type" :  "ruby",
+			"config" : {
+				"download-repo" :  "all",
+				"upload-repo" :  "rebuilds"
+			}
+		}
+	],
+	"environments" : [
+		{
+			"name" : "local",
+			"type" : "local",
+			"build_dir" : "./BUILD"
+		}, {
+			"name" : "podman",
+			"type" : "podman",
+			"images" : [
+				{
+					"name" : "python3",
+					"image": "brcoti-python3"
+				}, {
+					"name" : "ruby",
+					"image": "brcoti-ruby"
+				}
+			],
+			"build_dir" : "/usr/src/packages/BUILD"
+		}
+	]
+
+}

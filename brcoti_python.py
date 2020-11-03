@@ -519,12 +519,12 @@ class JSONPackageIndex(brcoti_core.HTTPPackageIndex):
 
 class SimplePackageIndex(brcoti_core.HTTPPackageIndex):
 	def __init__(self, url):
-		super(SimplePackageIndex, self).__init__(url)
+		super(SimplePackageIndex, self).__init__(url + "/simple")
 
 		# The trailing / is actually important, because otherwise
 		# urljoin(base_url, "../../packages/blah/fasel")
 		# will not do the right thing
-		self._pkg_url_template = "{index_url}/simple/{pkg_name}/"
+		self._pkg_url_template = "{index_url}/{pkg_name}/"
 
 	# HTML response contains
 	# <head>...
@@ -717,8 +717,12 @@ class WheelArchive(object):
 		return added_set, removed_set, changed_set
 
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
-	def __init__(self, compute, build_base):
-		super(PythonBuildDirectory, self).__init__(compute, build_base)
+	def __init__(self, compute, engine_config):
+		super(PythonBuildDirectory, self).__init__(compute, compute.default_build_dir())
+
+		self.pip_command = engine_config.get_value("pip")
+		if self.pip_command is None:
+			self.pip_command = "pip"
 
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
@@ -730,8 +734,8 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		assert(self.directory)
 		sdist = self.sdist
 
-		cmd = "python3 setup.py bdist_wheel"
-		cmd = "pip3 wheel --wheel-dir dist ."
+		cmd = self.pip_command
+		cmd += " wheel --wheel-dir dist ."
 		cmd += " --log pip.log"
 		cmd += " --no-deps"
 
@@ -976,27 +980,24 @@ class PythonBuildState(brcoti_core.BuildState):
 class PythonEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, opts):
-		super(PythonEngine, self).__init__("python", opts)
+	def __init__(self, config, engine_config):
+		super(PythonEngine, self).__init__("python", config, engine_config)
 
-		if True:
-			self.index_url = 'http://localhost:8081/repository/pypi-group/'
-			self.index = SimplePackageIndex(url = self.index_url)
+	def create_index_from_repo(self, repo_config):
+		repotype = repo_config.repotype or "simple"
+		if repotype == 'json': 
+			return JSONPackageIndex(repo_config.url)
+		elif repotype == 'simple':
+			return SimplePackageIndex(repo_config.url)
 		else:
-			self.index = JSONPackageIndex()
+			raise ValueError("Don't know how to create a %s index for url %s" % (repo_config.repotype, repo_config.url))
 
-		self.prefer_git = opts.git
-
-		self.downloader = brcoti_core.Downloader()
-
-		if opts.upload_to:
-			url = self.index_url.replace("/pypi-group", "/pypi-" + opts.upload_to)
-			self.uploader = PythonUploader(url, user = opts.repo_user, password = opts.repo_password)
+	def create_uploader_from_repo(self, repo_config):
+		return PythonUploader(repo_config.url, user = repo_config.user, password = repo_config.password)
 
 	def prepare_environment(self, compute_backend):
-		compute = compute_backend.spawn("python3")
-		url = self.index_url + "simple"
-		compute.putenv("PIP_INDEX_URL", compute.translate_url(url))
+		compute = compute_backend.spawn(self.engine_config.name)
+		compute.putenv("PIP_INDEX_URL", compute.translate_url(self.index.url))
 		return compute
 
 	def build_info_from_local_file(self, path):
@@ -1011,7 +1012,7 @@ class PythonEngine(brcoti_core.Engine):
 		return PythonBuildState(savedir, self.index)
 
 	def build_unpack(self, compute, sdist):
-		bd = PythonBuildDirectory(compute, compute.default_build_dir())
+		bd = PythonBuildDirectory(compute, self.engine_config)
 		if self.prefer_git:
 			bd.unpack_git(sdist, sdist.id())
 		else:
@@ -1030,5 +1031,5 @@ class PythonEngine(brcoti_core.Engine):
 		finder = PythonBinaryDownloadFinder(req_string)
 		return finder.get_best_match(self.index)
 
-def engine_factory(opts):
-	return PythonEngine(opts)
+def engine_factory(config, engine_config):
+	return PythonEngine(config, engine_config)

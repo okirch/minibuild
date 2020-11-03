@@ -35,6 +35,9 @@ def build_option_parser():
 
 	parser = optparse.OptionParser(usage = "blah")
 
+	parser.add_option('--config', default = [], action = 'append',
+		help = "Path to configuration file")
+
 	parser.add_option('--engine', default = "python",
 		help = "Build engine to use (defaults to python)")
 
@@ -70,8 +73,13 @@ if not args:
 	print("Nothing to be done.")
 	exit(0)
 
-compute_backend = brcoti_core.Compute.factory(opts.compute, opts)
-engine = brcoti_core.Engine.factory(opts.engine, opts)
+config = brcoti_core.Config(opts)
+config.load_file("/etc/pybuilder.json")
+for config_path in opts.config:
+	config.load_file(config_path)
+
+compute_backend = brcoti_core.Compute.factory(opts.compute, config)
+engine = brcoti_core.Engine.factory(opts.engine, config, opts)
 
 downloader = engine.downloader
 uploader = engine.uploader

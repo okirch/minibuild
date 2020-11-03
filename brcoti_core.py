@@ -550,14 +550,15 @@ class ComputeResourceDirectory(ComputeResourceFS):
 		return True
 
 class ComputeNode(Object):
-	def __init__(self):
+	def __init__(self, backend):
+		self.backend = backend
 		self.cleanup_on_exit = True
 
 	def noclean(self):
 		self.cleanup_on_exit = False
 
 	def default_build_dir(self):
-		self.mni()
+		return self.backend.default_build_dir()
 
 	def translate_url(self, url):
 		return url
@@ -610,31 +611,264 @@ class ComputeNode(Object):
 
 
 class Compute(Object):
-	def spawn(self, flavor):
+	def __init__(self, config):
+		self.config = config
+
+	def default_build_dir(self):
+		if self.config.build_dir is None:
+			raise ValueError("Environment %s does not define a build_dir" % self.config.name)
+		return self.config.build_dir
+
+	def spawn(self, config, flavor):
 		self.mni()
 
 	@staticmethod
-	def factory(name, opts):
+	def factory(name, config):
 		print("Create %s compute backend" % name)
-		if name == 'local':
+
+		env = config.get_environment(name)
+		if env.type == 'local':
 			import brcoti_local
 
-			return brcoti_local.compute_factory(opts)
+			return brcoti_local.compute_factory(env)
 
-		if name == 'podman':
+		if env.type == 'podman':
 			import brcoti_podman
 
-			return brcoti_podman.compute_factory(opts)
+			return brcoti_podman.compute_factory(env)
 
-		raise NotImplementedError("No compute backend for \"%s\"" % name)
+		raise NotImplementedError("Compute environment \"%s\" uses type \"%s\" - not implemented" % (name, env.type))
+
+class Config(object):
+	from collections import namedtuple
+
+	class ConfigItem:
+		def __init__(self, config, d):
+			for f in self._fields:
+				setattr(self, f, d.get(f))
+
+			self._config = config
+
+	class Engine(ConfigItem):
+		_fields = ('name', 'type', 'config')
+
+		def __init__(self, config, d):
+			super(Config.Engine, self).__init__(config, d)
+
+		def get_value(self, config_key):
+			return self.config.get(config_key)
+
+		def resolve_repository(self, config_key):
+			repo_id = self.get_value(config_key)
+			if repo_id is None:
+				return None
+
+			return self._config.get_repository(self.type, repo_id)
+
+	class Repository(ConfigItem):
+		_fields = ('type', 'name', 'url', 'user', 'password', 'credentials', 'repotype')
+
+		def __init__(self, config, d):
+			super(Config.Repository, self).__init__(config, d)
+
+		def require_credentials(self):
+			if self.user and self.password:
+				return
+
+			if self.credentials is None:
+				raise ValueError("Authentication required for repository %s/%s, but credentials are incomplete" % (
+						self.type, self.name))
+
+			creds = self._config._get_credentials(self.credentials)
+			if creds is None:
+				raise ValueError("Repository %s/%s references unknown credentials \"%s\"" % (
+						self.type, self.name, self.credentials))
+
+			if self.user is None:
+				self.user = creds.user
+			if self.password is None:
+				self.password = creds.password
+
+	class Credential(ConfigItem):
+		_fields = ('name', 'user', 'password')
+
+		def __init__(self, config, d):
+			super(Config.Credential, self).__init__(config, d)
+
+	class Image(ConfigItem):
+		_fields = ('name', 'image')
+
+		def __init__(self, config, d):
+			super(Config.Image, self).__init__(config, d)
+
+	class Environment(ConfigItem):
+		_fields = ('name', 'type', 'build_dir', 'images')
+
+		def __init__(self, config, d):
+			super(Config.Environment, self).__init__(config, d)
+
+			self.images = config._to_list(self.images, Config.Image)
+
+		def get_image(self, flavor):
+			for img in self.images:
+				if img.name == flavor:
+					return img
+
+			raise ValueError("Environment \"%s\" does not define an image for \"%s\"" % (self.name, flavor))
+
+	_signature = {
+		'engines' : lambda self, o: Config._to_list(self, o, Config.Engine),
+		'repositories' : lambda self, o: Config._to_list(self, o, Config.Repository),
+		'credentials' : lambda self, o: Config._to_list(self, o, Config.Credential),
+		'environments' : lambda self, o: Config._to_list(self, o, Config.Environment),
+	}
+
+	def __init__(self, cmdline_opts):
+		self.command_line_options = cmdline_opts
+
+		self.configs = []
+		self.engines = []
+		self.credentials = []
+		self.repositories = []
+		self.environments = []
+
+	def load_file(self, path):
+		if not os.path.exists(path):
+			return
+		with open(path, 'r') as f:
+			import json
+
+			d = json.load(f)
+
+			for key, f in self._signature.items():
+				raw = d.get(key)
+				if raw is None:
+					continue
+
+				cooked = f(self, raw)
+				if cooked is None:
+					continue
+
+				value = getattr(self, key)
+				if type(value) == list:
+					assert(type(cooked) == list)
+					setattr(self, key, value + cooked)
+				else:
+					setattr(self, key, cooked)
+
+			self.configs.append(d)
+
+		self._check_list(self.engines, ('name', 'type'))
+		self._check_list(self.repositories, ('name', 'type', 'url'))
+		self._check_list(self.credentials, ('name', ))
+
+	def get_engine(self, name):
+		for e in self.engines:
+			if e.name == name:
+				return e
+		raise ValueError("Unknown build engine \"%s\"" % name)
+
+	def get_environment(self, name):
+		for e in self.environments:
+			if e.name == name:
+				return e
+		raise ValueError("Unknown environment \"%s\"" % name)
+
+	def get_repository(self, type, name):
+		for r in self.repositories:
+			if r.type != type and r.type != 'any':
+				continue
+			if r.name == name:
+				return r
+		raise ValueError("No repository named \"%s\" for engine type \"%s\"" % (name, type))
+
+	def _get_credentials(self, name):
+		for c in self.credentials:
+			if c.name == name:
+				return c
+		return None
+
+	def get_credentials(self, name):
+		creds = self._get_credentials(name)
+		if creds is None:
+			raise ValueError("No credentials for \"%s\"" % name)
+		return creds
+
+	def get_repo_user(self, repo_config):
+		user = repo_config.user
+		if user is None and repo_config.credentials is not None:
+			user = self.get_credentials(repo_config.credentials).user
+		return user
+
+	def get_repo_password(self, repo_config):
+		password = repo_config.password
+		if password is None and repo_config.credentials is not None:
+			password = self.get_credentials(repo_config.credentials).password
+		return password
+
+	@staticmethod
+	def _check_list(l, required_attrs):
+		for obj in l:
+			for k in required_attrs:
+				if getattr(obj, k) is None:
+					raise ValueError("%s config lacks required %s attribute" % (type(obj).__name__, k))
+
+	def _to_list(self, json_list, T):
+		if json_list is None:
+			return
+
+		result = []
+		for item in json_list:
+			for f in T._fields:
+				if item.get(f) is None:
+					item[f] = None
+
+			obj = T(self, item)
+			result.append(obj)
+		return result
+
+	@staticmethod
+	def _to_namedtuple(d, nt):
+		return nt(*[d.get(name) for name in nt._fields])
 
 class Engine(Object):
-	def __init__(self, name, opts):
+	def __init__(self, name, config, engine_config):
 		self.name = name
 
-		self.state_dir = opts.output_dir
-		self.downloader = None
-		self.uploader = None
+		self.config = config
+		self.engine_config = engine_config
+
+		self.state_dir = config.command_line_options.output_dir
+
+		opts = config.command_line_options
+		self.prefer_git = opts.git
+
+		self.index = self.create_index(engine_config)
+		self.downloader = self.create_downloader(engine_config)
+		self.uploader = self.create_uploader(engine_config)
+
+	def create_index(self, engine_config):
+		repo_config = engine_config.resolve_repository("download-repo")
+		if repo_config is None:
+			raise ValueError("No download-repo configured for engine \"%s\"" % engine_config.name)
+
+		print("%s: download repo is %s" % (engine_config.name, repo_config.url))
+
+		return self.create_index_from_repo(repo_config)
+
+	def create_downloader(self, engine_config):
+		return Downloader()
+
+	def create_uploader(self, engine_config):
+		repo_config = engine_config.resolve_repository("upload-repo")
+		if repo_config is None:
+			print("%s: no upload repo defined" % (engine_config.name))
+			return None
+
+		repo_config.require_credentials()
+
+		print("%s: upload repo is %s; user=%s" % (engine_config.name, repo_config.url, repo_config.user))
+		return self.create_uploader_from_repo(repo_config)
 
 	# Returns a ComputeNode instance
 	def prepare_environment(self):
@@ -701,16 +935,19 @@ class Engine(Object):
 		self.mni()
 
 	@staticmethod
-	def factory(name, opts):
-		print("Create %s engine" % name)
-		if name == 'python':
+	def factory(name, config, opts):
+		print("Create %s builder" % name)
+		engine_config = config.get_engine(name)
+
+		print("%s: using %s engine" % (name, engine_config.type))
+		if engine_config.type == 'python':
 			import brcoti_python
 
-			return brcoti_python.engine_factory(opts)
+			return brcoti_python.engine_factory(config, engine_config)
 
-		if name == 'ruby':
+		if engine_config.type == 'ruby':
 			import brcoti_ruby
 
-			return brcoti_ruby.engine_factory(opts)
+			return brcoti_ruby.engine_factory(config, engine_config)
 
 		raise NotImplementedError("No build engine for \"%s\"" % name)

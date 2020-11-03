@@ -48,11 +48,14 @@ class PodmanCmd(object):
 		return os.popen(cmd)
 
 class PodmanCompute(brcoti_core.Compute):
-	def __init__(self, opts):
-		pass
+	def __init__(self, config):
+		self.config = config
 
 	def spawn(self, flavor):
-		return PodmanComputeNode(flavor)
+		img_config = self.config.get_image(flavor)
+
+		print("%s: using image %s to build %s package" % (self.config.name, img_config.image, flavor))
+		return PodmanComputeNode(img_config, self)
 
 class PodmanPathMixin:
 	def __init__(self, root):
@@ -125,8 +128,8 @@ class PodmanDirectory(PodmanPathMixin, brcoti_core.ComputeResourceDirectory):
 		return open(path, mode)
 
 class PodmanComputeNode(brcoti_core.ComputeNode):
-	def __init__(self, flavor):
-		super(PodmanComputeNode, self).__init__()
+	def __init__(self, img_config, backend):
+		super(PodmanComputeNode, self).__init__(backend)
 
 		self.container_id = None
 		self.container_root = None
@@ -138,7 +141,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		# Kludge to make https://localhost URLs work in the container
 		self._mapped_hostname = None
 
-		self.start(flavor)
+		self.start(img_config)
 
 		self.env = {}
 
@@ -153,7 +156,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		if self.container_id:
 			PodmanCmd("stop", self.container_id).run()
 
-	def start(self, flavor):
+	def start(self, img_config):
 		assert(self.container_id is None)
 
 		self.setup_localhost_mapping()
@@ -161,7 +164,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		args = []
 		for host in self.hosts:
 			args.append("--add-host %s" % host)
-		args.append("brcoti-%s" % flavor)
+		args.append(img_config.image)
 
 		f = PodmanCmd("run --rm -d", " ".join(args)).popen()
 		self.container_id = f.read().strip()
@@ -170,9 +173,6 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		f = PodmanCmd("mount", self.container_id).popen()
 		self.container_root = f.read().strip()
 		assert(self.container_root)
-
-	def default_build_dir(self):
-		return "/usr/src/packages/BUILD"
 
 	def translate_url(self, url):
 		import urllib.parse
@@ -238,7 +238,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def shutdown(self):
 		pass
 
-def compute_factory(opts):
-        return PodmanCompute(opts)
+def compute_factory(config):
+        return PodmanCompute(config)
 
 

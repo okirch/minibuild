@@ -738,33 +738,29 @@ class RubyEngine(brcoti_core.Engine):
 	def __init__(self, opts):
 		super(RubyEngine, self).__init__("ruby", opts)
 
-		self.index_url = 'http://localhost:8081/repository/ruby-group/'
-		self.index = RubySpecIndex(url = self.index_url)
+	def create_index_from_repo(self, repo_config):
+		return RubySpecIndex(repo_config.url)
 
-		self.prefer_git = opts.git
-
-		self.downloader = brcoti_core.Downloader()
-
-		if opts.upload_to:
-			url = self.index_url.replace("/ruby-group", "/ruby-" + opts.upload_to)
-			self.uploader = RubyUploader(url, user = opts.repo_user, password = opts.repo_password)
+	def create_uploader_from_repo(self, repo_config):
+		return RubyUploader(repo_config.url, user = repo_config.user, password = repo_config.password)
 
 	def prepare_environment(self, compute_backend):
+		index_url = self.index.url
 		urls = []
 		need_to_add = False
 
-		compute = compute_backend.spawn("ruby")
+		compute = compute_backend.spawn(self.engine_config.name)
 		with compute.popen("gem sources --list") as f:
 			for l in f.readlines():
 				l = l.strip()
-				if l == self.index_url:
+				if l == index_url:
 					need_to_add = False
 				elif l.startswith("http"):
 					urls.append(l)
 		for url in urls:
 			compute.run_command("gem sources --remove %s" % url)
 		if need_to_add:
-			compute.run_command("gem sources --add %s" % self.index_url)
+			compute.run_command("gem sources --add %s" % index_url)
 
 		return compute
 
@@ -796,5 +792,5 @@ class RubyEngine(brcoti_core.Engine):
 		finder = RubyBinaryDownloadFinder(req.fullreq, cooked_requirement = req.cooked_requirement)
 		return finder.get_best_match(self.index)
 
-def engine_factory(opts):
-	return RubyEngine(opts)
+def engine_factory(config, engine_config):
+	return RubyEngine(config, engine_config)

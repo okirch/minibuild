@@ -28,11 +28,11 @@ import brcoti_core
 import glob
 
 class LocalCompute(brcoti_core.Compute):
-	def __init__(self, opts):
-		pass
+	def __init__(self, config):
+		self.config = config
 
 	def spawn(self, flavor):
-		return LocalComputeNode()
+		return LocalComputeNode(self)
 
 class LocalFile(brcoti_core.ComputeResourceFile):
 	def __init__(self, path):
@@ -83,11 +83,8 @@ class LocalDirectory(brcoti_core.ComputeResourceDirectory):
 		return self.path
 
 class LocalComputeNode(brcoti_core.ComputeNode):
-	def __init__(self):
-		super(LocalComputeNode, self).__init__()
-
-	def default_build_dir(self):
-		return "BUILD"
+	def __init__(self, backend):
+		super(LocalComputeNode, self).__init__(backend)
 
 	def putenv(self, name, value):
 		os.putenv(name, value)
@@ -118,6 +115,6 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 	def shutdown(self):
 		pass
 
-def compute_factory(opts):
-        return LocalCompute(opts)
+def compute_factory(config):
+        return LocalCompute(config)
 
