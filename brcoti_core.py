@@ -762,7 +762,6 @@ class Config(object):
 					continue
 
 				cooked = f(self, raw)
-				print(key, cooked)
 				if cooked is None:
 					continue
 
@@ -780,7 +779,6 @@ class Config(object):
 		self._check_list(self.engines, ('name', 'type'))
 		self._check_list(self.repositories, ('name', 'type', 'url'))
 		self._check_list(self.credentials, ('name', ))
-		print("globals:", self.globals)
 
 	def get_engine(self, name):
 		for e in self.engines:
