@@ -36,102 +36,156 @@ def create_compute_backend(config, default_backend):
 	backend_name = config.command_line_options.compute or default_backend
 	return brcoti_core.Compute.factory(backend_name, config)
 
+def find_source(engine, name):
+	if os.path.isfile(name):
+		sdist = engine.build_info_from_local_file(name)
+
+		if not sdist.is_source:
+			print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
+			return None
+
+		# DownloadFinder will never return an sdist that
+		# requires a python version incompatible with ours.
+		# For an sdist provided directly on the command line,
+		# it might be nice to check for this explicitly, but that's a
+		# lot of work. Not the least because many sdist tarballs
+		# do not contain structured build information, but provide
+		# a more or less messy setup.py
+	else:
+		sdist = engine.build_source_locate(name)
+
+		if sdist is None:
+			print("FAILED to locate source for %s" % name)
+			return None
+
+	return sdist
+
+class BuildJob(object):
+	def __init__(self, config, engine, compute_backend, sdist):
+		self.config = config
+		self.engine = engine
+		self.compute_backend = compute_backend
+		self.sdist = sdist
+		self.build = None
+		self.build_state = self.engine.build_state_factory(sdist)
+
+		self.always_commit = config.command_line_options.force
+		self.quiet = opts.quiet
+		self.rebuild_if_needed = opts.rebuild_if_needed
+
+	def id(self):
+		return self.sdist.id()
+
+	def rebuild_required(self):
+		if not self.rebuild_if_needed:
+			return True
+
+		print("=== Checking whether a rebuild is required ===")
+		if not self.build_state.rebuild_required():
+			print("=== No rebuild required for %s ===" % self.id())
+			return False
+
+		return True
+
+	def unpack_source(self, sdist):
+		print("=== Unpacking %s ===" % self.id())
+
+		# Download the source archive if we don't have it yet
+		if not sdist.local_path:
+			self.engine.downloader.download(sdist)
+
+		# spawn a container/VM or whatever compute node we need
+		compute_node = self.engine.prepare_environment(self.compute_backend)
+
+		self.build = self.engine.build_unpack(compute_node, sdist)
+
+		self.build.set_logging(self.quiet, self.build_state.build_log_file())
+		return self.build
+
+	def build_package(self):
+		print("=== Building %s ===" % self.id())
+		build = self.build
+
+		artefacts = build.build()
+
+		if not artefacts:
+			raise ValueError("%s: nothing got built" % self.sdist.id())
+
+		return artefacts
+
+	def process_build_dependencies(self):
+		print("=== Inspecting build dependencies ===")
+		build = self.build
+
+		build.guess_build_dependencies()
+
+		self.engine.finalize_build_depdendencies(build)
+
+		if build.build_requires:
+			print("Build requirements:")
+			sys.stdout.write(build.build_requires_as_string())
+
+	def prepare_results(self):
+		print("=== Collecting build results ===")
+		build = self.build
+
+		build.prepare_results(self.build_state)
+
+	def maybe_commit(self):
+		print("=== Checking whether artefacts changed from previous build ===")
+		build_state = self.build_state
+		build = self.build
+
+		if not self.always_commit and build.unchanged_from_previous_build(build_state):
+			print("Artefacts have not changed since previous build")
+			return
+
+		uploader = self.engine.uploader
+		if uploader:
+			print("=== Uploading build results to %s ===" % uploader.describe())
+			for p in build.artefacts:
+				uploader.upload(p)
+
+			build_state.commit()
+			build.cleanup()
+		else:
+			print("=== Leaving build results in %s ===" % build.location)
+			sys.stdout.write(build.build_artefacts_as_string())
+
+		build_state.cleanup()
+		self.build_state = None
+
 def prep_action(config, opts):
 	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
-
 	compute_backend = create_compute_backend(config, "local")
 
 	raise NotImplementedError("Action prep not yet implemented")
 
 def build_action(config, opts):
 	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
-
-	downloader = engine.downloader
-	uploader = engine.uploader
-
 	compute_backend = create_compute_backend(config, DEFAULT_BUILD_COMPUTE)
 
 	exit_code = 0
-	for file in opts.packages:
-		print("Examining %s" % file)
+	for name in opts.packages:
+		print("Examining %s" % name)
 
-		if os.path.isfile(file):
-			sdist = engine.build_info_from_local_file(file)
-
-			if not sdist.is_source:
-				print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
-				continue
-
-			# DownloadFinder will never return an sdist that
-			# requires a python version incompatible with ours.
-			# For an sdist provided directly on the command line,
-			# it might be nice to check for this explicitly, but that's a
-			# lot of work. Not the least because many sdist tarballs
-			# do not contain structured build information, but provide
-			# a more or less messy setup.py
-		else:
-			sdist = engine.build_source_locate(file)
-
-			if sdist is None:
-				print("FAILED to locate source for %s" % file)
-				exit_code = 1
-				continue
+		sdist = find_source(engine, name)
+		if sdist is None:
+			exit_code = 1
+			continue
 
 		print("=== Package %s ===" %(sdist.id()))
-		# spawn a container/VM or whatever compute node we need
-		compute_node = engine.prepare_environment(compute_backend)
+		job = BuildJob(config, engine, compute_backend, sdist)
 
 		try:
-			build_state = engine.build_state_factory(sdist)
-
-			if opts.rebuild_if_needed:
-				print("=== Checking whether a rebuild is required ===")
-				if not build_state.rebuild_required():
-					print("=== No rebuild required for %s ===" %(sdist.id()))
-					continue
-
-			print("=== Unpacking %s ===" %(sdist.id()))
-			if not sdist.local_path:
-				downloader.download(sdist)
-
-			build = engine.build_unpack(compute_node, sdist)
-			build.set_logging(opts.quiet, build_state.build_log_file())
-
-			print("=== Building %s ===" %(sdist.id()))
-			artefacts = build.build()
-
-			if not artefacts:
-				raise ValueError("%s: nothing got built" % file)
-
-			print("=== Inspecting build dependencies ===")
-			build.guess_build_dependencies()
-
-			engine.finalize_build_depdendencies(build)
-
-			if build.build_requires:
-				print("Build requirements:")
-				sys.stdout.write(build.build_requires_as_string())
-
-			print("=== Storing build results ===")
-			build.prepare_results(build_state)
-
-			print("=== Checking whether artefacts changed from previous build ===")
-			if not opts.force and build.unchanged_from_previous_build(build_state):
-				print("%s artefacts have not changed since previous build" % sdist.id())
+			if not job.rebuild_required():
 				continue
 
-			if uploader:
-				print("=== Uploading build results to %s ===" % uploader.describe())
-				for p in artefacts:
-					uploader.upload(p)
-
-				build_state.commit()
-				build.cleanup()
-			else:
-				print("=== Leaving build results in %s ===" % build.location)
-				sys.stdout.write(build.build_artefacts_as_string())
-
-			build_state.cleanup()
+			job.unpack_source(sdist)
+			job.build_package()
+			job.process_build_dependencies()
+			job.prepare_results()
+			job.maybe_commit()
 
 		except Exception as e:
 			print("FAILED to build %s" % sdist.id())

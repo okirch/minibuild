@@ -972,7 +972,8 @@ class PythonBuildState(brcoti_core.BuildState):
 			print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
 			return True
 
-		print("Build requirement did not change")
+		# print("Build requirement did not change")
+		return False
 
 	def create_empty_requires(self, name):
 		return PythonBuildInfo(name)
