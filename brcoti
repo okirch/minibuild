@@ -32,25 +32,28 @@ import brcoti_core
 
 DEFAULT_BUILD_COMPUTE = "podman"
 
+def create_compute_backend(config, default_backend):
+	backend_name = config.command_line_options.compute or default_backend
+	return brcoti_core.Compute.factory(backend_name, config)
+
 def prep_action(config, opts):
-	compute = opts.compute or "local"
+	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
+
+	compute_backend = create_compute_backend(config, "local")
 
 	raise NotImplementedError("Action prep not yet implemented")
 
 def build_action(config, opts):
-	compute = opts.compute or DEFAULT_BUILD_COMPUTE
-	compute_backend = brcoti_core.Compute.factory(compute, config)
 	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
 
 	downloader = engine.downloader
 	uploader = engine.uploader
 
+	compute_backend = create_compute_backend(config, DEFAULT_BUILD_COMPUTE)
+
 	exit_code = 0
 	for file in opts.packages:
 		print("Examining %s" % file)
-
-		# spawn a container/VM or whatever compute node we need
-		compute_node = engine.prepare_environment(compute_backend)
 
 		if os.path.isfile(file):
 			sdist = engine.build_info_from_local_file(file)
@@ -75,6 +78,9 @@ def build_action(config, opts):
 				continue
 
 		print("=== Package %s ===" %(sdist.id()))
+		# spawn a container/VM or whatever compute node we need
+		compute_node = engine.prepare_environment(compute_backend)
+
 		try:
 			build_state = engine.build_state_factory(sdist)
 
