@@ -640,14 +640,27 @@ class Compute(Object):
 		raise NotImplementedError("Compute environment \"%s\" uses type \"%s\" - not implemented" % (name, env.type))
 
 class Config(object):
-	from collections import namedtuple
-
 	class ConfigItem:
 		def __init__(self, config, d):
 			for f in self._fields:
 				setattr(self, f, d.get(f))
 
 			self._config = config
+
+		def update(self, other):
+			for f in self._fields:
+				if getattr(self, f) is not None:
+					continue
+				setattr(self, f, getattr(other, f))
+
+		def __repr__(self):
+			return ", ".join(["%s=%s" % (f, getattr(self, f)) for f in self._fields])
+
+	class Globals(ConfigItem):
+		_fields = ('output_dir', )
+
+		def __init__(self, config, d):
+			super(Config.Globals, self).__init__(config, d)
 
 	class Engine(ConfigItem):
 		_fields = ('name', 'type', 'config')
@@ -717,6 +730,7 @@ class Config(object):
 			raise ValueError("Environment \"%s\" does not define an image for \"%s\"" % (self.name, flavor))
 
 	_signature = {
+		'globals' : lambda self, o: Config._to_object(self, o, Config.Globals),
 		'engines' : lambda self, o: Config._to_list(self, o, Config.Engine),
 		'repositories' : lambda self, o: Config._to_list(self, o, Config.Repository),
 		'credentials' : lambda self, o: Config._to_list(self, o, Config.Credential),
@@ -727,6 +741,8 @@ class Config(object):
 		self.command_line_options = cmdline_opts
 
 		self.configs = []
+
+		self.globals = Config.Globals(self, {})
 		self.engines = []
 		self.credentials = []
 		self.repositories = []
@@ -746,6 +762,7 @@ class Config(object):
 					continue
 
 				cooked = f(self, raw)
+				print(key, cooked)
 				if cooked is None:
 					continue
 
@@ -753,6 +770,8 @@ class Config(object):
 				if type(value) == list:
 					assert(type(cooked) == list)
 					setattr(self, key, value + cooked)
+				elif isinstance(value, Config.ConfigItem):
+					value.update(cooked)
 				else:
 					setattr(self, key, cooked)
 
@@ -761,6 +780,7 @@ class Config(object):
 		self._check_list(self.engines, ('name', 'type'))
 		self._check_list(self.repositories, ('name', 'type', 'url'))
 		self._check_list(self.credentials, ('name', ))
+		print("globals:", self.globals)
 
 	def get_engine(self, name):
 		for e in self.engines:
@@ -817,6 +837,11 @@ class Config(object):
 		if json_list is None:
 			return
 
+		return [T(self, item) for item in json_list]
+
+	def _to_object(self, json_dict, T):
+		return T(self, json_dict)
+
 		result = []
 		for item in json_list:
 			for f in T._fields:
@@ -838,7 +863,7 @@ class Engine(Object):
 		self.config = config
 		self.engine_config = engine_config
 
-		self.state_dir = config.command_line_options.output_dir
+		self.state_dir = os.path.join(config.globals.output_dir, engine_config.name)
 
 		opts = config.command_line_options
 		self.prefer_git = opts.git

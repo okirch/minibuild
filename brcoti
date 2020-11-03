@@ -38,8 +38,8 @@ def build_option_parser():
 	parser.add_option('--config', default = [], action = 'append',
 		help = "Path to configuration file")
 
-	parser.add_option('--engine', default = "python",
-		help = "Build engine to use (defaults to python)")
+	parser.add_option('--engine', default = "python3",
+		help = "Build engine to use (defaults to python3)")
 
 	parser.add_option('--debug', default = False, action = 'store_true',
                 help = "Enable debugging output")
@@ -51,16 +51,6 @@ def build_option_parser():
                 help = "Only rebuild package if needed")
 	parser.add_option('--force', default = False, action = 'store_true',
                 help = "Always store build results, even if they did not change")
-
-	parser.add_option('--output-dir', default = "OUTPUT",
-		help = "Directory to write output files to (defaults to OUTPUT)")
-
-	parser.add_option('--upload-to', default = None,
-		help = "Repository to upload packages to")
-	parser.add_option('--repo-user', default = None,
-		help = "Repository user for uploading packages")
-	parser.add_option('--repo-password', default = None,
-		help = "Repository password for uploading packages")
 
 	parser.add_option('--compute', default = 'podman',
 		help = "Compute backend to use (default %(default)s)")

@@ -1,4 +1,7 @@
 {
+	"globals" : {
+		"output_dir" : "/srv/minibuild/binaries"
+	},
 	"credentials" : [
 		{
 			"name" : "nexus",
