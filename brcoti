@@ -136,6 +136,7 @@ def build_action(config, opts):
 			exit_code = 1
 
 	print("=== Done ===")
+	return exit_code
 
 def build_option_parser():
 	import argparse
@@ -191,9 +192,9 @@ for config_path in opts.config:
 	config.load_file(config_path)
 
 if opts.action == 'prep':
-	prep_action(config, opts)
+	exit_code = prep_action(config, opts)
 elif opts.action == 'build':
-	build_action(config, opts)
+	exit_code = build_action(config, opts)
 else:
 	raise NotImplementedError("Action %s not yet implemented" % opts.action)
 exit(exit_code)
