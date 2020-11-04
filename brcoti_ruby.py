@@ -587,17 +587,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 		cmd = "gem build " + sdist.name
 
-		# build.log is a host-side file. Which is why we rely
-		# on the caller to give us its full path through a call to set_logging()
-		if self.quiet:
-			if self.build_log is not None:
-				cmd += " >%s 2>&1" % self.build_log
-			else:
-				cmd += " >/dev/null 2>&1"
-		elif self.build_log:
-			cmd += " 2>&1 | tee %s" % self.build_log
-
-		self.compute.run_command(cmd, working_dir = self.directory)
+		self.build_command_helper(cmd)
 
 		gems = self.directory.glob_files("*.gem")
 

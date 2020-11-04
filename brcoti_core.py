@@ -269,8 +269,27 @@ class BuildDirectory(Object):
 		if tag:
 			self.compute.run_command("git checkout %s" % tag, working_dir = destdir)
 
-	def build(self, quiet = False):
+	def build(self):
 		self.mni()
+
+	def build_command_helper(self, cmd):
+		assert(self.directory)
+
+		if self.build_log:
+			log = open(self.build_log, "w")
+			f = self.compute.popen(cmd, working_dir = self.directory)
+			line = f.readline()
+			while line:
+				if not self.quiet:
+					print(line.rstrip())
+				log.write(line)
+
+				line = f.readline()
+
+			print("Command output written to %s" % self.build_log)
+		else:
+			cmd += " >/dev/null 2>&1"
+			self.compute.run_command(cmd, working_dir = self.directory)
 
 	def unchanged_from_previous_build(self, build_state):
 		self.mni()
