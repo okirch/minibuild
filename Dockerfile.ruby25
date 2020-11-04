@@ -1,0 +1,7 @@
+FROM opensuse/leap:latest
+RUN zypper in -y ruby-2.5
+RUN gem install nexus
+RUN groupadd -g 666 build
+RUN useradd -u 666 -g build -m build
+ENTRYPOINT [ "/usr/bin/sleep", "infinity" ]
+
