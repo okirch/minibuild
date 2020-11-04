@@ -225,8 +225,8 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def _run_command(self, cmd, working_dir = None):
 		return self._make_command(cmd, working_dir).run()
 
-	def _popen(self, cmd, mode = 'r'):
-		return self._make_command(cmd, working_dir = None).popen()
+	def _popen(self, cmd, mode = 'r', working_dir = None):
+		return self._make_command(cmd, working_dir).popen()
 
 	def get_directory(self, path):
 		assert(path.startswith('/'))

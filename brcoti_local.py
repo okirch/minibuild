@@ -89,23 +89,26 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 	def putenv(self, name, value):
 		os.putenv(name, value)
 
-	def _run_command(self, cmd, working_dir = None):
+	def _perform_command(self, f, cmd, working_dir):
 		if working_dir is None:
-			exit_code = os.system(cmd)
+			exit_code = f(cmd)
 		else:
 			if isinstance(working_dir, brcoti_core.ComputeResourceDirectory):
 				working_dir = working_dir.path
 			cwd = os.getcwd()
 			try:
 				os.chdir(working_dir)
-				exit_code = os.system(cmd)
+				exit_code = f(cmd)
 			finally:
 				os.chdir(cwd)
 
 		return exit_code
 
-	def _popen(self, cmd, mode = 'r'):
-		return os.popen(cmd, mode)
+	def _run_command(self, cmd, working_dir = None):
+		return self._perform_command(os.system, cmd, working_dir)
+
+	def _popen(self, cmd, mode = 'r', working_dir = None):
+		return self._perform_command(lambda cmd: os.popen(cmd, mode), cmd, working_dir)
 
 	def get_directory(self, path):
 		if not os.path.isdir(path):

@@ -590,15 +590,18 @@ class ComputeNode(Object):
 	def _run_commandx(self, cmd, working_dir = None):
 		self.mni()
 
-	def popen(self, cmd, mode = 'r'):
+	def popen(self, cmd, mode = 'r', working_dir = None):
 		print("Running %s" % cmd)
+
+		# For now...
+		assert(mode == 'r')
 
 		# Avoid messing up the order of our output and the output of subprocesses when
 		# stdout is redirected
 		sys.stdout.flush()
 		sys.stderr.flush()
 
-		return self._popen(cmd, mode)
+		return self._popen(cmd, mode, working_dir = working_dir)
 
 	def _popen(self, cmd, mode):
 		self.mni()
