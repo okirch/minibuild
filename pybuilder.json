@@ -46,7 +46,7 @@
 			"name" :  "python3",
 			"type" :  "python",
 			"config" : {
-				"download-repo" :  "all",
+				"download-repo" :  "rebuilds",
 				"upload-repo"   :  "rebuilds",
 				"upstream-repo" :  "upstream",
 				"pip" : "pip3"
@@ -55,7 +55,7 @@
 			"name" :  "ruby",
 			"type" :  "ruby",
 			"config" : {
-				"download-repo" :  "all",
+				"download-repo" :  "rebuilds",
 				"upload-repo"   :  "rebuilds",
 				"upstream-repo" :  "upstream"
 			}
