@@ -474,12 +474,10 @@ class JSONPackageIndex(brcoti_core.HTTPPackageIndex):
 		info = PythonPackageInfo(name)
 
 		d = json.load(resp)
-		print(d['info'].keys())
 
 		ji = d['info']
 		info.home_page = ji['home_page']
 		info.author = ji['author']
-		print("home page is", info.home_page)
 
 		for (ver, files) in d['releases'].items():
 			relInfo = PythonReleaseInfo(name, ver)
@@ -1007,6 +1005,10 @@ class PythonEngine(brcoti_core.Engine):
 	def build_source_locate(self, req_string, verbose = True):
 		finder = PythonSourceDownloadFinder(req_string, verbose)
 		return finder.get_best_match(self.index)
+
+	def build_source_locate_upstream(self, req_string, verbose = True):
+		finder = PythonSourceDownloadFinder(req_string, verbose)
+		return finder.get_best_match(self.upstream_index)
 
 	def build_state_factory(self, sdist):
 		savedir = self.build_state_path(sdist.id())

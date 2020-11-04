@@ -36,27 +36,34 @@ def create_compute_backend(config, default_backend):
 	backend_name = config.command_line_options.compute or default_backend
 	return brcoti_core.Compute.factory(backend_name, config)
 
-def find_source(engine, name):
-	if os.path.isfile(name):
-		sdist = engine.build_info_from_local_file(name)
+def source_from_path(engine, name):
+	print("=== Using file %s ===" % name)
+	sdist = engine.build_info_from_local_file(name)
 
-		if not sdist.is_source:
-			print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
-			return None
+	if not sdist.is_source:
+		print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
+		return None
 
-		# DownloadFinder will never return an sdist that
-		# requires a python version incompatible with ours.
-		# For an sdist provided directly on the command line,
-		# it might be nice to check for this explicitly, but that's a
-		# lot of work. Not the least because many sdist tarballs
-		# do not contain structured build information, but provide
-		# a more or less messy setup.py
-	else:
+	# DownloadFinder will never return an sdist that
+	# requires a python version incompatible with ours.
+	# For an sdist provided directly on the command line,
+	# it might be nice to check for this explicitly, but that's a
+	# lot of work. Not the least because many sdist tarballs
+	# do not contain structured build information, but provide
+	# a more or less messy setup.py
+
+	return sdist
+
+def find_source(engine, name, use_upstream = False):
+	print("=== Locating %s in %s repository ===" % (name, use_upstream and "upstream" or "rebuild"))
+	if not use_upstream:
 		sdist = engine.build_source_locate(name)
+	else:
+		sdist = engine.build_source_locate_upstream(name)
 
-		if sdist is None:
-			print("FAILED to locate source for %s" % name)
-			return None
+	if sdist is None:
+		print("FAILED to locate source for %s" % name)
+		return None
 
 	return sdist
 
@@ -69,9 +76,9 @@ class BuildJob(object):
 		self.build = None
 		self.build_state = self.engine.build_state_factory(sdist)
 
-		self.always_commit = config.command_line_options.force
-		self.quiet = opts.quiet
-		self.rebuild_if_needed = opts.rebuild_if_needed
+		self.always_commit = False
+		self.quiet = False
+		self.rebuild_if_needed = False
 
 	def id(self):
 		return self.sdist.id()
@@ -159,7 +166,40 @@ def prep_action(config, opts):
 	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
 	compute_backend = create_compute_backend(config, "local")
 
-	raise NotImplementedError("Action prep not yet implemented")
+	exit_code = 0
+	for name in opts.packages:
+		if os.path.isfile(name):
+			sdist = source_from_path(name)
+		else:
+			sdist = find_source(engine, name, use_upstream = True)
+		if sdist is None:
+			exit_code = 1
+			continue
+
+		if sdist.url:
+			print("Using %s" % (sdist.url))
+
+		print("=== Package %s ===" %(sdist.id()))
+		job = BuildJob(config, engine, compute_backend, sdist)
+		job.quiet = opts.quiet
+
+		try:
+			job.unpack_source(sdist)
+			job.build_package()
+			job.process_build_dependencies()
+			job.prepare_results()
+			# job.maybe_commit()
+
+		except Exception as e:
+			print("FAILED to build %s" % sdist.id())
+			import traceback
+			print(e)
+			traceback.print_tb(sys.exc_info()[2])
+			traceback.format_exc()
+			exit_code = 1
+
+	print("=== Done ===")
+	return exit_code
 
 def build_action(config, opts):
 	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
@@ -169,13 +209,19 @@ def build_action(config, opts):
 	for name in opts.packages:
 		print("Examining %s" % name)
 
-		sdist = find_source(engine, name)
+		if os.path.isfile(name):
+			sdist = source_from_path(name)
+		else:
+			sdist = find_source(engine, name)
 		if sdist is None:
 			exit_code = 1
 			continue
 
 		print("=== Package %s ===" %(sdist.id()))
 		job = BuildJob(config, engine, compute_backend, sdist)
+		job.always_commit = opts.force
+		job.quiet = opts.quiet
+		job.rebuild_if_needed = opts.rebuild_if_needed
 
 		try:
 			if not job.rebuild_required():
@@ -226,6 +272,8 @@ def build_option_parser():
 
 	prep_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
 		help = "List of packages")
+	prep_parser.add_argument('--git', default = False, action = 'store_true',
+                help = "Build from git repo rather than sdist")
 
 	build_parser = subparsers.add_parser('build',
 		help = "Build package(s)")

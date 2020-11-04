@@ -867,6 +867,7 @@ class Engine(Object):
 		self.prefer_git = opts.git
 
 		self.index = self.create_index(engine_config)
+		self.upstream_index = self.create_upstream_index(engine_config)
 		self.downloader = self.create_downloader(engine_config)
 		self.uploader = self.create_uploader(engine_config)
 
@@ -876,6 +877,15 @@ class Engine(Object):
 			raise ValueError("No download-repo configured for engine \"%s\"" % engine_config.name)
 
 		print("%s: download repo is %s" % (engine_config.name, repo_config.url))
+
+		return self.create_index_from_repo(repo_config)
+
+	def create_upstream_index(self, engine_config):
+		repo_config = engine_config.resolve_repository("upstream-repo")
+		if repo_config is None:
+			raise ValueError("No upstream-repo configured for engine \"%s\"" % engine_config.name)
+
+		print("%s: upstream repo is %s" % (engine_config.name, repo_config.url))
 
 		return self.create_index_from_repo(repo_config)
 
@@ -907,6 +917,9 @@ class Engine(Object):
 		self.mni()
 
 	def build_source_locate(self, req_string, verbose = True):
+		self.mni()
+
+	def build_source_locate_upstream(self, req_string, verbose = True):
 		self.mni()
 
 	def build_state_factory(self, sdist):

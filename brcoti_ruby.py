@@ -771,6 +771,10 @@ class RubyEngine(brcoti_core.Engine):
 		finder = RubySourceDownloadFinder(req_string, verbose)
 		return finder.get_best_match(self.index)
 
+	def build_source_locate_upstream(self, req_string, verbose = True):
+		finder = RubySourceDownloadFinder(req_string, verbose)
+		return finder.get_best_match(self.upstream_index)
+
 	def build_state_factory(self, sdist):
 		savedir = self.build_state_path(sdist.id())
 		return RubyBuildState(savedir, self.index)

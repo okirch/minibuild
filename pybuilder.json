@@ -22,6 +22,11 @@
 			"url" :  "http://localhost:8081/repository/pypi-group/",
 			"repotype" : "simple"
 		}, {
+			"type" :  "python",
+			"name" :  "upstream",
+			"url" :  "https://pypi.org/pypi",
+			"repotype" : "json"
+		}, {
 			"type" :  "ruby",
 			"name" :  "rebuilds",
 			"url" :  "http://localhost:8081/repository/ruby-rebuilds/",
@@ -30,6 +35,10 @@
 			"type" :  "ruby",
 			"name" :  "all",
 			"url" :  "http://localhost:8081/repository/ruby-group/"
+		}, {
+			"type" :  "ruby",
+			"name" :  "upstream",
+			"url" :  "https://rubygems.org/"
 		}
 	],
 	"engines" :  [
@@ -38,7 +47,8 @@
 			"type" :  "python",
 			"config" : {
 				"download-repo" :  "all",
-				"upload-repo" :  "rebuilds",
+				"upload-repo"   :  "rebuilds",
+				"upstream-repo" :  "upstream",
 				"pip" : "pip3"
 			}
 		}, {
@@ -46,7 +56,8 @@
 			"type" :  "ruby",
 			"config" : {
 				"download-repo" :  "all",
-				"upload-repo" :  "rebuilds"
+				"upload-repo"   :  "rebuilds",
+				"upstream-repo" :  "upstream"
 			}
 		}
 	],
