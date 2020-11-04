@@ -64,7 +64,7 @@
 					"image": "brcoti-python3"
 				}, {
 					"name" : "ruby",
-					"image": "brcoti-ruby"
+					"image": "brcoti-ruby25"
 				}
 			],
 			"build_dir" : "/usr/src/packages/BUILD"

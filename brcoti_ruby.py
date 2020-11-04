@@ -563,8 +563,8 @@ class GemFile(object):
 		return f.read()
 
 class RubyBuildDirectory(brcoti_core.BuildDirectory):
-	def __init__(self, compute, build_base):
-		super(RubyBuildDirectory, self).__init__(compute, build_base)
+	def __init__(self, compute, engine_config):
+		super(RubyBuildDirectory, self).__init__(compute, compute.default_build_dir())
 
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
@@ -735,8 +735,8 @@ class RubyBuildState(brcoti_core.BuildState):
 class RubyEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, opts):
-		super(RubyEngine, self).__init__("ruby", opts)
+	def __init__(self, config, engine_config):
+		super(RubyEngine, self).__init__("ruby", config, engine_config)
 
 	def create_index_from_repo(self, repo_config):
 		return RubySpecIndex(repo_config.url)
@@ -776,7 +776,7 @@ class RubyEngine(brcoti_core.Engine):
 		return RubyBuildState(savedir, self.index)
 
 	def build_unpack(self, compute, sdist):
-		bd = RubyBuildDirectory(compute, self.build_dir)
+		bd = RubyBuildDirectory(compute, self.engine_config)
 		if self.prefer_git:
 			bd.unpack_git(sdist, sdist.id())
 		else:
