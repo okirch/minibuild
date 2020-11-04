@@ -169,7 +169,7 @@ def prep_action(config, opts):
 	exit_code = 0
 	for name in opts.packages:
 		if os.path.isfile(name):
-			sdist = source_from_path(name)
+			sdist = source_from_path(engine, name)
 		else:
 			sdist = find_source(engine, name, use_upstream = True)
 		if sdist is None:
@@ -210,7 +210,7 @@ def build_action(config, opts):
 		print("Examining %s" % name)
 
 		if os.path.isfile(name):
-			sdist = source_from_path(name)
+			sdist = source_from_path(engine, name)
 		else:
 			sdist = find_source(engine, name)
 		if sdist is None:

@@ -1000,7 +1000,7 @@ class PythonEngine(brcoti_core.Engine):
 		return compute
 
 	def build_info_from_local_file(self, path):
-		return PythonBuildInfo.from_local_file(file)
+		return PythonBuildInfo.from_local_file(path)
 
 	def build_source_locate(self, req_string, verbose = True):
 		finder = PythonSourceDownloadFinder(req_string, verbose)
