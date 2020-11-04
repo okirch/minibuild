@@ -585,6 +585,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		assert(self.directory)
 		sdist = self.sdist
 
+		self.compute.run_command("gem sources --list")
+
 		cmd = "gem build " + sdist.name
 
 		self.build_command_helper(cmd)
@@ -735,11 +737,12 @@ class RubyEngine(brcoti_core.Engine):
 		return RubyUploader(repo_config.url, user = repo_config.user, password = repo_config.password)
 
 	def prepare_environment(self, compute_backend):
-		index_url = self.index.url
-		urls = []
-		need_to_add = False
-
 		compute = compute_backend.spawn(self.engine_config.name)
+
+		index_url = compute.translate_url(self.index.url)
+		urls = []
+		need_to_add = True
+
 		with compute.popen("gem sources --list") as f:
 			for l in f.readlines():
 				l = l.strip()
