@@ -1,8 +1,0 @@
-FROM opensuse/leap:latest
-# Note: we do not install twine inside the container for now;
-# we upload the newly built packages after processing them.
-RUN zypper in -y python3-base python3-pip python3-setuptools python3-wheel
-RUN pip3 install --upgrade pip
-RUN groupadd -g 666 build
-RUN useradd -u 666 -g build -m build
-ENTRYPOINT [ "/usr/bin/sleep", "infinity" ]
