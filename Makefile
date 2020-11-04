@@ -1,12 +1,14 @@
 
-TAG	= 0.0.1
+VERSION	= 0.0.1
+IMGDIR	= images
 
-all: containers-python containers-ruby
+CONTAINERS = \
+	brcoti-python3 \
+	brcoti-ruby25
 
-containers-python:
-	podman build --tag brcoti-python3 -f Dockerfile.python
-	podman push brcoti-python3 oci-archive:brcoti-python3:$(TAG)
+all: $(addprefix $(IMGDIR)/,$(CONTAINERS))
 
-containers-ruby:
-	podman build --tag brcoti-ruby25 -f Dockerfile.ruby25
-	podman push brcoti-ruby25 oci-archive:brcoti-ruby25:$(TAG)
+$(IMGDIR)/brcoti-%: Dockerfile.%
+	@mkdir -p $(IMGDIR)
+	podman build --tag $(@F):$(VERSION) -f $<
+	podman push $(@F) oci-archive:$@
