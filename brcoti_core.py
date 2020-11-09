@@ -664,6 +664,8 @@ class Compute(Object):
 class Config(object):
 	class ConfigItem:
 		def __init__(self, config, d):
+			if d is None:
+				d = {}
 			for f in self._fields:
 				setattr(self, f, d.get(f))
 
