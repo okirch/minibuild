@@ -69,6 +69,10 @@
 		}, {
 			"name" : "podman",
 			"type" : "podman",
+			"network" : {
+				"name" : "minibuild",
+				"routing" : false
+			},
 			"images" : [
 				{
 					"name" : "python3",

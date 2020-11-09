@@ -50,12 +50,30 @@ class PodmanCmd(object):
 class PodmanCompute(brcoti_core.Compute):
 	def __init__(self, config):
 		self.config = config
+		self.network_up = False
 
 	def spawn(self, flavor):
 		img_config = self.config.get_image(flavor)
 
+		if not self.network_up:
+			self.setup_network()
+			self.network_up = True
+
 		print("%s: using image %s to build %s package" % (self.config.name, img_config.image, flavor))
 		return PodmanComputeNode(img_config, self)
+
+	def setup_network(self):
+		self.network_name = self.config.network.name
+		if self.network_name is None:
+			print("podman: using default podman network")
+			return
+
+		with brcoti_core.popen("podman network ls") as f:
+			if any(l.split()[0] == self.network_name for l in f.readlines()):
+				return
+
+		print("podman: setting up network \"%s\"" % self.network_name)
+		brcoti_core.run_command("podman network create %s" % self.network_name)
 
 class PodmanPathMixin:
 	def __init__(self, root):
@@ -141,7 +159,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		# Kludge to make https://localhost URLs work in the container
 		self._mapped_hostname = None
 
-		self.start(img_config)
+		self.start(img_config, backend.network_name)
 
 		self.env = {}
 
@@ -156,7 +174,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		if self.container_id:
 			PodmanCmd("stop", self.container_id).run()
 
-	def start(self, img_config):
+	def start(self, img_config, network_name):
 		assert(self.container_id is None)
 
 		self.setup_localhost_mapping()
@@ -164,6 +182,8 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		args = []
 		for host in self.hosts:
 			args.append("--add-host %s" % host)
+		if network_name:
+			args += ("--network", network_name)
 		args.append(img_config.image)
 
 		f = PodmanCmd("run --rm -d", " ".join(args)).popen()

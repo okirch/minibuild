@@ -738,13 +738,20 @@ class Config(object):
 		def __init__(self, config, d):
 			super(Config.Image, self).__init__(config, d)
 
+	class Network(ConfigItem):
+		_fields = ('name', 'routing')
+
+		def __init__(self, config, d):
+			super(Config.Network, self).__init__(config, d)
+
 	class Environment(ConfigItem):
-		_fields = ('name', 'type', 'build_dir', 'images')
+		_fields = ('name', 'type', 'build_dir', 'images', 'network')
 
 		def __init__(self, config, d):
 			super(Config.Environment, self).__init__(config, d)
 
 			self.images = config._to_list(self.images, Config.Image)
+			self.network = config._to_object(self.network, Config.Network)
 
 		def get_image(self, flavor):
 			for img in self.images:
