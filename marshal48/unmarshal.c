@@ -20,11 +20,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <assert.h>
 #include <stdarg.h>
 #include <Python.h>
-#include <structmember.h>
 
 #include "extension.h"
-#include "ruby_impl.h"
 #include "ruby_utils.h"
+#include "ruby_marshal.h"
+
 
 typedef struct unmarshal_processor {
 	const char *		name;

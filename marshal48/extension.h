@@ -41,34 +41,6 @@ extern void		ruby_context_free(ruby_context_t *);
 
 typedef struct ruby_unmarshal	ruby_unmarshal_t;
 
-struct ruby_unmarshal {
-	ruby_context_t *	ruby;
-	ruby_reader_t *		reader;
-
-	struct {
-		unsigned int	indent;
-		bool		quiet;
-	} log;
-
-};
-
-extern ruby_unmarshal_t *ruby_unmarshal_new(ruby_context_t *ctx, PyObject *io);
-extern bool		ruby_unmarshal_next_fixnum(ruby_unmarshal_t *, long *);
-extern const char *	ruby_unmarshal_next_string(ruby_unmarshal_t *marshal, const char *encoding);
-extern bool		ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, ruby_byteseq_t *seq);
-extern ruby_instance_t *ruby_unmarshal_next_instance(ruby_unmarshal_t *);
-extern bool		ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object);
-
-typedef ruby_instance_t *(*ruby_object_factory_fn_t)(ruby_context_t *, const char *);
-extern ruby_instance_t *ruby_unmarshal_object_instance(ruby_unmarshal_t *s, ruby_object_factory_fn_t factory);
-
-extern void		__ruby_unmarshal_trace(ruby_unmarshal_t *s, const char *fmt, ...);
-
-#define ruby_unmarshal_trace(s, fmt ...) do { \
-        if (!(s)->log.quiet) \
-                __ruby_unmarshal_trace(s, ## fmt); \
-} while (0)
-
 enum {
 	RUBY_REG_EPHEMERAL,
 	RUBY_REG_SYMBOL,
@@ -138,9 +110,23 @@ ruby_instance_convert(ruby_instance_t *self)
 	return self->native;
 }
 
+extern const ruby_instance_t	ruby_True;
+extern const ruby_instance_t	ruby_False;
+extern const ruby_instance_t	ruby_None;
+
+extern ruby_type_t	ruby_Int_type;
+extern ruby_type_t	ruby_Symbol_type;
+extern ruby_type_t	ruby_Array_type;
+extern ruby_type_t	ruby_String_type;
+extern ruby_type_t	ruby_Hash_type;
+extern ruby_type_t	ruby_GenericObject_type;
+extern ruby_type_t	ruby_UserDefined_type;
+extern ruby_type_t	ruby_UserMarshal_type;
 
 extern ruby_context_t *	ruby_context_new(void);
 extern void		ruby_context_free(ruby_context_t *);
+extern ruby_instance_t *ruby_context_get_symbol(ruby_context_t *, unsigned int);
+extern ruby_instance_t *ruby_context_get_object(ruby_context_t *, unsigned int);
 
 extern bool		ruby_Bool_check(const ruby_instance_t *self);
 extern bool		ruby_Bool_is_true(const ruby_instance_t *self);

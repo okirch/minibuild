@@ -45,12 +45,6 @@ extern void		__ruby_instance_del(ruby_instance_t *self);
 extern unsigned int	ruby_context_register_symbol(ruby_context_t *, ruby_instance_t *);
 extern unsigned int	ruby_context_register_object(ruby_context_t *, ruby_instance_t *);
 extern unsigned int	ruby_context_register_ephemeral(ruby_context_t *, ruby_instance_t *);
-extern ruby_instance_t *ruby_context_get_symbol(ruby_context_t *, unsigned int);
-extern ruby_instance_t *ruby_context_get_object(ruby_context_t *, unsigned int);
-
-extern const ruby_instance_t	ruby_True;
-extern const ruby_instance_t	ruby_False;
-extern const ruby_instance_t	ruby_None;
 
 /* This type needs to be declared here so that UserDefined and UserMarshal can derive from it */
 typedef struct {
@@ -59,14 +53,6 @@ typedef struct {
 	ruby_dict_t	obj_vars;
 } ruby_GenericObject;
 
-extern ruby_type_t	ruby_Int_type;
-extern ruby_type_t	ruby_Symbol_type;
-extern ruby_type_t	ruby_Array_type;
-extern ruby_type_t	ruby_String_type;
-extern ruby_type_t	ruby_Hash_type;
-extern ruby_type_t	ruby_GenericObject_type;
-extern ruby_type_t	ruby_UserDefined_type;
-extern ruby_type_t	ruby_UserMarshal_type;
 
 #endif /* RUBY_IMPL_H */
 
