@@ -33,6 +33,7 @@ typedef struct ruby_type ruby_type_t;
 #include "ruby_utils.h"
 
 typedef void		(*ruby_instance_del_fn_t)(ruby_instance_t *);
+typedef ruby_instance_t *(*ruby_instance_unmarshal_fn_t)(ruby_unmarshal_t *);
 typedef const char *	(*ruby_instance_repr_fn_t)(ruby_instance_t *);
 typedef bool		(*ruby_instance_set_var_fn_t)(ruby_instance_t *, ruby_instance_t *, ruby_instance_t *);
 typedef PyObject *	(*ruby_instance_convert_fn_t)(ruby_instance_t *);
@@ -58,7 +59,14 @@ typedef struct {
 	ruby_dict_t	obj_vars;
 } ruby_GenericObject;
 
-extern ruby_type_t	ruby_GenericObject_methods;
+extern ruby_type_t	ruby_Int_type;
+extern ruby_type_t	ruby_Symbol_type;
+extern ruby_type_t	ruby_Array_type;
+extern ruby_type_t	ruby_String_type;
+extern ruby_type_t	ruby_Hash_type;
+extern ruby_type_t	ruby_GenericObject_type;
+extern ruby_type_t	ruby_UserDefined_type;
+extern ruby_type_t	ruby_UserMarshal_type;
 
 #endif /* RUBY_IMPL_H */
 

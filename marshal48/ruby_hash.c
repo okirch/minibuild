@@ -27,6 +27,37 @@ typedef struct {
 } ruby_Hash;
 
 
+static ruby_instance_t *
+ruby_Hash_unmarshal(ruby_unmarshal_t *marshal)
+{
+	ruby_instance_t *hash;
+	long i, count;
+
+	if (!ruby_unmarshal_next_fixnum(marshal, &count))
+		return NULL;
+
+	ruby_unmarshal_trace(marshal, "Decoding hash with %ld objects", count);
+
+	hash = ruby_Hash_new(marshal->ruby);
+
+	for (i = 0; i < count; ++i) {
+		ruby_instance_t *key, *value;
+
+		key = ruby_unmarshal_next_instance(marshal);
+		if (key == NULL)
+			return NULL;
+
+		value = ruby_unmarshal_next_instance(marshal);
+		if (value == NULL)
+			return NULL;
+
+		if (!ruby_Hash_add(hash, key, value))
+			return NULL;
+	}
+
+	return hash;
+}
+
 static void
 ruby_Hash_del(ruby_Hash *self)
 {
@@ -139,11 +170,12 @@ ruby_Hash_convert(ruby_Hash *self)
 	return result;
 }
 
-static ruby_type_t ruby_Hash_methods = {
+ruby_type_t ruby_Hash_type = {
 	.name		= "Hash",
 	.size		= sizeof(ruby_Hash),
 	.registration	= RUBY_REG_OBJECT,
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Hash_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Hash_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Hash_repr,
 	.convert	= (ruby_instance_convert_fn_t) ruby_Hash_convert,
@@ -154,7 +186,7 @@ ruby_Hash_new(ruby_context_t *ctx)
 {
 	ruby_Hash *self;
 
-	self = (ruby_Hash *) __ruby_instance_new(ctx, &ruby_Hash_methods);
+	self = (ruby_Hash *) __ruby_instance_new(ctx, &ruby_Hash_type);
 	ruby_dict_init(&self->hash_dict);
 
 	return (ruby_instance_t *) self;
@@ -163,7 +195,7 @@ ruby_Hash_new(ruby_context_t *ctx)
 bool
 ruby_Hash_check(const ruby_instance_t *self)
 {
-	return self->op == &ruby_Hash_methods;
+	return self->op == &ruby_Hash_type;
 }
 
 bool

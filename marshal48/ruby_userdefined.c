@@ -26,13 +26,39 @@ typedef struct {
 	ruby_byteseq_t	udef_data;
 } ruby_UserDefined;
 
+static ruby_instance_t *
+ruby_UserDefined_unmarshal(ruby_unmarshal_t *marshal)
+{
+	ruby_instance_t *object;
+	ruby_byteseq_t *data;
+
+	object = ruby_unmarshal_object_instance(marshal, ruby_UserDefined_new);
+	if (object == NULL)
+		return NULL;
+
+	/* Get a pointer to the object's internal byteseq buffer */
+	if (!(data = __ruby_UserDefined_get_data_rw(object))) {
+		/* complain */
+		return NULL;
+	}
+
+	/* Clear the byteseq object; read from stream */
+	ruby_byteseq_destroy(data);
+	if (!ruby_unmarshal_next_byteseq(marshal, data)) {
+		/* complain */
+		return NULL;
+	}
+
+	return object;
+}
+
 
 static void
 ruby_UserDefined_del(ruby_UserDefined *self)
 {
 	ruby_byteseq_destroy(&self->udef_data);
 
-	ruby_GenericObject_methods.del((ruby_instance_t *) self);
+	ruby_GenericObject_type.del((ruby_instance_t *) self);
 }
 
 static const char *
@@ -100,11 +126,12 @@ failed:
 	return NULL;
 }
 
-static ruby_type_t ruby_UserDefined_methods = {
+ruby_type_t ruby_UserDefined_type = {
 	.name		= "UserDefined",
 	.size		= sizeof(ruby_UserDefined),
-	.base_type	= &ruby_GenericObject_methods,
+	.base_type	= &ruby_GenericObject_type,
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_UserDefined_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_UserDefined_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_UserDefined_repr,
 	.convert	= (ruby_instance_convert_fn_t) ruby_UserDefined_convert,
@@ -115,7 +142,7 @@ ruby_UserDefined_new(ruby_context_t *ctx, const char *classname)
 {
 	ruby_UserDefined *self;
 
-	self = (ruby_UserDefined *) __ruby_GenericObject_new(ctx, classname, &ruby_UserDefined_methods);
+	self = (ruby_UserDefined *) __ruby_GenericObject_new(ctx, classname, &ruby_UserDefined_type);
 	ruby_byteseq_init(&self->udef_data);
 
 	return (ruby_instance_t *) self;
@@ -124,7 +151,7 @@ ruby_UserDefined_new(ruby_context_t *ctx, const char *classname)
 bool
 ruby_UserDefined_check(const ruby_instance_t *self)
 {
-	return __ruby_instance_check_type(self, &ruby_UserDefined_methods);
+	return __ruby_instance_check_type(self, &ruby_UserDefined_type);
 }
 
 bool

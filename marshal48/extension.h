@@ -34,9 +34,40 @@ typedef struct ruby_type ruby_type_t;
 typedef struct ruby_array	ruby_array_t;
 typedef struct ruby_byteseq	ruby_byteseq_t;
 typedef struct ruby_dict	ruby_dict_t;
+typedef struct ruby_reader	ruby_reader_t;
 
 extern ruby_context_t *	ruby_context_new(void);
 extern void		ruby_context_free(ruby_context_t *);
+
+typedef struct ruby_unmarshal	ruby_unmarshal_t;
+
+struct ruby_unmarshal {
+	ruby_context_t *	ruby;
+	ruby_reader_t *		reader;
+
+	struct {
+		unsigned int	indent;
+		bool		quiet;
+	} log;
+
+};
+
+extern ruby_unmarshal_t *ruby_unmarshal_new(ruby_context_t *ctx, PyObject *io);
+extern bool		ruby_unmarshal_next_fixnum(ruby_unmarshal_t *, long *);
+extern const char *	ruby_unmarshal_next_string(ruby_unmarshal_t *marshal, const char *encoding);
+extern bool		ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, ruby_byteseq_t *seq);
+extern ruby_instance_t *ruby_unmarshal_next_instance(ruby_unmarshal_t *);
+extern bool		ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object);
+
+typedef ruby_instance_t *(*ruby_object_factory_fn_t)(ruby_context_t *, const char *);
+extern ruby_instance_t *ruby_unmarshal_object_instance(ruby_unmarshal_t *s, ruby_object_factory_fn_t factory);
+
+extern void		__ruby_unmarshal_trace(ruby_unmarshal_t *s, const char *fmt, ...);
+
+#define ruby_unmarshal_trace(s, fmt ...) do { \
+        if (!(s)->log.quiet) \
+                __ruby_unmarshal_trace(s, ## fmt); \
+} while (0)
 
 enum {
 	RUBY_REG_EPHEMERAL,
@@ -49,6 +80,8 @@ struct ruby_type {
 	size_t		size;
 	int		registration;
 	ruby_type_t *	base_type;
+
+	ruby_instance_t *(*unmarshal)(ruby_unmarshal_t *);
 
 	void		(*del)(ruby_instance_t *);
 	const char *	(*repr)(ruby_instance_t *);

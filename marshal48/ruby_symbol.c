@@ -29,6 +29,20 @@ typedef struct {
 	char *		sym_name;
 } ruby_Symbol;
 
+/*
+ * A symbol is a byte sequence; no character encoding.
+ */
+static ruby_instance_t *
+ruby_Symbol_unmarshal(ruby_unmarshal_t *marshal)
+{
+	const char *string;
+
+	string = ruby_unmarshal_next_string(marshal, "latin1");
+	if (string == NULL)
+		return NULL;
+
+	return ruby_Symbol_new(marshal->ruby, string);
+}
 
 static void
 ruby_Symbol_del(ruby_Symbol *self)
@@ -46,11 +60,12 @@ ruby_Symbol_repr(ruby_Symbol *self)
 	return self->sym_name;
 }
 
-static ruby_type_t ruby_Symbol_methods = {
+ruby_type_t ruby_Symbol_type = {
 	.name		= "Symbol",
 	.size		= sizeof(ruby_Symbol),
 	.registration	= RUBY_REG_SYMBOL,
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Symbol_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Symbol_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Symbol_repr,
 };
@@ -60,7 +75,7 @@ ruby_Symbol_new(ruby_context_t *ctx, const char *name)
 {
 	ruby_Symbol *sym;
 
-	sym = (ruby_Symbol *) __ruby_instance_new(ctx, &ruby_Symbol_methods);
+	sym = (ruby_Symbol *) __ruby_instance_new(ctx, &ruby_Symbol_type);
 	sym->sym_name = strdup(name);
 
 	return (ruby_instance_t *) sym;
@@ -69,7 +84,7 @@ ruby_Symbol_new(ruby_context_t *ctx, const char *name)
 bool
 ruby_Symbol_check(const ruby_instance_t *self)
 {
-	return self->op == &ruby_Symbol_methods;
+	return self->op == &ruby_Symbol_type;
 }
 
 const char *

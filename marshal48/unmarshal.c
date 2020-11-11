@@ -26,22 +26,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "ruby_impl.h"
 #include "ruby_utils.h"
 
-typedef struct unmarshal_state {
-	ruby_context_t *	ruby;
-	ruby_reader_t *		reader;
+typedef struct unmarshal_processor {
+	const char *		name;
+	ruby_instance_t *	(*process)(ruby_unmarshal_t *s);
+} unmarshal_processor_t;
 
-	struct {
-		unsigned int	indent;
-		bool		quiet;
-	} log;
-} unmarshal_state;
+extern ruby_instance_t *unmarshal_process_quiet(ruby_unmarshal_t *s);
 
-
-static ruby_instance_t *unmarshal_process(unmarshal_state *s);
-extern ruby_instance_t *unmarshal_process_quiet(unmarshal_state *s);
-
-static void
-__unmarshal_trace(unmarshal_state *s, const char *fmt, ...)
+void
+__ruby_unmarshal_trace(ruby_unmarshal_t *s, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -52,36 +45,30 @@ __unmarshal_trace(unmarshal_state *s, const char *fmt, ...)
 	va_end(ap);
 }
 
-#define unmarshal_trace(s, fmt ...) do { \
-	if (!(s)->log.quiet) \
-		__unmarshal_trace(s, ## fmt); \
-} while (0)
-#define unmarshal_enter(s)	unmarshal_trace(s, "enter %s()", __func__)
-#define unmarshal_tp(s)		unmarshal_trace(s, "TP %s:%d", __func__, __LINE__)
-
-#define py_stringify(obj)	PyUnicode_AsUTF8(PyObject_Str(obj))
-
 /*
  * Manage the state object
  */
-static void
-unmarshal_state_init(unmarshal_state *s, ruby_context_t *ruby, PyObject *io)
+ruby_unmarshal_t *
+ruby_unmarshal_new(ruby_context_t *ruby, PyObject *io)
 {
-	memset(s, 0, sizeof(*s));
-	s->ruby = ruby;
+	ruby_unmarshal_t *marshal;
 
-	s->reader = ruby_reader_new(io);
+	marshal = calloc(1, sizeof(*marshal));
+	marshal->ruby = ruby;
+	marshal->reader = ruby_reader_new(io);
+
+	return marshal;
 }
 
-static void
-unmarshal_state_destroy(unmarshal_state *s)
+void
+ruby_unmarshal_free(ruby_unmarshal_t *marshal)
 {
 	/* We do not delete the ruby context; that is done by the caller */
-	ruby_reader_free(s->reader);
+	ruby_reader_free(marshal->reader);
 }
 
-static bool
-unmarshal_next_fixnum(unmarshal_state *s, long *fixnump)
+bool
+ruby_unmarshal_next_fixnum(ruby_unmarshal_t *s, long *fixnump)
 {
 	ruby_reader_t *reader = s->reader;
 	int cc;
@@ -89,7 +76,7 @@ unmarshal_next_fixnum(unmarshal_state *s, long *fixnump)
 	if (!ruby_reader_nextc(reader, &cc))
 		return false;
 
-	// unmarshal_trace(s, "int0=0x%x", cc);
+	// ruby_unmarshal_trace(s, "int0=0x%x", cc);
 
 	switch (cc) {
 	case 0:
@@ -127,13 +114,13 @@ unmarshal_next_fixnum(unmarshal_state *s, long *fixnump)
 	}
 }
 
-static bool
-__unmarshal_next_byteseq(unmarshal_state *s, ruby_byteseq_t *seq)
+bool
+ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, ruby_byteseq_t *seq)
 {
 	ruby_reader_t *reader = s->reader;
 	long count;
 
-	if (!unmarshal_next_fixnum(s, &count))
+	if (!ruby_unmarshal_next_fixnum(s, &count))
 		return false;
 
 	assert(seq->count == 0);
@@ -141,14 +128,20 @@ __unmarshal_next_byteseq(unmarshal_state *s, ruby_byteseq_t *seq)
 }
 
 const char *
-unmarshal_next_string(unmarshal_state *s, const char *encoding)
+ruby_unmarshal_next_string(ruby_unmarshal_t *marshal, const char *encoding)
 {
+	/* This is a static byteseq object, so we can return its internal
+	 * data pointer and it will remain valid until the next call
+	 * to this function. */
 	static ruby_byteseq_t seq;
 
+	/* zap what's left over from the previous call */
 	ruby_byteseq_destroy(&seq);
-	if (!__unmarshal_next_byteseq(s, &seq))
+
+	if (!ruby_unmarshal_next_byteseq(marshal, &seq))
 		return NULL;
 
+	/* NUL terminate */
 	ruby_byteseq_append(&seq, "", 1);
 
 	assert(!strcmp(encoding, "latin1"));
@@ -157,74 +150,56 @@ unmarshal_next_string(unmarshal_state *s, const char *encoding)
 }
 
 /*
+ * Processors are a convenience - they combine a name (debug string) with a function ptr
+ *
+ * Note that most objects that we unmarshal have a type object that provides a .unmarshal
+ * function. However, this is not possible for symbol/object references, or objects with
+ * instance variables.
+ */
+#define RUBY_UNMARSHAL_PROCESSOR(NAME) \
+static unmarshal_processor_t	ruby_##NAME##_processor = { \
+	.name	= #NAME, \
+	.process= ruby_##NAME##_unmarshal, \
+}
+
+
+/*
  * Simple constants
  */
 static ruby_instance_t *
-unmarshal_process_none(unmarshal_state *s)
+ruby_None_unmarshal(ruby_unmarshal_t *s)
 {
 	return (ruby_instance_t *) &ruby_None;
 }
 
+RUBY_UNMARSHAL_PROCESSOR(None);
+
 static ruby_instance_t *
-unmarshal_process_true(unmarshal_state *s)
+ruby_True_unmarshal(ruby_unmarshal_t *s)
 {
 	return (ruby_instance_t *) &ruby_True;
 }
 
+RUBY_UNMARSHAL_PROCESSOR(True);
+
 static ruby_instance_t *
-unmarshal_process_false(unmarshal_state *s)
+ruby_False_unmarshal(ruby_unmarshal_t *s)
 {
 	return (ruby_instance_t *) &ruby_False;
 }
 
-/*
- * Integers
- */
-static ruby_instance_t *
-unmarshal_process_int(unmarshal_state *s)
-{
-	long value;
-
-	if (!(unmarshal_next_fixnum(s, &value)))
-		return NULL;
-
-	return ruby_Int_new(s->ruby, value);
-}
+RUBY_UNMARSHAL_PROCESSOR(False);
 
 /*
- * Define symbol
+ * Process a symbol reference
  */
 static ruby_instance_t *
-unmarshal_define_symbol(unmarshal_state *s, const char *string)
-{
-	ruby_instance_t *sym = ruby_Symbol_new(s->ruby, string);
-
-	unmarshal_trace(s, "unmarshal_define_symbol(%s) = %d", string, sym->reg.id);
-	return sym;
-}
-
-/*
- * A symbol is a byte sequence; no character encoding.
- */
-static ruby_instance_t *
-unmarshal_process_symbol(unmarshal_state *s)
-{
-	const char *string;
-
-	string = unmarshal_next_string(s, "latin1");
-	if (string == NULL)
-		return NULL;
-
-	return unmarshal_define_symbol(s, string);
-}
-
-static ruby_instance_t *
-unmarshal_process_symbol_reference(unmarshal_state *s)
+ruby_SymbolReference_unmarshal(ruby_unmarshal_t *s)
 {
 	ruby_instance_t *symbol;
 	long ref;
 
-	if (!unmarshal_next_fixnum(s, &ref))
+	if (!ruby_unmarshal_next_fixnum(s, &ref))
 		return NULL;
 
 	symbol = ruby_context_get_symbol(s->ruby, ref);
@@ -233,28 +208,22 @@ unmarshal_process_symbol_reference(unmarshal_state *s)
 		return NULL;
 	}
 
-	unmarshal_trace(s, "%s(%d) = \"%s\"", __func__, ref, ruby_Symbol_get_name(symbol));
+	ruby_unmarshal_trace(s, "Referenced dymbol #%ld: %s", ref, ruby_Symbol_get_name(symbol));
 	return symbol;
 }
 
-/*
- * Register an object
- */
-static void
-unmarshal_register_object(unmarshal_state *s, ruby_instance_t *object)
-{
-	assert(object->reg.id >= 0 && object->reg.kind == RUBY_REG_OBJECT);
-	/* simple_object_array_append(&s->objects, object); */
-	/* return object; */
-}
+RUBY_UNMARSHAL_PROCESSOR(SymbolReference);
 
+/*
+ * Process an object reference
+ */
 static ruby_instance_t *
-unmarshal_process_object_reference(unmarshal_state *s)
+ruby_ObjectReference_unmarshal(ruby_unmarshal_t *s)
 {
 	ruby_instance_t *object;
 	long ref;
 
-	if (!unmarshal_next_fixnum(s, &ref))
+	if (!ruby_unmarshal_next_fixnum(s, &ref))
 		return NULL;
 
 	object = ruby_context_get_object(s->ruby, ref);
@@ -263,146 +232,31 @@ unmarshal_process_object_reference(unmarshal_state *s)
 		return NULL;
 	}
 
-	unmarshal_trace(s, "Referenced object #%ld: %s", ref, ruby_instance_repr(object));
+	ruby_unmarshal_trace(s, "Referenced object #%ld: %s", ref, ruby_instance_repr(object));
 	return object;
 }
 
-/*
- * String processing
- * It would be nice if we could just create a native Python string here.
- * However, the string encoding is often transported as a string object
- * follwed by one instance variable E=True/False.
- * So we need a ruby.String object that understands the set_instance_var
- * protocol.
- */
-static ruby_instance_t *
-unmarshal_process_string(unmarshal_state *s)
-{
-	const char *raw_string;
-	ruby_instance_t *string = NULL;
-
-	unmarshal_enter(s);
-
-	if (!(raw_string = unmarshal_next_string(s, "latin1")))
-		return NULL;
-
-	unmarshal_trace(s, "decoded string \"%s\"", raw_string);
-
-	string = ruby_String_new(s->ruby, raw_string);
-	if (string == NULL)
-		return NULL;
-
-	/* Register all objects as soon as they get created; this seems to
-	 * reflect the order in which the ruby marshal48 code assigns
-	 * object IDs */
-	unmarshal_register_object(s, string);
-
-	return string;
-}
-
-/*
- * Array processing
- */
-static ruby_instance_t *
-unmarshal_process_array(unmarshal_state *s)
-{
-	ruby_instance_t *array;
-	long i, count;
-
-	if (!unmarshal_next_fixnum(s, &count))
-		return NULL;
-
-	unmarshal_trace(s, "Decoding array with %ld objects", count);
-
-	array = ruby_Array_new(s->ruby);
-	if (array == NULL)
-		return NULL;
-
-	/* Register all objects as soon as they get created; this seems to
-	 * reflect the order in which the ruby marshal48 code assigns
-	 * object IDs */
-	unmarshal_register_object(s, array);
-
-	for (i = 0; i < count; ++i) {
-		ruby_instance_t *item;
-
-		item = unmarshal_process(s);
-		if (item == NULL)
-			return NULL;
-
-		if (!ruby_Array_append(array, item))
-			return NULL;
-	}
-
-	return array;
-}
-
-/*
- * Hash processing
- */
-static ruby_instance_t *
-unmarshal_process_hash(unmarshal_state *s)
-{
-	ruby_instance_t *hash;
-	long i, count;
-
-	if (!unmarshal_next_fixnum(s, &count))
-		return NULL;
-
-	unmarshal_trace(s, "Decoding hash with %ld objects", count);
-
-	hash = ruby_Hash_new(s->ruby);
-
-	/* Register all objects as soon as they get created; this seems to
-	 * reflect the order in which the ruby marshal48 code assigns
-	 * object IDs */
-	unmarshal_register_object(s, hash);
-
-	for (i = 0; i < count; ++i) {
-		ruby_instance_t *key, *value;
-
-		key = unmarshal_process(s);
-		if (key == NULL)
-			return NULL;
-
-		value = unmarshal_process(s);
-		if (value == NULL)
-			return NULL;
-
-		if (!ruby_Hash_add(hash, key, value))
-			return NULL;
-	}
-
-	return hash;
-}
+RUBY_UNMARSHAL_PROCESSOR(ObjectReference);
 
 /*
  * Common helper to create object instances that specify a Classname
  */
-static inline ruby_instance_t *
-__unmarshal_process_object_class_instance(unmarshal_state *s,
-		ruby_instance_t * (*constructor)(ruby_context_t *, const char *))
+ruby_instance_t *
+ruby_unmarshal_object_instance(ruby_unmarshal_t *s,
+               ruby_instance_t * (*constructor)(ruby_context_t *, const char *))
 {
 	ruby_instance_t *name_instance, *object;
 	char *classname;
 
-	if (!(name_instance = unmarshal_process(s)))
-		return NULL;
+	if (!(name_instance = ruby_unmarshal_next_instance(s)))
+	       return NULL;
 
 	classname = ruby_instance_as_string(name_instance);
 	if (classname == NULL)
-		return NULL;
+	       return NULL;
 
 	object = constructor(s->ruby, classname);
 	free(classname);
-
-	if (object == NULL)
-		return NULL;
-
-	/* Register all objects as soon as they get created; this seems to
-	 * reflect the order in which the ruby marshal48 code assigns
-	 * object IDs */
-	unmarshal_register_object(s, object);
 
 	return object;
 }
@@ -410,29 +264,28 @@ __unmarshal_process_object_class_instance(unmarshal_state *s,
 /*
  * Common helper function to process instance variables
  */
-static inline bool
-__unmarshal_process_instance_vars(unmarshal_state *s, ruby_instance_t *object)
+bool
+ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object)
 {
 	long i, count;
 
-	unmarshal_enter(s);
-	if (!unmarshal_next_fixnum(s, &count))
+	if (!ruby_unmarshal_next_fixnum(s, &count))
 		return false;
 
-	unmarshal_trace(s, "%ld instance variables follow", count);
+	ruby_unmarshal_trace(s, "%s is followed by %ld instance variables", object->op->name, count);
 
 	for (i = 0; i < count; ++i) {
 		ruby_instance_t *key, *value;
 
-		key = unmarshal_process(s);
+		key = ruby_unmarshal_next_instance(s);
 		if (key == NULL)
 			return false;
 
-		value = unmarshal_process(s);
+		value = ruby_unmarshal_next_instance(s);
 		if (value == NULL)
 			return false;
 
-		unmarshal_trace(s, "key=%s value=%s", ruby_instance_repr(key), ruby_instance_repr(value));
+		ruby_unmarshal_trace(s, "  key=%s value=%s", ruby_instance_repr(key), ruby_instance_repr(value));
 
 		if (!ruby_instance_set_var(object, key, value))
 			return false;
@@ -446,18 +299,18 @@ __unmarshal_process_instance_vars(unmarshal_state *s, ruby_instance_t *object)
  * Arbitrary object, followed by a bunch of instance variables
  */
 static ruby_instance_t *
-unmarshal_process_object_with_instance_vars(unmarshal_state *s)
+ruby_ObjectWithInstanceVars_unmarshal(ruby_unmarshal_t *s)
 {
 	ruby_instance_t *object;
 
-	if (!(object = unmarshal_process(s)))
+	if (!(object = ruby_unmarshal_next_instance(s)))
 		return NULL;
 
 	/* Do not register the object here. If it *is* a proper object
 	 * (rather than say a symbol or fixnum) it has already been
-	 * registered inside the call to unmarshal_process() above. */
+	 * registered inside the call to ruby_unmarshal_next_instance() above. */
 
-	if (!__unmarshal_process_instance_vars(s, object)) {
+	if (!ruby_unmarshal_object_instance_vars(s, object)) {
 		Py_DECREF(object);
 		return NULL;
 	}
@@ -465,127 +318,65 @@ unmarshal_process_object_with_instance_vars(unmarshal_state *s)
 	return object;
 }
 
-/*
- * Generic object, which is constructed as Classname + instance variables
- */
-static ruby_instance_t *
-unmarshal_process_generic_object(unmarshal_state *s)
-{
-	ruby_instance_t *object;
-
-	object = __unmarshal_process_object_class_instance(s, ruby_GenericObject_new);
-	if (object == NULL)
-		return NULL;
-
-	if (!__unmarshal_process_instance_vars(s, object))
-		return NULL;
-
-	return object;
-}
-
-/*
- * Marshaled object, which is constructed by instantiating Classname() and calling
- * marshal_load() with an unmarshaled ruby object
- */
-static ruby_instance_t *
-unmarshal_process_user_marshal(unmarshal_state *s)
-{
-	ruby_instance_t *object, *data;
-
-	object = __unmarshal_process_object_class_instance(s, ruby_UserMarshal_new);
-	if (object == NULL)
-		return NULL;
-
-	data = unmarshal_process(s);
-	if (data == NULL)
-		return NULL;
-
-	if (!ruby_UserMarshal_set_data(object, data))
-		return NULL;
-
-	return object;
-}
-
-/*
- * User Defined object, which is constructed by instantiating Classname() and calling
- * load() with a byte sequence (which may or may not contain marshaled data).
- */
-static ruby_instance_t *
-unmarshal_process_user_defined(unmarshal_state *s)
-{
-	ruby_instance_t *object;
-	ruby_byteseq_t *data;
-
-	object = __unmarshal_process_object_class_instance(s, ruby_UserDefined_new);
-	if (object == NULL)
-		return NULL;
-
-	/* Get a pointer to the object's internal byteseq buffer */
-	if (!(data = __ruby_UserDefined_get_data_rw(object))) {
-		/* complain */
-		return NULL;
-	}
-
-	/* Clear the byteseq object; read from stream */
-	ruby_byteseq_destroy(data);
-	if (!__unmarshal_next_byteseq(s, data)) {
-		/* complain */
-		return NULL;
-	}
-
-	return object;
-}
+RUBY_UNMARSHAL_PROCESSOR(ObjectWithInstanceVars);
 
 static ruby_instance_t *
-__unmarshal_process(unmarshal_state *s)
+__ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 {
-	typedef ruby_instance_t *(*unmarshal_process_fn_t)(unmarshal_state *s);
-	static unmarshal_process_fn_t unmarshal_process_table[256] = {
-		['T'] = unmarshal_process_true,
-		['F'] = unmarshal_process_false,
-		['0'] = unmarshal_process_none,
-
-		['i'] = unmarshal_process_int,
-		[':'] = unmarshal_process_symbol,
-		[';'] = unmarshal_process_symbol_reference,
-		['@'] = unmarshal_process_object_reference,
-
-		/* The following are all objects that have an object id (and can thus be referenced by ID) */
-		['['] = unmarshal_process_array,
-		['{'] = unmarshal_process_hash,
-		['"'] = unmarshal_process_string,
-		['I'] = unmarshal_process_object_with_instance_vars,
-		['o'] = unmarshal_process_generic_object,
-		['U'] = unmarshal_process_user_marshal,
-		['u'] = unmarshal_process_user_defined,
+	static const ruby_type_t *unmarshal_type_table[256] = {
+		['i'] = &ruby_Int_type,
+		[':'] = &ruby_Symbol_type,
+		['"'] = &ruby_String_type,
+		['['] = &ruby_Array_type,
+		['{'] = &ruby_Hash_type,
+		['o'] = &ruby_GenericObject_type,
+		['u'] = &ruby_UserDefined_type,
+		['U'] = &ruby_UserMarshal_type,
 	};
-	unmarshal_process_fn_t process_fn;
+	static unmarshal_processor_t *unmarshal_processor_table[256] = {
+		['T'] = &ruby_True_processor,
+		['F'] = &ruby_False_processor,
+		['0'] = &ruby_None_processor,
+		[';'] = &ruby_SymbolReference_processor,
+		['@'] = &ruby_ObjectReference_processor,
+		['I'] = &ruby_ObjectWithInstanceVars_processor,
+	};
+	const unmarshal_processor_t *processor;
+	const ruby_type_t *type;
 	int cc;
 
 	if (!ruby_reader_nextc(s->reader, &cc))
 		return NULL;
 
 	assert(0 <= cc && cc < 256);
-	process_fn = unmarshal_process_table[cc];
 
-	unmarshal_trace(s, "process(%c -> %p)", cc, process_fn);
-	if (process_fn == NULL) {
-		PyErr_Format(PyExc_NotImplementedError, "%s: object type %c(0x%x) not implemented", __func__, cc, cc);
-		return NULL;
+	type = unmarshal_type_table[cc];
+	if (type != NULL) {
+		assert(type->unmarshal != NULL);
+
+		ruby_unmarshal_trace(s, "process(%c -> %s)", cc, type->name);
+		return type->unmarshal(s);
 	}
 
-	return process_fn(s);
+	processor = unmarshal_processor_table[cc];
+	if (processor != NULL) {
+		ruby_unmarshal_trace(s, "process(%c -> %s)", cc, processor->name);
+		return processor->process(s);
+	}
+
+	fprintf(stderr, "Don't know how to handle marshal type %c(0x%02x)\n", cc, cc);
+	return NULL;
 }
 
-static ruby_instance_t *
-unmarshal_process(unmarshal_state *s)
+ruby_instance_t *
+ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 {
 	unsigned int saved_indent = s->log.indent;
 	bool saved_quiet = s->log.quiet;
 	ruby_instance_t *result;
 
 	s->log.indent += 2;
-	result = __unmarshal_process(s);
+	result = __ruby_unmarshal_next_instance(s);
 	s->log.indent = saved_indent;
 	s->log.quiet = saved_quiet;
 
@@ -593,20 +384,20 @@ unmarshal_process(unmarshal_state *s)
 }
 
 ruby_instance_t *
-unmarshal_process_quiet(unmarshal_state *s)
+unmarshal_process_quiet(ruby_unmarshal_t *s)
 {
 	bool saved_quiet = s->log.quiet;
 	ruby_instance_t *result;
 
 	s->log.quiet = true;
-	result = unmarshal_process(s);
+	result = ruby_unmarshal_next_instance(s);
 	s->log.quiet = saved_quiet;
 
 	return result;
 }
 
 static bool
-unmarshal_check_signature(unmarshal_state *s, const unsigned char *sig, unsigned int sig_len)
+unmarshal_check_signature(ruby_unmarshal_t *s, const unsigned char *sig, unsigned int sig_len)
 {
 	unsigned int i;
 
@@ -619,7 +410,7 @@ unmarshal_check_signature(unmarshal_state *s, const unsigned char *sig, unsigned
 }
 
 bool
-marshal48_check_signature(unmarshal_state *s)
+marshal48_check_signature(ruby_unmarshal_t *s)
 {
 	static unsigned char marshal48_sig[2] = {0x04, 0x08};
 
@@ -629,20 +420,25 @@ marshal48_check_signature(unmarshal_state *s)
 ruby_instance_t *
 marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io)
 {
-	unmarshal_state state;
+	ruby_unmarshal_t *marshal = ruby_unmarshal_new(ruby, io);
 	ruby_instance_t *result;
 
-	printf("%s(%s)\n", __func__, py_stringify(io));
-	unmarshal_state_init(&state, ruby, io);
+	printf("%s()\n", __func__);
 
-	if (!marshal48_check_signature(&state)) {
-		PyErr_SetString(PyExc_ValueError, "Data does not start with Marshal48 signature");
+	/* shut down messages */
+	// marshal->log.quiet = true;
+
+	if (!marshal48_check_signature(marshal)) {
+		/* PyErr_SetString(PyExc_ValueError, "Data does not start with Marshal48 signature"); */
+		ruby_unmarshal_free(marshal);
 		return NULL;
 	}
 
-	unmarshal_trace(&state, "Unmarshaling data");
-	result = unmarshal_process(&state);
-	unmarshal_state_destroy(&state);
+	ruby_unmarshal_trace(marshal, "Unmarshaling data");
+	result = ruby_unmarshal_next_instance(marshal);
+	fprintf(stderr, "Result = %p\n", result);
+
+	ruby_unmarshal_free(marshal);
 
 	return result;
 }

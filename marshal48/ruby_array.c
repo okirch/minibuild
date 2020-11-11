@@ -27,6 +27,34 @@ typedef struct {
 	ruby_array_t	arr_items;
 } ruby_Array;
 
+static ruby_instance_t *
+ruby_Array_unmarshal(ruby_unmarshal_t *marshal)
+{
+	ruby_instance_t *array;
+	long i, count;
+
+	if (!ruby_unmarshal_next_fixnum(marshal, &count))
+		return NULL;
+
+	ruby_unmarshal_trace(marshal, "Decoding array with %ld objects", count);
+
+	array = ruby_Array_new(marshal->ruby);
+	if (array == NULL)
+		return NULL;
+
+	for (i = 0; i < count; ++i) {
+		ruby_instance_t *item;
+
+		item = ruby_unmarshal_next_instance(marshal);
+		if (item == NULL)
+			return NULL;
+
+		if (!ruby_Array_append(array, item))
+			return NULL;
+	}
+
+	return array;
+}
 
 static void
 ruby_Array_del(ruby_Array *self)
@@ -96,11 +124,12 @@ ruby_Array_convert(ruby_Array *self)
 	return result;
 }
 
-static ruby_type_t ruby_Array_methods = {
+ruby_type_t ruby_Array_type = {
 	.name		= "Array",
 	.size		= sizeof(ruby_Array),
 	.registration	= RUBY_REG_OBJECT,
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Array_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Array_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Array_repr,
 	.convert	= (ruby_instance_convert_fn_t) ruby_Array_convert,
@@ -111,7 +140,7 @@ ruby_Array_new(ruby_context_t *ruby)
 {
 	ruby_Array *self;
 
-	self = (ruby_Array *) __ruby_instance_new(ruby, &ruby_Array_methods);
+	self = (ruby_Array *) __ruby_instance_new(ruby, &ruby_Array_type);
 	ruby_array_init(&self->arr_items);
 
 	return (ruby_instance_t *) self;
@@ -120,7 +149,7 @@ ruby_Array_new(ruby_context_t *ruby)
 bool
 ruby_Array_check(const ruby_instance_t *self)
 {
-	return self->op == &ruby_Array_methods;
+	return self->op == &ruby_Array_type;
 }
 
 bool

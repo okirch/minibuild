@@ -30,6 +30,16 @@ typedef struct {
 	long		int_value;
 } ruby_Int;
 
+static ruby_instance_t *
+ruby_Int_unmarshal(ruby_unmarshal_t *marshal)
+{
+	long value;
+
+	if (!ruby_unmarshal_next_fixnum(marshal, &value))
+		return NULL;
+
+	return ruby_Int_new(marshal->ruby, value);
+}
 
 static void
 ruby_Int_del(ruby_Int *self)
@@ -43,10 +53,11 @@ ruby_Int_repr(ruby_Int *self)
 	return __ruby_repr_printf("%ld", self->int_value);
 }
 
-static ruby_type_t ruby_Int_methods = {
+ruby_type_t ruby_Int_type = {
 	.name		= "Int",
 	.size		= sizeof(ruby_Int),
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Int_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Int_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Int_repr,
 };
@@ -56,7 +67,7 @@ ruby_Int_new(ruby_context_t *ctx, long value)
 {
 	ruby_Int *inst;
 
-	inst = (ruby_Int *) __ruby_instance_new(ctx, &ruby_Int_methods);
+	inst = (ruby_Int *) __ruby_instance_new(ctx, &ruby_Int_type);
 	inst->int_value = value;
 
 	return (ruby_instance_t *) inst;
@@ -65,7 +76,7 @@ ruby_Int_new(ruby_context_t *ctx, long value)
 bool
 ruby_Int_check(const ruby_instance_t *self)
 {
-	return self->op == &ruby_Int_methods;
+	return self->op == &ruby_Int_type;
 }
 
 long

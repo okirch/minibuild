@@ -29,12 +29,34 @@ typedef struct {
 	ruby_instance_t *	marsh_data;
 } ruby_UserMarshal;
 
+/*
+ * Marshaled object, which is constructed by instantiating Classname() and calling
+ * marshal_load() with an unmarshaled ruby object
+ */
+static ruby_instance_t *
+ruby_UserMarshal_unmarshal(ruby_unmarshal_t *marshal)
+{
+	ruby_instance_t *object, *data;
+
+	object = ruby_unmarshal_object_instance(marshal, ruby_UserMarshal_new);
+	if (object == NULL)
+		return NULL;
+
+	data = ruby_unmarshal_next_instance(marshal);
+	if (data == NULL)
+		return NULL;
+
+	if (!ruby_UserMarshal_set_data(object, data))
+		return NULL;
+
+	return object;
+}
 
 static void
 ruby_UserMarshal_del(ruby_UserMarshal *self)
 {
 	/* Do not destroy the data we're referencing */
-	ruby_GenericObject_methods.del((ruby_instance_t *) self);
+	ruby_GenericObject_type.del((ruby_instance_t *) self);
 }
 
 static const char *
@@ -104,11 +126,12 @@ failed:
 	return NULL;
 }
 
-static ruby_type_t ruby_UserMarshal_methods = {
+ruby_type_t ruby_UserMarshal_type = {
 	.name		= "UserMarshal",
 	.size		= sizeof(ruby_UserMarshal),
-	.base_type	= &ruby_GenericObject_methods,
+	.base_type	= &ruby_GenericObject_type,
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_UserMarshal_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_UserMarshal_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_UserMarshal_repr,
 	.convert	= (ruby_instance_convert_fn_t) ruby_UserMarshal_convert,
@@ -119,7 +142,7 @@ ruby_UserMarshal_new(ruby_context_t *ctx, const char *classname)
 {
 	ruby_UserMarshal *self;
 
-	self = (ruby_UserMarshal *) __ruby_GenericObject_new(ctx, classname, &ruby_UserMarshal_methods);
+	self = (ruby_UserMarshal *) __ruby_GenericObject_new(ctx, classname, &ruby_UserMarshal_type);
 	self->marsh_data = NULL;
 
 	return (ruby_instance_t *) self;
@@ -128,7 +151,7 @@ ruby_UserMarshal_new(ruby_context_t *ctx, const char *classname)
 bool
 ruby_UserMarshal_check(const ruby_instance_t *self)
 {
-	return __ruby_instance_check_type(self, &ruby_UserMarshal_methods);
+	return __ruby_instance_check_type(self, &ruby_UserMarshal_type);
 }
 
 bool

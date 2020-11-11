@@ -22,6 +22,29 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "ruby_impl.h"
 
 
+typedef ruby_instance_t *(*ruby_object_factory_fn_t)(ruby_context_t *, const char *);
+
+/*
+ * Generic object, which is constructed as Classname + instance variables
+ */
+static ruby_instance_t *
+ruby_GenericObject_unmarshal(ruby_unmarshal_t *marshal)
+{
+	ruby_instance_t *object;
+
+	/* Create the object instance */
+	object = ruby_unmarshal_object_instance(marshal, ruby_GenericObject_new);
+	if (object == NULL)
+		return NULL;
+
+	/* Apply instance variables that follow */
+	if (!ruby_unmarshal_object_instance_vars(marshal, object))
+		return NULL;
+
+	return object;
+}
+
+
 static void
 ruby_GenericObject_del(ruby_GenericObject *self)
 {
@@ -116,11 +139,12 @@ ruby_GenericObject_convert(ruby_GenericObject *self)
 	return result;
 }
 
-ruby_type_t ruby_GenericObject_methods = {
+ruby_type_t ruby_GenericObject_type = {
 	.name		= "GenericObject",
 	.size		= sizeof(ruby_GenericObject),
 	.registration	= RUBY_REG_OBJECT,
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_GenericObject_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_GenericObject_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_GenericObject_repr,
 	.set_var	= (ruby_instance_set_var_fn_t) ruby_GenericObject_set_var,
@@ -142,11 +166,11 @@ __ruby_GenericObject_new(ruby_context_t *ctx, const char *classname, const ruby_
 ruby_instance_t *
 ruby_GenericObject_new(ruby_context_t *ctx, const char *classname)
 {
-	return __ruby_GenericObject_new(ctx, classname, &ruby_GenericObject_methods);
+	return __ruby_GenericObject_new(ctx, classname, &ruby_GenericObject_type);
 }
 
 bool
 ruby_GenericObject_check(const ruby_instance_t *self)
 {
-	return __ruby_instance_check_type(self, &ruby_GenericObject_methods);
+	return __ruby_instance_check_type(self, &ruby_GenericObject_type);
 }

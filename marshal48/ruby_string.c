@@ -28,6 +28,33 @@ typedef struct {
 } ruby_String;
 
 
+/*
+ * String unmarshaling
+ *
+ * It would be nice if a string was just a string.
+ * However, the string encoding is often transported as a string object
+ * follwed by one instance variable E=True/False.
+ * So we need a ruby.String object that understands the set_instance_var
+ * protocol.
+ */
+static ruby_instance_t *
+ruby_String_unmarshal(ruby_unmarshal_t *marshal)
+{
+	const char *raw_string;
+	ruby_instance_t *string = NULL;
+
+	if (!(raw_string = ruby_unmarshal_next_string(marshal, "latin1")))
+		return NULL;
+
+	ruby_unmarshal_trace(marshal, "decoded string \"%s\"", raw_string);
+
+	string = ruby_String_new(marshal->ruby, raw_string);
+	if (string == NULL)
+		return NULL;
+
+	return string;
+}
+
 static void
 ruby_String_del(ruby_String *self)
 {
@@ -88,11 +115,12 @@ ruby_String_set_var(ruby_String *self, ruby_instance_t *key, ruby_instance_t *va
 	return true;
 }
 
-static ruby_type_t ruby_String_methods = {
+ruby_type_t ruby_String_type = {
 	.name		= "String",
 	.size		= sizeof(ruby_String),
 	.registration	= RUBY_REG_OBJECT,
 
+	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_String_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_String_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_String_repr,
 	.set_var	= (ruby_instance_set_var_fn_t) ruby_String_set_var,
@@ -104,7 +132,7 @@ ruby_String_new(ruby_context_t *ctx, const char *name)
 {
 	ruby_String *self;
 
-	self = (ruby_String *) __ruby_instance_new(ctx, &ruby_String_methods);
+	self = (ruby_String *) __ruby_instance_new(ctx, &ruby_String_type);
 	self->str_value = strdup(name);
 
 	assert(self->str_base.reg.id >= 0 && self->str_base.reg.kind == RUBY_REG_OBJECT);
@@ -115,7 +143,7 @@ ruby_String_new(ruby_context_t *ctx, const char *name)
 bool
 ruby_String_check(const ruby_instance_t *self)
 {
-	return self->op == &ruby_String_methods;
+	return self->op == &ruby_String_type;
 }
 
 const char *
