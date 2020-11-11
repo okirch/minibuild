@@ -87,19 +87,6 @@ ruby_instance_set_var(ruby_instance_t *self, ruby_instance_t *key, ruby_instance
 
 }
 
-static inline PyObject *
-ruby_instance_convert(ruby_instance_t *self, ruby_converter_t *converter)
-{
-	if (self->native == NULL) {
-		self->native = self->op->convert(self, converter);
-		if (self->native == NULL)
-			return NULL;
-	}
-
-	Py_INCREF(self->native);
-	return self->native;
-}
-
 extern const ruby_instance_t	ruby_True;
 extern const ruby_instance_t	ruby_False;
 extern const ruby_instance_t	ruby_None;
@@ -121,6 +108,7 @@ extern ruby_instance_t *ruby_context_get_object(ruby_context_t *, unsigned int);
 extern ruby_converter_t *ruby_converter_new(PyObject *factory);
 extern void		ruby_converter_free(ruby_converter_t *);
 
+extern PyObject *	ruby_instance_convert(ruby_instance_t *self, ruby_converter_t *converter);
 extern const char *	ruby_instance_repr(ruby_instance_t *self);
 
 extern bool		ruby_Bool_check(const ruby_instance_t *self);

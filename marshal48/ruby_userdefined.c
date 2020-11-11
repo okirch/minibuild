@@ -94,8 +94,11 @@ ruby_UserDefined_convert(ruby_UserDefined *self, ruby_converter_t *converter)
 	/* Look up classname in ruby module and instantiate */
 	result = marshal48_instantiate_ruby_type(self->udef_base.obj_classname, converter);
 
-	if (result == NULL)
+	if (result == NULL) {
+		fprintf(stderr, "UserDefined: unable to instantiate class %s\n", self->udef_base.obj_classname);
+		PyErr_Format(PyExc_RuntimeError, "unable to instantiate class %s", self->udef_base.obj_classname);
 		return NULL;
+	}
 
 	if (ruby_byteseq_is_empty(bytes)) {
 		data = Py_None;
@@ -110,8 +113,11 @@ ruby_UserDefined_convert(ruby_UserDefined *self, ruby_converter_t *converter)
 	r = PyObject_CallMethod(result, "load", "O", data);
 	Py_DECREF(data);
 
-	if (r == NULL)
+	if (r == NULL) {
+		fprintf(stderr, "UserDefined: unable to unmarshal: %s.load() failed\n", self->udef_base.obj_classname);
+		PyErr_Format(PyExc_RuntimeError, "%s.load() failed", self->udef_base.obj_classname);
 		goto failed;
+	}
 	Py_DECREF(r);
 
 	if (!__ruby_GenericObject_apply_vars(&self->udef_base.obj_base, result, converter)) {

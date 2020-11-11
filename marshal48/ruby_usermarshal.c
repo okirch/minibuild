@@ -109,12 +109,12 @@ ruby_UserMarshal_convert(ruby_UserMarshal *self, ruby_converter_t *converter)
 	}
 
 	/* Call the load_marshal() method of the new instance and pass it the data object */
-	r = PyObject_CallMethod(result, "load", "O", data);
+	r = PyObject_CallMethod(result, "marshal_load", "O", data);
 	Py_DECREF(data);
 
 	if (r == NULL) {
-		fprintf(stderr, "UserMarshal: unable to unmarshal: %s.load() failed\n", self->marsh_base.obj_classname);
-		PyErr_Format(PyExc_RuntimeError, "%s.load() failed", self->marsh_base.obj_classname);
+		fprintf(stderr, "UserMarshal: unable to unmarshal: %s.marshal_load() failed\n", self->marsh_base.obj_classname);
+		PyErr_Format(PyExc_RuntimeError, "%s.marshal_load() failed", self->marsh_base.obj_classname);
 		goto failed;
 	}
 	Py_DECREF(r);

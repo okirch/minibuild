@@ -169,6 +169,22 @@ __ruby_instance_del(ruby_instance_t *self)
 	free(self);
 }
 
+PyObject *
+ruby_instance_convert(ruby_instance_t *self, ruby_converter_t *converter)
+{
+	if (self->native == RUBY_NATIVE_NO_CACHE)
+		return self->op->convert(self, converter);
+
+	if (self->native == NULL) {
+		self->native = self->op->convert(self, converter);
+		if (self->native == NULL)
+			return NULL;
+	}
+
+	Py_INCREF(self->native);
+	return self->native;
+}
+
 char *
 ruby_instance_as_string(ruby_instance_t *self)
 {
@@ -230,6 +246,7 @@ const ruby_instance_t ruby_True = {
 	.reg = {
 		.id	= -1,
 	},
+	.native		= RUBY_NATIVE_NO_CACHE,
 };
 
 const ruby_instance_t ruby_False = {
@@ -237,6 +254,7 @@ const ruby_instance_t ruby_False = {
 	.reg = {
 		.id	= -1,
 	},
+	.native		= RUBY_NATIVE_NO_CACHE,
 };
 
 bool
@@ -287,6 +305,7 @@ const ruby_instance_t ruby_None = {
 	.reg = {
 		.id	= -1,
 	},
+	.native		= RUBY_NATIVE_NO_CACHE,
 };
 
 bool

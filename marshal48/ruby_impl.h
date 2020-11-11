@@ -38,6 +38,8 @@ typedef const char *	(*ruby_instance_repr_fn_t)(ruby_instance_t *, ruby_repr_con
 typedef bool		(*ruby_instance_set_var_fn_t)(ruby_instance_t *, ruby_instance_t *, ruby_instance_t *);
 typedef PyObject *	(*ruby_instance_convert_fn_t)(ruby_instance_t *, ruby_converter_t *);
 
+#define RUBY_NATIVE_NO_CACHE ((PyObject *) 0xdeadbeef)
+
 extern bool		__ruby_instance_check_type(const ruby_instance_t *self, const ruby_type_t *type);
 extern ruby_instance_t *__ruby_instance_new(ruby_context_t *, const ruby_type_t *);
 extern void		__ruby_instance_del(ruby_instance_t *self);
