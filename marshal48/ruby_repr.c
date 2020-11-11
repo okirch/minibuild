@@ -73,6 +73,12 @@ ruby_repr_context_destroy(ruby_repr_context_t *ctx)
 	assert(ctx->bufs == NULL);
 }
 
+static unsigned char *
+__ruby_repr_parrot_pos(ruby_repr_buf *rbuf)
+{
+	return ((unsigned char *) rbuf->data) + rbuf->size;
+}
+
 static ruby_repr_buf *
 __ruby_repr_buf_alloc(ruby_repr_context_t *ctx, unsigned int size)
 {
@@ -82,7 +88,8 @@ __ruby_repr_buf_alloc(ruby_repr_context_t *ctx, unsigned int size)
 	  * because we defined rbuf->data as a one element array */
 	rbuf = calloc(1, sizeof(*rbuf) + size + 4);
 	rbuf->size = size;
-	memcpy((char *) rbuf + size, __parrot, 4);
+
+	memcpy(__ruby_repr_parrot_pos(rbuf), __parrot, 4);
 
 	__ruby_repr_context_insert(ctx, rbuf);
 	return rbuf;
@@ -91,7 +98,14 @@ __ruby_repr_buf_alloc(ruby_repr_context_t *ctx, unsigned int size)
 static void
 __ruby_repr_buf_free(ruby_repr_buf *rbuf)
 {
-	assert(!memcmp((char *) rbuf + rbuf->size, __parrot, 4));
+	const unsigned char *where = __ruby_repr_parrot_pos(rbuf);
+
+	if (memcmp(where, __parrot, 4)) {
+		fprintf(stderr, "%s: bad canary value %02x %02x %02x %02x\n",
+				__func__, where[0], where[1], where[2], where[3]);
+		abort();
+	}
+
 	assert(rbuf->owner == NULL);
 	memset(rbuf, 0xa5, sizeof(*rbuf) + rbuf->size + 4);
 	free(rbuf);
