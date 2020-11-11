@@ -235,3 +235,18 @@ ruby_instance_repr(ruby_instance_t *self)
 	recursing = false;
 	return retval;
 }
+
+ruby_repr_context_t *
+ruby_repr_context_new(void)
+{
+	ruby_repr_context_t *ctx = calloc(1, sizeof(*ctx));
+
+	return ctx;
+}
+
+void
+ruby_repr_context_free(ruby_repr_context_t *ctx)
+{
+	ruby_repr_context_destroy(ctx);
+	free(ctx);
+}

@@ -275,6 +275,7 @@ ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object
 	ruby_unmarshal_trace(s, "%s is followed by %ld instance variables", object->op->name, count);
 
 	for (i = 0; i < count; ++i) {
+		ruby_repr_context_t *repr_ctx;
 		ruby_instance_t *key, *value;
 
 		key = ruby_unmarshal_next_instance_quiet(s);
@@ -285,7 +286,11 @@ ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object
 		if (value == NULL)
 			return false;
 
-		ruby_unmarshal_trace(s, "  key=%s value=%s", ruby_instance_repr(key), ruby_instance_repr(value));
+		repr_ctx = ruby_repr_context_new();
+		ruby_unmarshal_trace(s, "  key=%s value=%s",
+					__ruby_instance_repr(key, repr_ctx),
+					__ruby_instance_repr(value, repr_ctx));
+		ruby_repr_context_free(repr_ctx);
 
 		if (!ruby_instance_set_var(object, key, value))
 			return false;

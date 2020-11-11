@@ -73,6 +73,8 @@ extern bool		__ruby_byteseq_repr(const ruby_byteseq_t *, ruby_repr_buf *rbuf);
 /*
  * Helper functions for repr machinery.
  */
+extern ruby_repr_context_t *ruby_repr_context_new(void);
+extern void		ruby_repr_context_free(ruby_repr_context_t *ctx);
 extern const char *	__ruby_instance_repr(ruby_instance_t *, ruby_repr_context_t *);
 extern const char *	__ruby_repr_printf(ruby_repr_context_t *, const char *fmt, ...);
 extern ruby_repr_buf *	__ruby_repr_begin(ruby_repr_context_t *, unsigned int size);
