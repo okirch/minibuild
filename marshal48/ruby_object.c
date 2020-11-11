@@ -18,112 +18,70 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 
-#include <Python.h>
-#include <structmember.h>
-
 #include "extension.h"
+#include "ruby_impl.h"
 
 
-static void		GenericObject_dealloc(marshal48_GenericObject *self);
-static PyObject *	GenericObject_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-static PyObject *	GenericObject_set_instance_var(marshal48_GenericObject *self, PyObject *args);
-static PyObject *	GenericObject_convert(marshal48_GenericObject *self, PyObject *args);
-static PyObject *	GenericObject_construct(marshal48_GenericObject *self, PyObject *args);
-
-static PyMemberDef GenericObject_members[] = {
-	{"id", T_INT, offsetof(marshal48_GenericObject, id), 0, "object id"},
-	{"classname", T_STRING, offsetof(marshal48_GenericObject, classname), 0, "class name"},
-
-	{ NULL }
-};
-
-static PyMethodDef GenericObject_methods[] = {
-	{ "set_instance_var", (PyCFunction) GenericObject_set_instance_var, METH_VARARGS, NULL },
-	{ "convert", (PyCFunction) GenericObject_convert, METH_NOARGS, NULL },
-	{ "construct", (PyCFunction) GenericObject_construct, METH_NOARGS, NULL },
-	{ NULL }
-};
-
-
-PyTypeObject marshal48_GenericObjectType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "marshal48.GenericObject",
-	.tp_basicsize	= sizeof(marshal48_GenericObject),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby array",
-
-	.tp_init	= (initproc) GenericObject_init,
-	.tp_new		= GenericObject_new,
-	.tp_dealloc	= (destructor) GenericObject_dealloc,
-
-	.tp_members	= GenericObject_members,
-	.tp_methods	= GenericObject_methods,
-};
-
-/*
- * Constructor: allocate empty GenericObject object, and set its members.
- */
-static PyObject *
-GenericObject_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	marshal48_GenericObject *self;
-
-	self = (marshal48_GenericObject *) type->tp_alloc(type, 0);
-	if (self == NULL)
-		return NULL;
-
-	/* init members */
-	self->id = -1;
-	self->classname = NULL;
-	self->instance_vars = PyDict_New();
-
-	return (PyObject *)self;
-}
-
-/*
- * Initialize the array object
- */
-int
-GenericObject_init(marshal48_GenericObject *self, PyObject *args, PyObject *kwds)
-{
-	static char *kwlist[] = {
-		"classname",
-		NULL
-	};
-	char *classname;
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, &classname))
-		return -1;
-
-	self->classname = strdup(classname);
-	self->instance_vars = PyDict_New();
-	return 0;
-}
-
-/*
- * Destructor: clean any state inside the GenericObject object
- */
 static void
-GenericObject_dealloc(marshal48_GenericObject *self)
+ruby_GenericObject_del(ruby_GenericObject *self)
 {
-	drop_string(&self->classname);
-	drop_object(&self->instance_vars);
+	drop_string(&self->obj_classname);
+	ruby_dict_zap(&self->obj_vars);
+	__ruby_instance_del((ruby_instance_t *) self);
 }
 
-int
-GenericObject_Check(PyObject *self)
+static const char *
+ruby_GenericObject_repr(ruby_GenericObject *self)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_GenericObjectType);
+	ruby_repr_buf *rbuf;
+
+	rbuf = __ruby_repr_begin(128);
+	__ruby_repr_appendf(rbuf, "%s()", self->obj_classname);
+
+	if (self->obj_vars.dict_keys.count != 0) {
+		__ruby_repr_appendf(rbuf, "; ");
+		if (!__ruby_dict_repr(&self->obj_vars, rbuf))
+			return __ruby_repr_abort(rbuf);
+	}
+	return __ruby_repr_finish(rbuf);
 }
 
-static PyObject *
-GenericObject_instantiate(marshal48_GenericObject *self)
+bool
+ruby_GenericObject_set_var(ruby_GenericObject *self, ruby_instance_t *key, ruby_instance_t *value)
+{
+	/* FIXME: strip @ off the attribute name? */
+	ruby_dict_add(&self->obj_vars, key, value);
+	return true;
+}
+
+/*
+ * Convert from ruby type to native python type
+ */
+static bool
+__ruby_object_setattr(PyObject *result, PyObject *attr_name, PyObject *attr_value)
+{
+	return PyObject_SetAttr(result, attr_name, attr_value) >= 0;
+}
+
+bool
+__ruby_GenericObject_apply_vars(ruby_instance_t *self, PyObject *result)
+{
+	ruby_GenericObject *obj_self;
+
+	if (!ruby_GenericObject_check(self))
+		return false;
+
+	obj_self = (ruby_GenericObject *) self;
+	return !__ruby_dict_convert(&obj_self->obj_vars, result, __ruby_object_setattr);
+}
+
+PyObject *
+ruby_GenericObject_instantiate(ruby_GenericObject *self)
 {
 	PyObject *instance = NULL, *r;
 
 	/* Look up classname in ruby module and instantiate */
-	instance = marshal48_instantiate_ruby_type(self->classname);
+	instance = marshal48_instantiate_ruby_type(self->obj_classname);
 	if (instance == NULL)
 		return NULL;
 
@@ -138,68 +96,57 @@ GenericObject_instantiate(marshal48_GenericObject *self)
 	return instance;
 }
 
-static bool
-GenericObject_apply_instance_vars(marshal48_GenericObject *self, PyObject *instance)
-{
-	PyObject *key, *value;
-	Py_ssize_t pos = 0;
-
-	while (PyDict_Next(self->instance_vars, &pos, &key, &value)) {
-		PyObject *attr_val;
-
-		attr_val = PyObject_CallMethod(value, "convert", NULL);
-                if (attr_val == NULL)
-                        return false;
-
-		if (PyObject_SetAttr(instance, key, attr_val) < 0)
-			return false;
-	}
-
-	return true;
-}
 
 static PyObject *
-GenericObject_convert(marshal48_GenericObject *self, PyObject *args)
+ruby_GenericObject_convert(ruby_GenericObject *self)
 {
-	PyObject *instance = NULL;
+	PyObject *result;
 
-	if (!PyArg_Parse(args, ""))
+	/* Look up classname in ruby module and instantiate */
+	result = marshal48_instantiate_ruby_type(self->obj_classname);
+	if (result == NULL)
 		return NULL;
 
-	if (!(instance = GenericObject_instantiate(self)))
-		return NULL;
-
-	if (!GenericObject_apply_instance_vars(self, instance)) {
-		Py_DECREF(instance);
+	if (!__ruby_GenericObject_apply_vars(&self->obj_base, result)) {
+		/* FIXME: raise exception */
+		Py_DECREF(result);
 		return NULL;
 	}
 
-	return instance;
+	return result;
 }
 
-static PyObject *
-GenericObject_set_instance_var(marshal48_GenericObject *self, PyObject *args)
+ruby_type_t ruby_GenericObject_methods = {
+	.name		= "GenericObject",
+	.size		= sizeof(ruby_GenericObject),
+	.registration	= RUBY_REG_OBJECT,
+
+	.del		= (ruby_instance_del_fn_t) ruby_GenericObject_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_GenericObject_repr,
+	.set_var	= (ruby_instance_set_var_fn_t) ruby_GenericObject_set_var,
+	.convert	= (ruby_instance_convert_fn_t) ruby_GenericObject_convert,
+};
+
+ruby_instance_t *
+__ruby_GenericObject_new(ruby_context_t *ctx, const char *classname, const ruby_type_t *type)
 {
-	char *name;
-	PyObject *value;
+	ruby_GenericObject *self;
 
-	if (!PyArg_ParseTuple(args, "sO", &name, &value))
-		return NULL;
+	self = (ruby_GenericObject *) __ruby_instance_new(ctx, type);
+	self->obj_classname = strdup(classname);
+	ruby_dict_init(&self->obj_vars);
 
-	if (name[0] == '@')
-		++name;
-
-	PyDict_SetItemString(self->instance_vars, name, value);
-	Py_DECREF(value);
-
-	Py_RETURN_NONE;
+	return (ruby_instance_t *) self;
 }
 
-/*
- * No-op in the base class. This will be overridden in UserMarshal and UserDefined
- */
-static PyObject *
-GenericObject_construct(marshal48_GenericObject *self, PyObject *args)
+ruby_instance_t *
+ruby_GenericObject_new(ruby_context_t *ctx, const char *classname)
 {
-	Py_RETURN_NONE;
+	return __ruby_GenericObject_new(ctx, classname, &ruby_GenericObject_methods);
+}
+
+bool
+ruby_GenericObject_check(const ruby_instance_t *self)
+{
+	return __ruby_instance_check_type(self, &ruby_GenericObject_methods);
 }

@@ -18,140 +18,159 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 
-#include <Python.h>
-#include <structmember.h>
-
 #include "extension.h"
+#include "ruby_impl.h"
+
+typedef struct {
+	ruby_instance_t	hash_base;
+	ruby_dict_t	hash_dict;
+} ruby_Hash;
 
 
-static void		Hash_dealloc(marshal48_Hash *self);
-static PyObject *	Hash_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-static PyObject *	Hash_set(marshal48_Hash *self, PyObject *args);
-static PyObject *	Hash_convert(marshal48_Hash *self, PyObject *args);
-
-static PyMemberDef Hash_members[] = {
-	{"id", T_INT, offsetof(marshal48_Hash, id), 0, "object id"},
-	{ "value", T_OBJECT, offsetof(marshal48_Hash, value), 0, "internal hash"},
-
-	{ NULL }
-};
-
-static PyMethodDef Hash_methods[] = {
-	{ "set", (PyCFunction) Hash_set, METH_VARARGS, NULL },
-	{ "convert", (PyCFunction) Hash_convert, METH_NOARGS, NULL },
-	{ NULL }
-};
-
-
-PyTypeObject marshal48_HashType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "marshal48.Hash",
-	.tp_basicsize	= sizeof(marshal48_Hash),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby hash",
-
-	.tp_init	= (initproc) Hash_init,
-	.tp_new		= Hash_new,
-	.tp_dealloc	= (destructor) Hash_dealloc,
-
-	.tp_members	= Hash_members,
-	.tp_methods	= Hash_methods,
-};
-
-/*
- * Constructor: allocate empty Hash object, and set its members.
- */
-static PyObject *
-Hash_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	marshal48_Hash *self;
-
-	self = (marshal48_Hash *) type->tp_alloc(type, 0);
-	if (self == NULL)
-		return NULL;
-
-	/* init members */
-	self->id = -1;
-	self->value = PyDict_New();
-
-	return (PyObject *)self;
-}
-
-/*
- * Initialize the object
- */
-int
-Hash_init(marshal48_Hash *self, PyObject *args, PyObject *kwds)
-{
-	static char *kwlist[] = {
-		NULL
-	};
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist))
-		return -1;
-
-	self->value = PyList_New(0);
-	return 0;
-}
-
-/*
- * Destructor: clean any state inside the Hash object
- */
 static void
-Hash_dealloc(marshal48_Hash *self)
+ruby_Hash_del(ruby_Hash *self)
 {
-	Py_DECREF(self->value);
-	self->value = NULL;
+	ruby_dict_zap(&self->hash_dict);
+	__ruby_instance_del((ruby_instance_t *) self);
 }
 
-int
-Hash_Check(PyObject *self)
+bool
+__ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_buf *rbuf)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_HashType);
+	const ruby_array_t *keys = &dict->dict_keys;
+	const ruby_array_t *values = &dict->dict_values;
+	unsigned int i;
+
+	assert(keys->count == values->count);
+
+	__ruby_repr_reserve_tail(rbuf, sizeof(", ...}"));
+
+	__ruby_repr_append(rbuf, "{");
+	for (i = 0; i < keys->count; ++i) {
+		const char *key_rep, *value_rep;
+
+		key_rep = ruby_instance_repr(keys->items[i]);
+		if (key_rep == NULL)
+			key_rep = "<BAD>";
+		value_rep = ruby_instance_repr(values->items[i]);
+		if (value_rep == NULL)
+			value_rep = "<BAD>";
+
+		if (i != 0 && !__ruby_repr_append(rbuf, ", "))
+			break;
+
+		if (!__ruby_repr_appendf(rbuf, "%s=%s", key_rep, value_rep))
+			break;
+	}
+
+	__ruby_repr_unreserve(rbuf);
+	if (i < keys->count)
+		__ruby_repr_append(rbuf, "...");
+	__ruby_repr_append(rbuf, "}");
+
+	return __ruby_repr_finish(rbuf);
+}
+
+/*
+ * Helper function for converting ruby instances that come with a dict
+ */
+bool
+__ruby_dict_convert(const ruby_dict_t *dict, PyObject *target,
+		bool (*apply_fn)(PyObject *target, PyObject *key, PyObject *value))
+{
+	const ruby_array_t *keys = &dict->dict_keys;
+	const ruby_array_t *values = &dict->dict_values;
+	unsigned int i, len;
+	bool okay = true;
+
+	len = keys->count;
+
+	for (i = 0; okay && i < len; ++i) {
+		PyObject *key, *value;
+
+		key = ruby_instance_convert(keys->items[i]);
+		value = ruby_instance_convert(values->items[i]);
+
+		/* FIXME: raise exception if conversion fails */
+		assert(key && value);
+
+		okay = apply_fn(target, key, value);
+
+		Py_DECREF(key);
+		Py_DECREF(value);
+	}
+
+	return okay;
+}
+
+static const char *
+ruby_Hash_repr(ruby_Hash *self)
+{
+	ruby_repr_buf *rbuf;
+
+	rbuf = __ruby_repr_begin(256);
+	if (!__ruby_dict_repr(&self->hash_dict, rbuf))
+		return __ruby_repr_abort(rbuf);
+
+	return __ruby_repr_finish(rbuf);
+}
+
+/*
+ * Convert ruby instance to native python type
+ */
+static bool
+__ruby_Hash_apply_key_value(PyObject *result, PyObject *key, PyObject *value)
+{
+	PyDict_SetItem(result, key, value);
+	return true;
 }
 
 static PyObject *
-Hash_set(marshal48_Hash *self, PyObject *args)
-{
-	PyObject *key, *value;
-
-	if (!PyArg_Parse(args, "OO", &key, &value))
-		return NULL;
-
-	if (PyDict_SetItem(self->value, key, value) < 0)
-		return NULL;
-
-	Py_RETURN_NONE;
-}
-
-static PyObject *
-maybe_convert(PyObject *item)
-{
-	PyObject *cooked;
-
-	cooked = PyObject_CallMethod(item, "convert", NULL);
-	if (cooked)
-		return cooked;
-
-	return Py_INCREF(item), item;
-}
-
-static PyObject *
-Hash_convert(marshal48_Hash *self, PyObject *args)
+ruby_Hash_convert(ruby_Hash *self)
 {
 	PyObject *result;
-	PyObject *key, *value;
-	Py_ssize_t pos = 0;
 
 	result = PyDict_New();
-	while (PyDict_Next(self->value, &pos, &key, &value)) {
-
-		key = maybe_convert(key);
-		value = maybe_convert(value);
-
-		PyDict_SetItem(result, key, value);
+	if (!__ruby_dict_convert(&self->hash_dict, result, __ruby_Hash_apply_key_value)) {
+		Py_DECREF(result);
+		return NULL;
 	}
 
 	return result;
+}
+
+static ruby_type_t ruby_Hash_methods = {
+	.name		= "Hash",
+	.size		= sizeof(ruby_Hash),
+	.registration	= RUBY_REG_OBJECT,
+
+	.del		= (ruby_instance_del_fn_t) ruby_Hash_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_Hash_repr,
+	.convert	= (ruby_instance_convert_fn_t) ruby_Hash_convert,
+};
+
+ruby_instance_t *
+ruby_Hash_new(ruby_context_t *ctx)
+{
+	ruby_Hash *self;
+
+	self = (ruby_Hash *) __ruby_instance_new(ctx, &ruby_Hash_methods);
+	ruby_dict_init(&self->hash_dict);
+
+	return (ruby_instance_t *) self;
+}
+
+bool
+ruby_Hash_check(const ruby_instance_t *self)
+{
+	return self->op == &ruby_Hash_methods;
+}
+
+bool
+ruby_Hash_add(const ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value)
+{
+	if (!ruby_Hash_check(self))
+		return false;
+	ruby_dict_add(&((ruby_Hash *) self)->hash_dict, key, value);
+	return true;
 }

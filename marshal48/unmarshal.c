@@ -23,22 +23,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <structmember.h>
 
 #include "extension.h"
-#include "utils.h"
-
+#include "ruby_impl.h"
+#include "ruby_utils.h"
 
 typedef struct unmarshal_state {
-	PyObject *		io;
-
-	simple_object_array_t	symbols;
-	simple_object_array_t	objects;
-
-	struct unmarshal_buffer {
-		unsigned int	pos;
-		unsigned int	count;
-		unsigned char	_data[1024];
-
-		void *		temp_linear;
-	} buffer;
+	ruby_context_t *	ruby;
+	ruby_reader_t *		reader;
 
 	struct {
 		unsigned int	indent;
@@ -46,16 +36,9 @@ typedef struct unmarshal_state {
 	} log;
 } unmarshal_state;
 
-enum {
-	MARSHAL_OKAY = 0,
-	MARSHAL_EOF = -1,
-	MARSHAL_ERROR = -2,
-};
 
-
-static PyObject *	unmarshal_process(unmarshal_state *s);
-static PyObject *	unmarshal_process_quiet(unmarshal_state *s);
-static PyObject *	unmarshal_raise_exception(int code);
+static ruby_instance_t *unmarshal_process(unmarshal_state *s);
+extern ruby_instance_t *unmarshal_process_quiet(unmarshal_state *s);
 
 static void
 __unmarshal_trace(unmarshal_state *s, const char *fmt, ...)
@@ -82,152 +65,31 @@ __unmarshal_trace(unmarshal_state *s, const char *fmt, ...)
  * Manage the state object
  */
 static void
-unmarshal_state_init(unmarshal_state *s, PyObject *io)
+unmarshal_state_init(unmarshal_state *s, ruby_context_t *ruby, PyObject *io)
 {
 	memset(s, 0, sizeof(*s));
+	s->ruby = ruby;
 
-	Py_INCREF(io);
-	s->io = io;
+	s->reader = ruby_reader_new(io);
 }
 
 static void
 unmarshal_state_destroy(unmarshal_state *s)
 {
-	simple_object_array_destroy(&s->symbols);
-	simple_object_array_destroy(&s->objects);
-
-	drop_object(&s->io);
-}
-
-/*
- * Manage the buffer object
- */
-void
-unmarshal_buffer_init(struct unmarshal_buffer *bp)
-{
-	memset(bp, 0, sizeof(*bp));
-}
-
-void
-unmarshal_buffer_clear(struct unmarshal_buffer *bp)
-{
-	bp->pos = bp->count = 0;
-	memset(bp->_data, 0, sizeof(bp->_data));
-}
-
-char *
-unmarshal_buffer_get_linear_buffer(struct unmarshal_buffer *bp, unsigned long count)
-{
-	if (bp->temp_linear) {
-		free(bp->temp_linear);
-		bp->temp_linear = NULL;
-	}
-	bp->temp_linear = calloc(1, count);
-	return bp->temp_linear;
-}
-
-void
-unmarshal_buffer_destroy(struct unmarshal_buffer *bp)
-{
-	if (bp->temp_linear) {
-		free(bp->temp_linear);
-		bp->temp_linear = NULL;
-	}
-	unmarshal_buffer_init(bp);
-}
-
-static int
-unmarshal_fillbuf(unmarshal_state *s)
-{
-	struct unmarshal_buffer *bp = &s->buffer;
-	PyObject *b;
-
-	memset(bp, 0, sizeof(*bp));
-
-	unmarshal_tp(s);
-
-	b = PyObject_CallMethod(s->io, "read", "i", sizeof(bp->_data));
-	if (b == NULL)
-		return MARSHAL_ERROR;
-
-	printf("TP %s:%d: b=%s\n", __func__, __LINE__, py_stringify(b));
-	fflush(stdout);
-
-	bp->pos = 0;
-	if (PyBytes_Check(b)) {
-		bp->count = PyBytes_GET_SIZE(b);
-
-		assert(bp->count <= sizeof(bp->_data));
-		memcpy(bp->_data, PyBytes_AS_STRING(b), bp->count);
-	} else {
-		bp->count = PyByteArray_GET_SIZE(b);
-
-		assert(bp->count <= sizeof(bp->_data));
-		memcpy(bp->_data, PyByteArray_AS_STRING(b), bp->count);
-	}
-
-	printf("TP %s:%d: now have %u bytes\n", __func__, __LINE__, bp->count);
-	Py_DECREF(b);
-	return MARSHAL_OKAY;
-}
-
-static int
-__unmarshal_nextc(unmarshal_state *s)
-{
-	struct unmarshal_buffer *bp = &s->buffer;
-
-	if (bp->pos >= bp->count) {
-		if (unmarshal_fillbuf(s) < 0)
-			return MARSHAL_ERROR;
-		if (bp->count == 0)
-			return MARSHAL_EOF;
-	}
-
-	unmarshal_trace(s, "%s: about to return \\%03o", __func__, bp->_data[bp->pos]);
-	return bp->_data[bp->pos++];
-}
-
-static inline bool
-unmarshal_nextc(unmarshal_state *s, int *cccp)
-{
-	*cccp = __unmarshal_nextc(s);
-	if (*cccp < 0) {
-		unmarshal_raise_exception(*cccp);
-		return false;
-	}
-
-	return true;
-}
-
-static bool
-unmarshal_nextw(unmarshal_state *s, unsigned int count, long *resultp)
-{
-	unsigned int shift = 0;
-
-	*resultp = 0;
-
-	/* little endian byte order */
-	for (shift = 0; count; --count, shift += 8) {
-		int cc;
-
-		if (!unmarshal_nextc(s, &cc))
-			return false;
-
-		*resultp += (cc << shift);
-	}
-
-	return true;
+	/* We do not delete the ruby context; that is done by the caller */
+	ruby_reader_free(s->reader);
 }
 
 static bool
 unmarshal_next_fixnum(unmarshal_state *s, long *fixnump)
 {
+	ruby_reader_t *reader = s->reader;
 	int cc;
 
-	if (!unmarshal_nextc(s, &cc))
+	if (!ruby_reader_nextc(reader, &cc))
 		return false;
 
-	unmarshal_trace(s, "int0=0x%x", cc);
+	// unmarshal_trace(s, "int0=0x%x", cc);
 
 	switch (cc) {
 	case 0:
@@ -237,10 +99,10 @@ unmarshal_next_fixnum(unmarshal_state *s, long *fixnump)
 	case 1:
 	case 2:
 	case 3:
-		return unmarshal_nextw(s, cc, fixnump);
+		return ruby_reader_nextw(reader, cc, fixnump);
 
 	case 0xff:
-		if (!unmarshal_nextc(s, &cc))
+		if (!ruby_reader_nextc(reader, &cc))
 			return false;
 		*fixnump = 1 - cc;
 		return true;
@@ -251,7 +113,7 @@ unmarshal_next_fixnum(unmarshal_state *s, long *fixnump)
 		PyErr_Format(PyExc_NotImplementedError, "%s: fixnum format 0x%x not yet implemented", __func__, cc);
 		return false;
 
-		if (!unmarshal_nextw(s, cc ^ 0xff, fixnump))
+		if (!ruby_reader_nextw(reader, cc ^ 0xff, fixnump))
 			return false;
 		*fixnump = -(*fixnump);
 		return true;
@@ -265,96 +127,60 @@ unmarshal_next_fixnum(unmarshal_state *s, long *fixnump)
 	}
 }
 
-static const char *
-__unmarshal_next_byteseq(unmarshal_state *s, unsigned long *sizep)
+static bool
+__unmarshal_next_byteseq(unmarshal_state *s, ruby_byteseq_t *seq)
 {
-	struct unmarshal_buffer *bp = &s->buffer;
-	char *linear;
+	ruby_reader_t *reader = s->reader;
 	long count;
 
 	if (!unmarshal_next_fixnum(s, &count))
-		return NULL;
+		return false;
 
-	if (count <= (bp->count - bp->pos)) {
-		linear = (char *) bp->_data + bp->pos;
-		bp->pos += count;
-	} else {
-		long spos = 0, copy;
-
-		linear = unmarshal_buffer_get_linear_buffer(bp, count);
-		while (spos <= count) {
-			if (bp->pos >= bp->count) {
-				int r;
-
-				if ((r = unmarshal_fillbuf(s)) < 0) {
-					unmarshal_raise_exception(r);
-					return NULL;
-				}
-			}
-
-			copy = bp->count - bp->pos;
-			if (copy > count - spos)
-				copy = count - spos;
-			memcpy(linear + spos, bp->_data + bp->pos, copy);
-			spos += copy;
-		}
-	}
-
-	*sizep = count;
-	return linear;
+	assert(seq->count == 0);
+	return ruby_reader_next_byteseq(reader, count, seq);
 }
 
-PyObject *
+const char *
 unmarshal_next_string(unmarshal_state *s, const char *encoding)
 {
-	const char *data;
-	unsigned long count;
+	static ruby_byteseq_t seq;
 
-	data = __unmarshal_next_byteseq(s, &count);
-	if (data == NULL)
+	ruby_byteseq_destroy(&seq);
+	if (!__unmarshal_next_byteseq(s, &seq))
 		return NULL;
 
-	return PyUnicode_Decode(data, count, encoding, NULL);
-}
+	ruby_byteseq_append(&seq, "", 1);
 
-static PyObject *
-unmarshal_next_byteseq(unmarshal_state *s)
-{
-	const char *data;
-	unsigned long count;
-
-	data = __unmarshal_next_byteseq(s, &count);
-	if (data == NULL)
-		return NULL;
-
-	return PyByteArray_FromStringAndSize(data, count);
+	assert(!strcmp(encoding, "latin1"));
+	return (const char *) seq.data;
+	/* return PyUnicode_Decode(data, count, encoding, NULL); */
 }
 
 /*
  * Simple constants
  */
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_none(unmarshal_state *s)
 {
-	Py_RETURN_NONE;
+	return (ruby_instance_t *) &ruby_None;
 }
 
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_true(unmarshal_state *s)
 {
-	Py_RETURN_TRUE;
+	return (ruby_instance_t *) &ruby_True;
 }
 
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_false(unmarshal_state *s)
 {
-	Py_RETURN_FALSE;
+	return (ruby_instance_t *) &ruby_False;
 }
 
 /*
  * Integers
  */
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_int(unmarshal_state *s)
 {
 	long value;
@@ -362,28 +188,28 @@ unmarshal_process_int(unmarshal_state *s)
 	if (!(unmarshal_next_fixnum(s, &value)))
 		return NULL;
 
-	return PyLong_FromLong(value);
+	return ruby_Int_new(s->ruby, value);
 }
 
 /*
  * Define symbol
  */
-static PyObject *
-unmarshal_define_symbol(unmarshal_state *s, PyObject *string)
+static ruby_instance_t *
+unmarshal_define_symbol(unmarshal_state *s, const char *string)
 {
-	simple_object_array_append(&s->symbols, string);
+	ruby_instance_t *sym = ruby_Symbol_new(s->ruby, string);
 
-	unmarshal_trace(s, "unmarshal_define_symbol(%s) = %d", PyUnicode_AsUTF8(string), s->symbols.count);
-	return string;
+	unmarshal_trace(s, "unmarshal_define_symbol(%s) = %d", string, sym->reg.id);
+	return sym;
 }
 
 /*
  * A symbol is a byte sequence; no character encoding.
  */
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_symbol(unmarshal_state *s)
 {
-	PyObject *string;
+	const char *string;
 
 	string = unmarshal_next_string(s, "latin1");
 	if (string == NULL)
@@ -392,53 +218,52 @@ unmarshal_process_symbol(unmarshal_state *s)
 	return unmarshal_define_symbol(s, string);
 }
 
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_symbol_reference(unmarshal_state *s)
 {
-	PyObject *symbol;
+	ruby_instance_t *symbol;
 	long ref;
 
 	if (!unmarshal_next_fixnum(s, &ref))
 		return NULL;
 
-	symbol = simple_object_array_get(&s->symbols, ref);
+	symbol = ruby_context_get_symbol(s->ruby, ref);
 	if (symbol == NULL) {
-		PyErr_SetString(PyExc_IOError, "Invalid symbol reference");
+		fprintf(stderr, "Invalid symbol reference %ld\n", ref);
 		return NULL;
 	}
 
-	unmarshal_trace(s, "%s(%d) = \"%s\"", __func__, ref, PyUnicode_AsUTF8(symbol));
-	Py_INCREF(symbol);
+	unmarshal_trace(s, "%s(%d) = \"%s\"", __func__, ref, ruby_Symbol_get_name(symbol));
 	return symbol;
 }
 
 /*
  * Register an object
  */
-static PyObject *
-unmarshal_register_object(unmarshal_state *s, PyObject *object)
+static void
+unmarshal_register_object(unmarshal_state *s, ruby_instance_t *object)
 {
-	simple_object_array_append(&s->objects, object);
-	return object;
+	assert(object->reg.id >= 0 && object->reg.kind == RUBY_REG_OBJECT);
+	/* simple_object_array_append(&s->objects, object); */
+	/* return object; */
 }
 
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_object_reference(unmarshal_state *s)
 {
-	PyObject *object;
+	ruby_instance_t *object;
 	long ref;
 
 	if (!unmarshal_next_fixnum(s, &ref))
 		return NULL;
 
-	object = simple_object_array_get(&s->objects, ref);
+	object = ruby_context_get_object(s->ruby, ref);
 	if (object == NULL) {
-		PyErr_SetString(PyExc_IOError, "Invalid object reference");
+		fprintf(stderr, "Invalid object reference %ld\n", ref);
 		return NULL;
 	}
 
-	unmarshal_trace(s, "Referenced object #%ld: %s", ref, py_stringify(object));
-	Py_INCREF(object);
+	unmarshal_trace(s, "Referenced object #%ld: %s", ref, ruby_instance_repr(object));
 	return object;
 }
 
@@ -450,47 +275,38 @@ unmarshal_process_object_reference(unmarshal_state *s)
  * So we need a ruby.String object that understands the set_instance_var
  * protocol.
  */
-static PyObject *
-unmarshal_create_string(PyObject *value)
-{
-	return marshal48_instantiate_ruby_type_with_arg("String", value);
-}
-
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_string(unmarshal_state *s)
 {
-	PyObject *py_string, *string = NULL;
+	const char *raw_string;
+	ruby_instance_t *string = NULL;
 
-	if (!(py_string = unmarshal_next_string(s, "latin1")))
+	unmarshal_enter(s);
+
+	if (!(raw_string = unmarshal_next_string(s, "latin1")))
 		return NULL;
 
-	string = unmarshal_create_string(py_string);
+	unmarshal_trace(s, "decoded string \"%s\"", raw_string);
+
+	string = ruby_String_new(s->ruby, raw_string);
 	if (string == NULL)
-		goto out;
+		return NULL;
 
 	/* Register all objects as soon as they get created; this seems to
 	 * reflect the order in which the ruby marshal48 code assigns
 	 * object IDs */
 	unmarshal_register_object(s, string);
 
-out:
-	Py_DECREF(py_string);
 	return string;
 }
 
 /*
  * Array processing
  */
-static PyObject *
-unmarshal_create_array(void)
-{
-	return marshal48_instantiate_ruby_type("Array");
-}
-
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_array(unmarshal_state *s)
 {
-	PyObject *array;
+	ruby_instance_t *array;
 	long i, count;
 
 	if (!unmarshal_next_fixnum(s, &count))
@@ -498,10 +314,9 @@ unmarshal_process_array(unmarshal_state *s)
 
 	unmarshal_trace(s, "Decoding array with %ld objects", count);
 
-	array = unmarshal_create_array();
+	array = ruby_Array_new(s->ruby);
 	if (array == NULL)
 		return NULL;
-	unmarshal_tp(s);
 
 	/* Register all objects as soon as they get created; this seems to
 	 * reflect the order in which the ruby marshal48 code assigns
@@ -509,43 +324,26 @@ unmarshal_process_array(unmarshal_state *s)
 	unmarshal_register_object(s, array);
 
 	for (i = 0; i < count; ++i) {
-		PyObject *item, *r;
+		ruby_instance_t *item;
 
 		item = unmarshal_process(s);
 		if (item == NULL)
-			goto failed;
-		unmarshal_tp(s);
+			return NULL;
 
-		r = PyObject_CallMethod(array, "append", "O", item);
-		Py_DECREF(item);
-
-		unmarshal_tp(s);
-		if (r == NULL)
-			goto failed;
-		unmarshal_tp(s);
+		if (!ruby_Array_append(array, item))
+			return NULL;
 	}
 
-	unmarshal_trace(s, "return %p", array);
 	return array;
-
-failed:
-	Py_DECREF(array);
-	return NULL;
 }
 
 /*
  * Hash processing
  */
-static PyObject *
-unmarshal_create_hash(void)
-{
-	return marshal48_instantiate_ruby_type("Hash");
-}
-
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_hash(unmarshal_state *s)
 {
-	PyObject *hash;
+	ruby_instance_t *hash;
 	long i, count;
 
 	if (!unmarshal_next_fixnum(s, &count))
@@ -553,7 +351,7 @@ unmarshal_process_hash(unmarshal_state *s)
 
 	unmarshal_trace(s, "Decoding hash with %ld objects", count);
 
-	hash = unmarshal_create_hash();
+	hash = ruby_Hash_new(s->ruby);
 
 	/* Register all objects as soon as they get created; this seems to
 	 * reflect the order in which the ruby marshal48 code assigns
@@ -561,46 +359,42 @@ unmarshal_process_hash(unmarshal_state *s)
 	unmarshal_register_object(s, hash);
 
 	for (i = 0; i < count; ++i) {
-		PyObject *key, *value, *r;
+		ruby_instance_t *key, *value;
 
 		key = unmarshal_process(s);
 		if (key == NULL)
-			goto failed;
+			return NULL;
 
 		value = unmarshal_process(s);
-		if (value == NULL) {
-			Py_DECREF(key);
-			goto failed;
-		}
+		if (value == NULL)
+			return NULL;
 
-		r = PyObject_CallMethod(hash, "set", "OO", key, value);
-		Py_DECREF(key);
-		Py_DECREF(value);
-
-		if (r == NULL)
-			goto failed;
+		if (!ruby_Hash_add(hash, key, value))
+			return NULL;
 	}
 
 	return hash;
-
-failed:
-	Py_DECREF(hash);
-	return NULL;
 }
 
 /*
  * Common helper to create object instances that specify a Classname
  */
-static inline PyObject *
-__unmarshal_process_object_class_instance(unmarshal_state *s, const char *ruby_type_name)
+static inline ruby_instance_t *
+__unmarshal_process_object_class_instance(unmarshal_state *s,
+		ruby_instance_t * (*constructor)(ruby_context_t *, const char *))
 {
-	PyObject *classname, *object;
+	ruby_instance_t *name_instance, *object;
+	char *classname;
 
-	if (!(classname = unmarshal_process(s)))
+	if (!(name_instance = unmarshal_process(s)))
 		return NULL;
 
-	object = marshal48_instantiate_ruby_type_with_arg("GenericObject", classname);
-	Py_DECREF(classname);
+	classname = ruby_instance_as_string(name_instance);
+	if (classname == NULL)
+		return NULL;
+
+	object = constructor(s->ruby, classname);
+	free(classname);
 
 	if (object == NULL)
 		return NULL;
@@ -617,7 +411,7 @@ __unmarshal_process_object_class_instance(unmarshal_state *s, const char *ruby_t
  * Common helper function to process instance variables
  */
 static inline bool
-__unmarshal_process_instance_vars(unmarshal_state *s, PyObject *object)
+__unmarshal_process_instance_vars(unmarshal_state *s, ruby_instance_t *object)
 {
 	long i, count;
 
@@ -628,27 +422,20 @@ __unmarshal_process_instance_vars(unmarshal_state *s, PyObject *object)
 	unmarshal_trace(s, "%ld instance variables follow", count);
 
 	for (i = 0; i < count; ++i) {
-		PyObject *key, *value, *r;
+		ruby_instance_t *key, *value;
 
-		key = unmarshal_process_quiet(s);
+		key = unmarshal_process(s);
 		if (key == NULL)
 			return false;
 
-		value = unmarshal_process_quiet(s);
-		if (value == NULL) {
-			Py_DECREF(key);
+		value = unmarshal_process(s);
+		if (value == NULL)
 			return false;
-		}
 
-		unmarshal_trace(s, "key=%s value=%s", py_stringify(key), py_stringify(value));
+		unmarshal_trace(s, "key=%s value=%s", ruby_instance_repr(key), ruby_instance_repr(value));
 
-		r = PyObject_CallMethod(object, "set_instance_var", "OO", key, value);
-		Py_DECREF(key);
-		Py_DECREF(value);
-
-		if (r == NULL)
+		if (!ruby_instance_set_var(object, key, value))
 			return false;
-		Py_DECREF(r);
 	}
 
 	return true;
@@ -658,10 +445,10 @@ __unmarshal_process_instance_vars(unmarshal_state *s, PyObject *object)
 /*
  * Arbitrary object, followed by a bunch of instance variables
  */
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_object_with_instance_vars(unmarshal_state *s)
 {
-	PyObject *object;
+	ruby_instance_t *object;
 
 	if (!(object = unmarshal_process(s)))
 		return NULL;
@@ -681,19 +468,17 @@ unmarshal_process_object_with_instance_vars(unmarshal_state *s)
 /*
  * Generic object, which is constructed as Classname + instance variables
  */
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_generic_object(unmarshal_state *s)
 {
-	PyObject *object;
+	ruby_instance_t *object;
 
-	object = __unmarshal_process_object_class_instance(s, "GenericObject");
+	object = __unmarshal_process_object_class_instance(s, ruby_GenericObject_new);
 	if (object == NULL)
 		return NULL;
 
-	if (!__unmarshal_process_instance_vars(s, object)) {
-		Py_DECREF(object);
+	if (!__unmarshal_process_instance_vars(s, object))
 		return NULL;
-	}
 
 	return object;
 }
@@ -702,83 +487,59 @@ unmarshal_process_generic_object(unmarshal_state *s)
  * Marshaled object, which is constructed by instantiating Classname() and calling
  * marshal_load() with an unmarshaled ruby object
  */
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_user_marshal(unmarshal_state *s)
 {
-	PyObject *object, *data;
+	ruby_instance_t *object, *data;
 
-	object = __unmarshal_process_object_class_instance(s, "UserMarshal");
+	object = __unmarshal_process_object_class_instance(s, ruby_UserMarshal_new);
 	if (object == NULL)
-		goto failed;
+		return NULL;
 
 	data = unmarshal_process(s);
 	if (data == NULL)
-		goto failed1;
+		return NULL;
 
-	if (PyObject_SetAttrString(object, "data", data) < 0)
-		goto failed2;
+	if (!ruby_UserMarshal_set_data(object, data))
+		return NULL;
 
 	return object;
-
-failed2:
-	Py_DECREF(data);
-failed1:
-	Py_DECREF(object);
-failed:
-	return NULL;
 }
 
 /*
  * User Defined object, which is constructed by instantiating Classname() and calling
  * load() with a byte sequence (which may or may not contain marshaled data).
  */
-static PyObject *
+static ruby_instance_t *
 unmarshal_process_user_defined(unmarshal_state *s)
 {
-	PyObject *object, *data;
+	ruby_instance_t *object;
+	ruby_byteseq_t *data;
 
-	object = __unmarshal_process_object_class_instance(s, "UserDefined");
+	object = __unmarshal_process_object_class_instance(s, ruby_UserDefined_new);
 	if (object == NULL)
-		goto failed;
+		return NULL;
 
-	data = unmarshal_next_byteseq(s);
-	if (data == NULL)
-		goto failed1;
-
-	if (PyObject_SetAttrString(object, "data", data) < 0)
-		goto failed2;
-
-	return object;
-
-failed2:
-	Py_DECREF(data);
-failed1:
-	Py_DECREF(object);
-failed:
-	return NULL;
-}
-
-static PyObject *
-unmarshal_raise_exception(int code)
-{
-	switch (code) {
-	case MARSHAL_ERROR:
-		PyErr_SetString(PyExc_IOError, "error while reading from IO stream");
-		break;
-	case MARSHAL_EOF:
-		PyErr_SetString(PyExc_IOError, "unexpected EOF while reading from IO stream");
-		break;
-	default:
-		PyErr_SetString(PyExc_IOError, "unknown error");
+	/* Get a pointer to the object's internal byteseq buffer */
+	if (!(data = __ruby_UserDefined_get_data_rw(object))) {
+		/* complain */
+		return NULL;
 	}
 
-	return NULL;
+	/* Clear the byteseq object; read from stream */
+	ruby_byteseq_destroy(data);
+	if (!__unmarshal_next_byteseq(s, data)) {
+		/* complain */
+		return NULL;
+	}
+
+	return object;
 }
 
-static PyObject *
+static ruby_instance_t *
 __unmarshal_process(unmarshal_state *s)
 {
-	typedef PyObject *(*unmarshal_process_fn_t)(unmarshal_state *s);
+	typedef ruby_instance_t *(*unmarshal_process_fn_t)(unmarshal_state *s);
 	static unmarshal_process_fn_t unmarshal_process_table[256] = {
 		['T'] = unmarshal_process_true,
 		['F'] = unmarshal_process_false,
@@ -789,7 +550,7 @@ __unmarshal_process(unmarshal_state *s)
 		[';'] = unmarshal_process_symbol_reference,
 		['@'] = unmarshal_process_object_reference,
 
-		/* The following are all objects that have an object id (and can this be referenced by ID) */
+		/* The following are all objects that have an object id (and can thus be referenced by ID) */
 		['['] = unmarshal_process_array,
 		['{'] = unmarshal_process_hash,
 		['"'] = unmarshal_process_string,
@@ -801,7 +562,7 @@ __unmarshal_process(unmarshal_state *s)
 	unmarshal_process_fn_t process_fn;
 	int cc;
 
-	if (!unmarshal_nextc(s, &cc))
+	if (!ruby_reader_nextc(s->reader, &cc))
 		return NULL;
 
 	assert(0 <= cc && cc < 256);
@@ -816,12 +577,12 @@ __unmarshal_process(unmarshal_state *s)
 	return process_fn(s);
 }
 
-static PyObject *
+static ruby_instance_t *
 unmarshal_process(unmarshal_state *s)
 {
 	unsigned int saved_indent = s->log.indent;
 	bool saved_quiet = s->log.quiet;
-	PyObject *result;
+	ruby_instance_t *result;
 
 	s->log.indent += 2;
 	result = __unmarshal_process(s);
@@ -831,11 +592,11 @@ unmarshal_process(unmarshal_state *s)
 	return result;
 }
 
-static PyObject *
+ruby_instance_t *
 unmarshal_process_quiet(unmarshal_state *s)
 {
 	bool saved_quiet = s->log.quiet;
-	PyObject *result;
+	ruby_instance_t *result;
 
 	s->log.quiet = true;
 	result = unmarshal_process(s);
@@ -850,7 +611,7 @@ unmarshal_check_signature(unmarshal_state *s, const unsigned char *sig, unsigned
 	unsigned int i;
 
 	for (i = 0; i < sig_len; ++i) {
-		if (__unmarshal_nextc(s) != sig[i])
+		if (__ruby_reader_nextc(s->reader) != sig[i])
 			return false;
 	}
 
@@ -865,14 +626,14 @@ marshal48_check_signature(unmarshal_state *s)
 	return unmarshal_check_signature(s, marshal48_sig, sizeof(marshal48_sig));
 }
 
-PyObject *
-marshal48_unmarshal_io(PyObject *io)
+ruby_instance_t *
+marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io)
 {
 	unmarshal_state state;
-	PyObject *result;
+	ruby_instance_t *result;
 
 	printf("%s(%s)\n", __func__, py_stringify(io));
-	unmarshal_state_init(&state, io);
+	unmarshal_state_init(&state, ruby, io);
 
 	if (!marshal48_check_signature(&state)) {
 		PyErr_SetString(PyExc_ValueError, "Data does not start with Marshal48 signature");

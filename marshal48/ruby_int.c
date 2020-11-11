@@ -22,84 +22,56 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <structmember.h>
 
 #include "extension.h"
+#include "ruby_impl.h"
 
 
-static void		Int_dealloc(marshal48_Int *self);
-static PyObject *	Int_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-
-static PyMemberDef Int_members[] = {
-	{"value", T_STRING, offsetof(marshal48_Int, value), 0,
-	 "value"},
-
-	{NULL}  /* Sentinel */
-};
+typedef struct {
+	ruby_instance_t	int_base;
+	long		int_value;
+} ruby_Int;
 
 
-PyTypeObject marshal48_IntType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "marshal48.Int",
-	.tp_basicsize	= sizeof(marshal48_Int),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby int",
-
-	.tp_init	= (initproc) Int_init,
-	.tp_new		= Int_new,
-	.tp_dealloc	= (destructor) Int_dealloc,
-
-	.tp_members	= Int_members,
-//	.tp_methods	= marshal48_noMethods,
-};
-
-/*
- * Constructor: allocate empty Int object, and set its members.
- */
-static PyObject *
-Int_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	marshal48_Int *self;
-
-	self = (marshal48_Int *) type->tp_alloc(type, 0);
-	if (self == NULL)
-		return NULL;
-
-	/* init members */
-	self->value = 0;
-
-	return (PyObject *)self;
-}
-
-/*
- * Initialize the int object
- */
-int
-Int_init(marshal48_Int *self, PyObject *args, PyObject *kwds)
-{
-	static char *kwlist[] = {
-		"value",
-		NULL
-	};
-	int value;
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i", kwlist, &value))
-		return -1;
-
-	self->value = value;
-
-	return 0;
-}
-
-/*
- * Destructor: clean any state inside the Int object
- */
 static void
-Int_dealloc(marshal48_Int *self)
+ruby_Int_del(ruby_Int *self)
 {
-	// NOP
+	__ruby_instance_del((ruby_instance_t *) self);
 }
 
-int
-Int_Check(PyObject *self)
+static const char *
+ruby_Int_repr(ruby_Int *self)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_IntType);
+	return __ruby_repr_printf("%ld", self->int_value);
+}
+
+static ruby_type_t ruby_Int_methods = {
+	.name		= "Int",
+	.size		= sizeof(ruby_Int),
+
+	.del		= (ruby_instance_del_fn_t) ruby_Int_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_Int_repr,
+};
+
+ruby_instance_t *
+ruby_Int_new(ruby_context_t *ctx, long value)
+{
+	ruby_Int *inst;
+
+	inst = (ruby_Int *) __ruby_instance_new(ctx, &ruby_Int_methods);
+	inst->int_value = value;
+
+	return (ruby_instance_t *) inst;
+}
+
+bool
+ruby_Int_check(const ruby_instance_t *self)
+{
+	return self->op == &ruby_Int_methods;
+}
+
+long
+ruby_Int_get_value(const ruby_instance_t *self)
+{
+	if (!ruby_Int_check(self))
+		return 0;
+	return ((ruby_Int *) self)->int_value;
 }

@@ -22,105 +22,121 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <structmember.h>
 
 #include "extension.h"
+#include "ruby_impl.h"
+
+typedef struct {
+	ruby_GenericObject marsh_base;
+	ruby_instance_t *	marsh_data;
+} ruby_UserMarshal;
 
 
-static void		UserMarshal_dealloc(marshal48_UserMarshal *self);
-static PyObject *	UserMarshal_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-static PyObject *	UserMarshal_construct(marshal48_UserMarshal *self, PyObject *args);
-
-static PyMemberDef UserMarshal_members[] = {
-	{"data", T_OBJECT, offsetof(marshal48_UserMarshal, data), 0, "data"},
-	{ NULL }
-};
-
-static PyMethodDef UserMarshal_methods[] = {
-	{ "construct", (PyCFunction) UserMarshal_construct, METH_NOARGS, NULL },
-	{ NULL }
-};
-
-
-PyTypeObject marshal48_UserMarshalType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "marshal48.UserMarshal",
-	.tp_base	= &marshal48_GenericObjectType,
-	.tp_basicsize	= sizeof(marshal48_UserMarshal),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby array",
-
-	.tp_init	= (initproc) UserMarshal_init,
-	.tp_new		= UserMarshal_new,
-	.tp_dealloc	= (destructor) UserMarshal_dealloc,
-
-	.tp_members	= UserMarshal_members,
-	.tp_methods	= UserMarshal_methods,
-};
-
-/*
- * Constructor: allocate empty object, and set its members.
- */
-static PyObject *
-UserMarshal_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	marshal48_UserMarshal *self;
-
-	self = (marshal48_UserMarshal *) type->tp_alloc(type, 0);
-	if (self == NULL)
-		return NULL;
-
-	/* init members */
-	self->base.classname = NULL;
-	self->base.instance_vars = NULL;
-	self->data = NULL;
-
-	return (PyObject *)self;
-}
-
-/*
- * Initialize the object
- */
-int
-UserMarshal_init(marshal48_UserMarshal *self, PyObject *args, PyObject *kwds)
-{
-	if (marshal48_GenericObjectType.tp_init((PyObject *) self, args, kwds) < 0)
-		return -1;
-
-	self->data = NULL;
-	return 0;
-}
-
-/*
- * Destructor: clean any state inside the UserMarshal object
- */
 static void
-UserMarshal_dealloc(marshal48_UserMarshal *self)
+ruby_UserMarshal_del(ruby_UserMarshal *self)
 {
-	drop_object(&self->data);
+	/* Do not destroy the data we're referencing */
+	ruby_GenericObject_methods.del((ruby_instance_t *) self);
 }
 
-int
-UserMarshal_Check(PyObject *self)
+static const char *
+ruby_UserMarshal_repr(ruby_UserMarshal *self)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_UserMarshalType);
+	ruby_repr_buf *rbuf;
+	const ruby_dict_t *vars;
+
+	rbuf = __ruby_repr_begin(128);
+	__ruby_repr_appendf(rbuf, "%s(",
+			self->marsh_base.obj_classname);
+	if (self->marsh_data != NULL)
+		__ruby_repr_append(rbuf, ruby_instance_repr(self->marsh_data));
+	else
+		__ruby_repr_append(rbuf, "<NIL>");
+	__ruby_repr_append(rbuf, ")");
+
+	vars = &self->marsh_base.obj_vars;
+	if (vars->dict_keys.count != 0) {
+		__ruby_repr_appendf(rbuf, "; ");
+		if (!__ruby_dict_repr(vars, rbuf))
+			return __ruby_repr_abort(rbuf);
+	}
+	return __ruby_repr_finish(rbuf);
 }
 
+/*
+ * Convert from ruby type to native python type
+ */
 static PyObject *
-UserMarshal_construct(marshal48_UserMarshal *self, PyObject *args)
+ruby_UserMarshal_convert(ruby_UserMarshal *self)
 {
-	PyObject *instance, *r;
+	PyObject *result, *data, *r;
 
-	if (!PyArg_ParseTuple(args, "O", &instance))
+	/* Look up classname in ruby module and instantiate */
+	result = marshal48_instantiate_ruby_type(self->marsh_base.obj_classname);
+
+	if (result == NULL)
 		return NULL;
 
-	if (self->data == NULL) {
-		PyErr_SetString(PyExc_ValueError, "UserMarshal.construct() called without data");
-		return NULL;
+	if (self->marsh_data == NULL) {
+		data = Py_None;
+		Py_INCREF(data);
+	} else {
+		data = ruby_instance_convert(self->marsh_data);
+		if (data == NULL)
+			goto failed;
 	}
 
-	r = PyObject_CallMethod(instance, "marshal_load", "O", self->data);
+	/* Call the load_marshal() method of the new instance and pass it the data object */
+	r = PyObject_CallMethod(result, "load", "O", data);
+	Py_DECREF(data);
+
 	if (r == NULL)
-		return NULL;
+		goto failed;
 	Py_DECREF(r);
 
-	return 0;
+	if (!__ruby_GenericObject_apply_vars(&self->marsh_base.obj_base, result)) {
+		/* FIXME: raise exception */
+		goto failed;
+	}
+
+	return result;
+
+failed:
+	Py_DECREF(result);
+	return NULL;
+}
+
+static ruby_type_t ruby_UserMarshal_methods = {
+	.name		= "UserMarshal",
+	.size		= sizeof(ruby_UserMarshal),
+	.base_type	= &ruby_GenericObject_methods,
+
+	.del		= (ruby_instance_del_fn_t) ruby_UserMarshal_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_UserMarshal_repr,
+	.convert	= (ruby_instance_convert_fn_t) ruby_UserMarshal_convert,
+};
+
+ruby_instance_t *
+ruby_UserMarshal_new(ruby_context_t *ctx, const char *classname)
+{
+	ruby_UserMarshal *self;
+
+	self = (ruby_UserMarshal *) __ruby_GenericObject_new(ctx, classname, &ruby_UserMarshal_methods);
+	self->marsh_data = NULL;
+
+	return (ruby_instance_t *) self;
+}
+
+bool
+ruby_UserMarshal_check(const ruby_instance_t *self)
+{
+	return __ruby_instance_check_type(self, &ruby_UserMarshal_methods);
+}
+
+bool
+ruby_UserMarshal_set_data(ruby_instance_t *self, ruby_instance_t *data)
+{
+	if (!ruby_UserMarshal_check(self))
+		return false;
+
+	((ruby_UserMarshal *) self)->marsh_data = data;
+	return true;
 }

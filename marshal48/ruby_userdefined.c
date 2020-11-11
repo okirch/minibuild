@@ -18,139 +18,130 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 
-#include <Python.h>
-#include <structmember.h>
-
 #include "extension.h"
+#include "ruby_impl.h"
+
+typedef struct {
+	ruby_GenericObject udef_base;
+	ruby_byteseq_t	udef_data;
+} ruby_UserDefined;
 
 
-static void		UserDefined_dealloc(marshal48_UserDefined *self);
-static PyObject *	UserDefined_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-static PyObject *	UserDefined_construct(marshal48_UserDefined *self, PyObject *args);
+static void
+ruby_UserDefined_del(ruby_UserDefined *self)
+{
+	ruby_byteseq_destroy(&self->udef_data);
 
-static PyMemberDef UserDefined_members[] = {
-	{"data", T_OBJECT, offsetof(marshal48_UserDefined, data), 0, "data"},
-	{ NULL }
-};
+	ruby_GenericObject_methods.del((ruby_instance_t *) self);
+}
 
-static PyMethodDef UserDefined_methods[] = {
-	{ "construct", (PyCFunction) UserDefined_construct, METH_NOARGS, NULL },
-	{ NULL }
-};
+static const char *
+ruby_UserDefined_repr(ruby_UserDefined *self)
+{
+	ruby_repr_buf *rbuf;
+	const ruby_dict_t *vars;
 
+	rbuf = __ruby_repr_begin(128);
+	__ruby_repr_appendf(rbuf, "%s(",
+			self->udef_base.obj_classname);
+	__ruby_byteseq_repr(&self->udef_data, rbuf);
+	__ruby_repr_append(rbuf, ")");
 
-PyTypeObject marshal48_UserDefinedType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "marshal48.UserDefined",
-	.tp_base	= &marshal48_GenericObjectType,
-	.tp_basicsize	= sizeof(marshal48_UserDefined),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby array",
-
-	.tp_init	= (initproc) UserDefined_init,
-	.tp_new		= UserDefined_new,
-	.tp_dealloc	= (destructor) UserDefined_dealloc,
-
-	.tp_members	= UserDefined_members,
-	.tp_methods	= UserDefined_methods,
-};
+	vars = &self->udef_base.obj_vars;
+	if (vars->dict_keys.count != 0) {
+		__ruby_repr_appendf(rbuf, "; ");
+		if (!__ruby_dict_repr(vars, rbuf))
+			return __ruby_repr_abort(rbuf);
+	}
+	return __ruby_repr_finish(rbuf);
+}
 
 /*
- * Constructor: allocate empty object, and set its members.
+ * Convert from ruby type to native python type
  */
 static PyObject *
-UserDefined_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+ruby_UserDefined_convert(ruby_UserDefined *self)
 {
-	marshal48_UserDefined *self;
+	const ruby_byteseq_t *bytes = &self->udef_data;
+	PyObject *result, *data, *r;
 
-	self = (marshal48_UserDefined *) type->tp_alloc(type, 0);
-	if (self == NULL)
+	/* Look up classname in ruby module and instantiate */
+	result = marshal48_instantiate_ruby_type(self->udef_base.obj_classname);
+
+	if (result == NULL)
 		return NULL;
 
-	/* init members */
-	self->base.classname = NULL;
-	self->base.instance_vars = NULL;
-	self->data = NULL;
+	if (ruby_byteseq_is_empty(bytes)) {
+		data = Py_None;
+		Py_INCREF(data);
+	} else {
+		data = PyByteArray_FromStringAndSize((const char *) bytes->data, bytes->count);
+		if (data == NULL)
+			goto failed;
+	}
 
-	return (PyObject *)self;
+	/* Call the load() method of the new instance and pass it the byteseq */
+	r = PyObject_CallMethod(result, "load", "O", data);
+	Py_DECREF(data);
+
+	if (r == NULL)
+		goto failed;
+	Py_DECREF(r);
+
+	if (!__ruby_GenericObject_apply_vars(&self->udef_base.obj_base, result)) {
+		/* FIXME: raise exception */
+		goto failed;
+	}
+
+	return result;
+
+failed:
+	Py_DECREF(result);
+	return NULL;
 }
 
-/*
- * Initialize the object
- */
-int
-UserDefined_init(marshal48_UserDefined *self, PyObject *args, PyObject *kwds)
-{
-	if (marshal48_GenericObjectType.tp_init((PyObject *) self, args, kwds) < 0)
-		return -1;
+static ruby_type_t ruby_UserDefined_methods = {
+	.name		= "UserDefined",
+	.size		= sizeof(ruby_UserDefined),
+	.base_type	= &ruby_GenericObject_methods,
 
-	self->data = NULL;
-	return 0;
+	.del		= (ruby_instance_del_fn_t) ruby_UserDefined_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_UserDefined_repr,
+	.convert	= (ruby_instance_convert_fn_t) ruby_UserDefined_convert,
+};
+
+ruby_instance_t *
+ruby_UserDefined_new(ruby_context_t *ctx, const char *classname)
+{
+	ruby_UserDefined *self;
+
+	self = (ruby_UserDefined *) __ruby_GenericObject_new(ctx, classname, &ruby_UserDefined_methods);
+	ruby_byteseq_init(&self->udef_data);
+
+	return (ruby_instance_t *) self;
 }
 
-/*
- * Destructor: clean any state inside the UserDefined object
- */
-static void
-UserDefined_dealloc(marshal48_UserDefined *self)
+bool
+ruby_UserDefined_check(const ruby_instance_t *self)
 {
-	drop_object(&self->data);
+	return __ruby_instance_check_type(self, &ruby_UserDefined_methods);
 }
 
-int
-UserDefined_Check(PyObject *self)
+bool
+ruby_UserDefined_set_data(ruby_instance_t *self, const void *data, unsigned int count)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_UserDefinedType);
-}
-
-/*
- * If self.data is a byte array that starts with the Marshal48 signature,
- * unmarshal it and call instance->load() with the result.
- */
-static bool
-UserDefined_try_unmarshal(marshal48_UserDefined *self, PyObject *instance, PyObject **argp)
-{
-	const char *bytes;
-
-	if (!PyByteArray_Check(self->data) || PyByteArray_GET_SIZE(self->data) < 2)
+	if (!ruby_UserDefined_check(self))
 		return false;
 
-	bytes = PyByteArray_AS_STRING(self->data);
-	if (bytes[0] != 0x04 || bytes[1] != 0x08)
-		return false;
-
-	*argp = marshal48_unmarshal_io(self->data);
-	if (*argp == NULL)
-		return false;
-
+	ruby_byteseq_set(&((ruby_UserDefined *) self)->udef_data, data, count);
 	return true;
 }
 
-static PyObject *
-UserDefined_construct(marshal48_UserDefined *self, PyObject *args)
+ruby_byteseq_t *
+__ruby_UserDefined_get_data_rw(ruby_instance_t *self)
 {
-	PyObject *instance, *load_arg, *r;
-
-	if (!PyArg_ParseTuple(args, "O", &instance))
+	if (!ruby_UserDefined_check(self))
 		return NULL;
 
-	if (self->data == NULL) {
-		PyErr_SetString(PyExc_ValueError, "UserDefined.construct() called without data");
-		return NULL;
-	}
-
-	if (!UserDefined_try_unmarshal(self, instance, &load_arg)) {
-		Py_INCREF(self->data);
-		load_arg = self->data;
-	}
-
-	r = PyObject_CallMethod(instance, "load", "O", load_arg);
-	Py_DECREF(load_arg);
-
-	if (r == NULL)
-		return NULL;
-	Py_DECREF(r);
-
-	return 0;
+	return &((ruby_UserDefined *) self)->udef_data;
 }

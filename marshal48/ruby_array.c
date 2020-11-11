@@ -18,138 +18,116 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 
-#include <Python.h>
-#include <structmember.h>
-
 #include "extension.h"
+#include "ruby_impl.h"
 
 
-static void		Array_dealloc(marshal48_Array *self);
-static PyObject *	Array_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-static PyObject *	Array_append(marshal48_Array *self, PyObject *args);
-static PyObject *	Array_convert(marshal48_Array *self, PyObject *args);
-
-static PyMemberDef Array_members[] = {
-	{"id", T_INT, offsetof(marshal48_Array, id), 0, "object id"},
-	{"values", T_OBJECT, offsetof(marshal48_Array, values), 0, "array values"},
-
-	{ NULL }
-};
-
-static PyMethodDef Array_methods[] = {
-	{ "append", (PyCFunction) Array_append, METH_VARARGS, NULL },
-	{ "convert", (PyCFunction) Array_convert, METH_NOARGS, NULL },
-	{ NULL }
-};
+typedef struct {
+	ruby_instance_t	arr_base;
+	ruby_array_t	arr_items;
+} ruby_Array;
 
 
-PyTypeObject marshal48_ArrayType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "marshal48.Array",
-	.tp_basicsize	= sizeof(marshal48_Array),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby array",
-
-	.tp_init	= (initproc) Array_init,
-	.tp_new		= Array_new,
-	.tp_dealloc	= (destructor) Array_dealloc,
-
-	.tp_members	= Array_members,
-	.tp_methods	= Array_methods,
-};
-
-/*
- * Constructor: allocate empty Array object, and set its members.
- */
-static PyObject *
-Array_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	marshal48_Array *self;
-
-	self = (marshal48_Array *) type->tp_alloc(type, 0);
-	if (self == NULL)
-		return NULL;
-
-	/* init members */
-	self->id = -1;
-	self->values = PyList_New(0);
-
-	return (PyObject *)self;
-}
-
-/*
- * Initialize the array object
- */
-int
-Array_init(marshal48_Array *self, PyObject *args, PyObject *kwds)
-{
-	static char *kwlist[] = {
-		NULL
-	};
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist))
-		return -1;
-
-	self->values = PyList_New(0);
-	return 0;
-}
-
-/*
- * Destructor: clean any state inside the Array object
- */
 static void
-Array_dealloc(marshal48_Array *self)
+ruby_Array_del(ruby_Array *self)
 {
-	Py_DECREF(self->values);
-	self->values = NULL;
+	ruby_array_zap(&self->arr_items);
+	__ruby_instance_del((ruby_instance_t *) self);
 }
 
-int
-Array_Check(PyObject *self)
+static const char *
+ruby_Array_repr(ruby_Array *self)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_ArrayType);
+	ruby_repr_buf *rbuf;
+	unsigned int i;
+
+	if (self->arr_items.count == 0)
+		return "[]";
+
+	rbuf = __ruby_repr_begin(256);
+	__ruby_repr_reserve_tail(rbuf, sizeof(", ...]"));
+
+	__ruby_repr_append(rbuf, "[");
+	for (i = 0; i < self->arr_items.count; ++i) {
+		const char *item_rep;
+
+		item_rep = ruby_instance_repr(self->arr_items.items[i]);
+		if (item_rep == NULL)
+			item_rep = "<BAD>";
+
+		if (i != 0 && !__ruby_repr_append(rbuf, ", "))
+			break;
+
+		if (!__ruby_repr_append(rbuf, item_rep))
+			break;
+	}
+
+	__ruby_repr_unreserve(rbuf);
+	if (i < self->arr_items.count)
+		__ruby_repr_append(rbuf, "...");
+	__ruby_repr_append(rbuf, "]");
+
+	return __ruby_repr_finish(rbuf);
 }
 
+/*
+ * Convert from ruby type to native python type
+ */
 static PyObject *
-Array_append(marshal48_Array *self, PyObject *args)
-{
-	PyObject *item;
-
-	if (!PyArg_Parse(args, "O", &item))
-		return NULL;
-
-	/* FIXME: we should check that the object we append is a ruby object
-	 * that provides a convert() method */
-	PyList_Append(self->values, item);
-
-	Py_RETURN_NONE;
-}
-
-static PyObject *
-Array_convert(marshal48_Array *self, PyObject *args)
+ruby_Array_convert(ruby_Array *self)
 {
 	PyObject *result;
 	unsigned int i, len;
 
-	if (!PyArg_Parse(args, ""))
-		return NULL;
-
-	len = PyList_Size(self->values);
+	len = self->arr_items.count;
 
 	result = PyList_New(len);
 	for (i = 0; i < len; ++i) {
-		PyObject *item = PyList_GET_ITEM(self->values, i);
+		PyObject *item;
 
+		item = ruby_instance_convert(self->arr_items.items[i]);
+
+		/* FIXME: raise exception if conversion fails */
 		assert(item);
-		item = PyObject_CallMethod(item, "convert", NULL);
-		if (item == NULL) {
-			Py_DECREF(result);
-			return NULL;
-		}
 
 		PyList_SET_ITEM(result, i, item);
 	}
 
 	return result;
+}
+
+static ruby_type_t ruby_Array_methods = {
+	.name		= "Array",
+	.size		= sizeof(ruby_Array),
+	.registration	= RUBY_REG_OBJECT,
+
+	.del		= (ruby_instance_del_fn_t) ruby_Array_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_Array_repr,
+	.convert	= (ruby_instance_convert_fn_t) ruby_Array_convert,
+};
+
+ruby_instance_t *
+ruby_Array_new(ruby_context_t *ruby)
+{
+	ruby_Array *self;
+
+	self = (ruby_Array *) __ruby_instance_new(ruby, &ruby_Array_methods);
+	ruby_array_init(&self->arr_items);
+
+	return (ruby_instance_t *) self;
+}
+
+bool
+ruby_Array_check(const ruby_instance_t *self)
+{
+	return self->op == &ruby_Array_methods;
+}
+
+bool
+ruby_Array_append(const ruby_instance_t *self, ruby_instance_t *item)
+{
+	if (!ruby_Array_check(self))
+		return false;
+	ruby_array_append(&((ruby_Array *) self)->arr_items, item);
+	return true;
 }

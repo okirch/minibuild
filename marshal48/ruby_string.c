@@ -18,142 +18,110 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 
-#include <Python.h>
-#include <structmember.h>
-
 #include "extension.h"
+#include "ruby_impl.h"
 
 
-static void		String_dealloc(marshal48_String *self);
-static PyObject *	String_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-static PyObject *	String_convert(marshal48_String *self, PyObject *args);
-static PyObject *	String_set_instance_var(marshal48_String *self, PyObject *args);
+typedef struct {
+	ruby_instance_t	str_base;
+	char *		str_value;
+} ruby_String;
 
-static PyMemberDef String_members[] = {
-	{"id", T_INT, offsetof(marshal48_String, id), 0, "object id"},
-	{"value", T_STRING, offsetof(marshal48_String, value), 0, "value"},
 
-	{ NULL }
-};
-
-static PyMethodDef String_methods[] = {
-	{ "convert", (PyCFunction) String_convert, METH_NOARGS, NULL },
-	{ "set_instance_var", (PyCFunction) String_set_instance_var, METH_VARARGS, NULL },
-	{ NULL }
-};
-
-PyTypeObject marshal48_StringType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "ruby.String",
-	.tp_basicsize	= sizeof(marshal48_String),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby string",
-
-	.tp_init	= (initproc) String_init,
-	.tp_new		= String_new,
-	.tp_dealloc	= (destructor) String_dealloc,
-
-	.tp_members	= String_members,
-	.tp_methods	= String_methods,
-};
-
-/*
- * Constructor: allocate empty String object, and set its members.
- */
-static PyObject *
-String_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+static void
+ruby_String_del(ruby_String *self)
 {
-	marshal48_String *self;
-
-	self = (marshal48_String *) type->tp_alloc(type, 0);
-	if (self == NULL)
-		return NULL;
-
-	/* init members */
-	self->id = -1;
-	self->value = NULL;
-
-	return (PyObject *)self;
+	drop_string(&self->str_value);
+	__ruby_instance_del((ruby_instance_t *) self);
 }
 
-/*
- * Initialize the string object
- */
-int
-String_init(marshal48_String *self, PyObject *args, PyObject *kwds)
+static const char *
+ruby_String_repr(ruby_String *self)
 {
-	static char *kwlist[] = {
-		"value",
-		NULL
-	};
-	char *value = NULL;
+	if (self->str_value == NULL)
+		return "<NUL>";
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s", kwlist, &value))
-		return -1;
-
-	if (value != NULL)
-		self->value = strdup(value);
-	else
-		self->value = strdup("zoppo");
-	return 0;
+	return self->str_value;
 }
 
 /*
  * Convert from ruby type to native python type
  */
 static PyObject *
-String_convert(marshal48_String *self, PyObject *args)
+ruby_String_convert(ruby_String *self)
 {
-	if (!PyArg_ParseTuple(args, ""))
-		return NULL;
-
-	return PyUnicode_FromString(self->value);
+	if (self->str_value == NULL) {
+		Py_RETURN_NONE;
+	}
+	return PyUnicode_FromString(self->str_value);
 }
 
-static PyObject *
-String_set_instance_var(marshal48_String *self, PyObject *args)
+static bool
+ruby_String_set_var(ruby_String *self, ruby_instance_t *key, ruby_instance_t *value)
 {
-	char *name;
-	PyObject *value;
+	const char *name;
 
-	if (!PyArg_ParseTuple(args, "sO", &name, &value))
-		return NULL;
+	if (!ruby_Symbol_check(key)) {
+		fprintf(stderr, "%s: key is not a symbol", __func__);
+		return false;
+	}
+	name = ruby_Symbol_get_name(key);
 
 	/* String encoding True/False - not quite sure what this means;
 	 * so we'll ignore it for now. */
 	if (!strcmp(name, "E")) {
-		if (!PyBool_Check(value)) {
-			PyErr_SetString(PyExc_TypeError, "String: instance variable E must be a boolean");
-			return NULL;
+		if (!ruby_Bool_check(value)) {
+			fprintf(stderr, "%s: instance variable E must be a boolean", __func__);
+			return false;
 		}
 
-		if (PyObject_IsTrue(value)) {
+		if (ruby_Bool_is_true(value)) {
 			/* Do something */
 		} else {
 			/* Do something else */
 		}
 	} else {
-		PyErr_Format(PyExc_TypeError, "String: unsupported instance variable %s", name);
-		return NULL;
+		fprintf(stderr, "%s: unsupported instance variable %s", __func__, name);
+		return false;
 	}
 
-	Py_DECREF(value);
-
-	Py_RETURN_NONE;
+	return true;
 }
 
-/*
- * Destructor: clean any state inside the String object
- */
-static void
-String_dealloc(marshal48_String *self)
+static ruby_type_t ruby_String_methods = {
+	.name		= "String",
+	.size		= sizeof(ruby_String),
+	.registration	= RUBY_REG_OBJECT,
+
+	.del		= (ruby_instance_del_fn_t) ruby_String_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_String_repr,
+	.set_var	= (ruby_instance_set_var_fn_t) ruby_String_set_var,
+	.convert	= (ruby_instance_convert_fn_t) ruby_String_convert,
+};
+
+ruby_instance_t *
+ruby_String_new(ruby_context_t *ctx, const char *name)
 {
-	drop_string(&self->value);
+	ruby_String *self;
+
+	self = (ruby_String *) __ruby_instance_new(ctx, &ruby_String_methods);
+	self->str_value = strdup(name);
+
+	assert(self->str_base.reg.id >= 0 && self->str_base.reg.kind == RUBY_REG_OBJECT);
+
+	return (ruby_instance_t *) self;
 }
 
-int
-String_Check(PyObject *self)
+bool
+ruby_String_check(const ruby_instance_t *self)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_StringType);
+	return self->op == &ruby_String_methods;
+}
+
+const char *
+ruby_String_get_value(const ruby_instance_t *self)
+{
+	if (!ruby_String_check(self))
+		return NULL;
+	return ((ruby_String *) self)->str_value;
 }

@@ -74,18 +74,26 @@ marshal48_setDebugLevel(PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 marshal48_Unmarshal(PyObject *self, PyObject *args, PyObject *kwds)
 {
+	ruby_context_t *ruby;
 	static char *kwlist[] = {
 		"io",
 		NULL
 	};
-	PyObject *io;
+	ruby_instance_t *unmarshaled;
+	PyObject *io, *result = NULL;
 
-	printf("TP %s:%d\n", __func__, __LINE__);
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &io))
 		return NULL;
 
-	printf("TP %s:%d\n", __func__, __LINE__);
-	return marshal48_unmarshal_io(io);
+	ruby = ruby_context_new();
+
+	unmarshaled = marshal48_unmarshal_io(ruby, io);
+	if (unmarshaled != NULL) {
+		/* now convert it */
+	}
+
+	ruby_context_free(ruby);
+	return result;
 }
 
 void
@@ -191,6 +199,7 @@ PyInit_marshal48(void)
 	if (m == NULL)
 		return NULL;
 
+#if 0
 	/* These two aren't really used right now */
 	marshal48_registerType(m, "Symbol", &marshal48_SymbolType);
 	marshal48_registerType(m, "Int", &marshal48_IntType);
@@ -201,6 +210,7 @@ PyInit_marshal48(void)
 	marshal48_registerType(m, "GenericObject", &marshal48_GenericObjectType);
 	marshal48_registerType(m, "UserDefined", &marshal48_UserDefinedType);
 	marshal48_registerType(m, "UserMarshal", &marshal48_UserMarshalType);
+#endif
 
 	theModule = m;
 

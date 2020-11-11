@@ -22,84 +22,60 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <structmember.h>
 
 #include "extension.h"
+#include "ruby_impl.h"
+
+typedef struct {
+	ruby_instance_t	sym_base;
+	char *		sym_name;
+} ruby_Symbol;
 
 
-static void		Symbol_dealloc(marshal48_Symbol *self);
-static PyObject *	Symbol_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-
-static PyMemberDef Symbol_members[] = {
-	{"name", T_STRING, offsetof(marshal48_Symbol, name), 0,
-	 "symbol name"},
-
-	{NULL}  /* Sentinel */
-};
-
-
-PyTypeObject marshal48_SymbolType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-
-	.tp_name	= "marshal48.Symbol",
-	.tp_basicsize	= sizeof(marshal48_Symbol),
-	.tp_flags	= Py_TPFLAGS_DEFAULT,
-	.tp_doc		= "ruby symbol",
-
-	.tp_init	= (initproc) Symbol_init,
-	.tp_new		= Symbol_new,
-	.tp_dealloc	= (destructor) Symbol_dealloc,
-
-	.tp_members	= Symbol_members,
-//	.tp_methods	= marshal48_noMethods,
-};
-
-/*
- * Constructor: allocate empty Symbol object, and set its members.
- */
-static PyObject *
-Symbol_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	marshal48_Symbol *self;
-
-	self = (marshal48_Symbol *) type->tp_alloc(type, 0);
-	if (self == NULL)
-		return NULL;
-
-	/* init members */
-	self->name = NULL;
-
-	return (PyObject *)self;
-}
-
-/*
- * Initialize the symbol object
- */
-int
-Symbol_init(marshal48_Symbol *self, PyObject *args, PyObject *kwds)
-{
-	static char *kwlist[] = {
-		"name",
-		NULL
-	};
-	char *symbol;
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, &symbol))
-		return -1;
-
-	self->name = strdup(symbol);
-
-	return 0;
-}
-
-/*
- * Destructor: clean any state inside the Symbol object
- */
 static void
-Symbol_dealloc(marshal48_Symbol *self)
+ruby_Symbol_del(ruby_Symbol *self)
 {
-	drop_string(&self->name);
+	drop_string(&self->sym_name);
+	__ruby_instance_del((ruby_instance_t *) self);
 }
 
-int
-Symbol_Check(PyObject *self)
+static const char *
+ruby_Symbol_repr(ruby_Symbol *self)
 {
-	return PyType_IsSubtype(Py_TYPE(self), &marshal48_SymbolType);
+	if (self->sym_name == NULL)
+		return "<NUL>";
+
+	return self->sym_name;
+}
+
+static ruby_type_t ruby_Symbol_methods = {
+	.name		= "Symbol",
+	.size		= sizeof(ruby_Symbol),
+	.registration	= RUBY_REG_SYMBOL,
+
+	.del		= (ruby_instance_del_fn_t) ruby_Symbol_del,
+	.repr		= (ruby_instance_repr_fn_t) ruby_Symbol_repr,
+};
+
+ruby_instance_t *
+ruby_Symbol_new(ruby_context_t *ctx, const char *name)
+{
+	ruby_Symbol *sym;
+
+	sym = (ruby_Symbol *) __ruby_instance_new(ctx, &ruby_Symbol_methods);
+	sym->sym_name = strdup(name);
+
+	return (ruby_instance_t *) sym;
+}
+
+bool
+ruby_Symbol_check(const ruby_instance_t *self)
+{
+	return self->op == &ruby_Symbol_methods;
+}
+
+const char *
+ruby_Symbol_get_name(const ruby_instance_t *self)
+{
+	if (!ruby_Symbol_check(self))
+		return NULL;
+	return ((ruby_Symbol *) self)->sym_name;
 }

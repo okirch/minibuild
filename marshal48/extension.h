@@ -1,5 +1,5 @@
 /*
-Ruby marshal48 - for python
+Ruby Marshal48 machine - for python
 
 Copyright (C) 2020 SUSE
 
@@ -26,72 +26,134 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <string.h>
 #include <stdbool.h>
 
-typedef struct {
-	PyObject_HEAD
-	char *		name;
-} marshal48_Symbol;
+typedef struct ruby_context ruby_context_t;
+typedef struct ruby_instance ruby_instance_t;
+typedef struct ruby_type ruby_type_t;
 
-typedef struct {
-	PyObject_HEAD
-	int		value;
-} marshal48_Int;
+/* utility types */
+typedef struct ruby_array	ruby_array_t;
+typedef struct ruby_byteseq	ruby_byteseq_t;
+typedef struct ruby_dict	ruby_dict_t;
 
-typedef struct {
-	PyObject_HEAD
-	int		id;
-	char *		value;
-} marshal48_String;
+extern ruby_context_t *	ruby_context_new(void);
+extern void		ruby_context_free(ruby_context_t *);
 
-typedef struct {
-	PyObject_HEAD
-	int		id;
-	PyObject *	values;
-} marshal48_Array;
+enum {
+	RUBY_REG_EPHEMERAL,
+	RUBY_REG_SYMBOL,
+	RUBY_REG_OBJECT,
+};
 
-typedef struct {
-	PyObject_HEAD
-	int		id;
-	PyObject *	value;
-} marshal48_Hash;
+struct ruby_type {
+	const char *	name;
+	size_t		size;
+	int		registration;
+	ruby_type_t *	base_type;
 
-typedef struct {
-	PyObject_HEAD
-	int		id;
-	char *		classname;
-	PyObject *	instance_vars;	/* dict */
-} marshal48_GenericObject;
+	void		(*del)(ruby_instance_t *);
+	const char *	(*repr)(ruby_instance_t *);
+	bool		(*set_var)(ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value);
+	PyObject *	(*convert)(ruby_instance_t *);
+};
 
-typedef struct {
-	marshal48_GenericObject base;
-	PyObject *	data;
-} marshal48_UserDefined;
+struct ruby_instance {
+	const ruby_type_t *op;
 
-typedef struct {
-	marshal48_GenericObject base;
-	PyObject *	data;
-} marshal48_UserMarshal;
+	struct {
+		int	kind;
+		int	id;
+	} reg;
 
-extern PyObject *	marshal48_unmarshal_io(PyObject *io);
+	PyObject *	native;
+};
+
+static inline void
+ruby_instance_del(ruby_instance_t *self)
+{
+	self->op->del(self);
+}
+
+static inline const char *
+ruby_instance_repr(ruby_instance_t *self)
+{
+	return self->op->repr(self);
+}
+
+static inline bool
+ruby_instance_set_var(ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value)
+{
+	const ruby_type_t *op;
+
+	for (op = self->op; op; op = op->base_type) {
+		if (op->set_var)
+			return op->set_var(self, key, value);
+	}
+	return false;
+
+}
+
+static inline PyObject *
+ruby_instance_convert(ruby_instance_t *self)
+{
+	if (self->native == NULL) {
+		self->native = self->op->convert(self);
+		if (self->native == NULL)
+			return NULL;
+	}
+
+	Py_INCREF(self->native);
+	return self->native;
+}
+
+
+extern ruby_context_t *	ruby_context_new(void);
+extern void		ruby_context_free(ruby_context_t *);
+
+extern bool		ruby_Bool_check(const ruby_instance_t *self);
+extern bool		ruby_Bool_is_true(const ruby_instance_t *self);
+extern bool		ruby_Bool_is_false(const ruby_instance_t *self);
+extern bool		ruby_None_check(const ruby_instance_t *self);
+
+extern ruby_instance_t *ruby_Symbol_new(ruby_context_t *ctx, const char *name);
+extern bool		ruby_Symbol_check(const ruby_instance_t *self);
+extern const char *	ruby_Symbol_get_name(const ruby_instance_t *self);
+
+extern ruby_instance_t *ruby_Int_new(ruby_context_t *, long value);
+extern bool		ruby_Int_check(const ruby_instance_t *self);
+extern long		ruby_Int_get_value(const ruby_instance_t *self);
+
+extern ruby_instance_t *ruby_String_new(ruby_context_t *, const char *);
+extern bool		ruby_String_check(const ruby_instance_t *self);
+extern const char *	ruby_String_get_value(const ruby_instance_t *self);
+
+extern ruby_instance_t *ruby_Array_new(ruby_context_t *);
+extern bool		ruby_Array_check(const ruby_instance_t *self);
+extern bool		ruby_Array_append(const ruby_instance_t *self, ruby_instance_t *item);
+
+extern ruby_instance_t *ruby_Hash_new(ruby_context_t *);
+extern bool		ruby_Hash_check(const ruby_instance_t *self);
+extern bool		ruby_Hash_add(const ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value);
+
+extern ruby_instance_t *ruby_GenericObject_new(ruby_context_t *, const char *classname);
+extern bool		ruby_GenericObject_check(const ruby_instance_t *self);
+extern ruby_instance_t *__ruby_GenericObject_new(ruby_context_t *, const char *classname, const ruby_type_t *type);
+extern bool		__ruby_GenericObject_apply_vars(ruby_instance_t *self, PyObject *result);
+
+extern ruby_instance_t *ruby_UserDefined_new(ruby_context_t *ctx, const char *classname);
+extern bool		ruby_UserDefined_check(const ruby_instance_t *self);
+extern bool		ruby_UserDefined_set_data(ruby_instance_t *self, const void *data, unsigned int count);
+extern ruby_byteseq_t *	__ruby_UserDefined_get_data_rw(ruby_instance_t *self);
+
+extern ruby_instance_t *ruby_UserMarshal_new(ruby_context_t *ctx, const char *classname);
+extern bool		ruby_UserMarshal_check(const ruby_instance_t *self);
+extern bool		ruby_UserMarshal_set_data(ruby_instance_t *self, ruby_instance_t *data);
+
+extern char *		ruby_instance_as_string(ruby_instance_t *self);
+
+extern ruby_instance_t *marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io);
 extern PyObject *	marshal48_instantiate_ruby_type(const char *name);
 extern PyObject *	marshal48_instantiate_ruby_type_with_arg(const char *name, PyObject *);
 
-extern PyTypeObject	marshal48_SymbolType;
-extern PyTypeObject	marshal48_IntType;
-extern PyTypeObject	marshal48_StringType;
-extern PyTypeObject	marshal48_ArrayType;
-extern PyTypeObject	marshal48_HashType;
-extern PyTypeObject	marshal48_GenericObjectType;
-extern PyTypeObject	marshal48_UserDefinedType;
-extern PyTypeObject	marshal48_UserMarshalType;
-
-extern int		Symbol_init(marshal48_Symbol *self, PyObject *args, PyObject *kwds);
-extern int		Int_init(marshal48_Int *self, PyObject *args, PyObject *kwds);
-extern int		String_init(marshal48_String *self, PyObject *args, PyObject *kwds);
-extern int		Array_init(marshal48_Array *self, PyObject *args, PyObject *kwds);
-extern int		Hash_init(marshal48_Hash *self, PyObject *args, PyObject *kwds);
-extern int		GenericObject_init(marshal48_GenericObject *self, PyObject *args, PyObject *kwds);
-extern int		UserDefined_init(marshal48_UserDefined *self, PyObject *args, PyObject *kwds);
-extern int		UserMarshal_init(marshal48_UserMarshal *self, PyObject *args, PyObject *kwds);
 
 static inline void
 assign_string(char **var, char *str)

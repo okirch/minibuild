@@ -23,8 +23,11 @@ OBJS	= extension.o \
 	  ruby_object.o \
 	  ruby_userdefined.o \
 	  ruby_usermarshal.o \
-	  unmarshal.o \
-	  utils.o
+	  ruby_base.o \
+	  ruby_repr.o \
+	  ruby_reader.o \
+	  ruby_utils.o \
+	  unmarshal.o
 
 all: marshal48.so
 
