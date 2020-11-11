@@ -155,9 +155,10 @@ __ruby_repr_unreserve(ruby_repr_buf *rbuf)
 static bool
 __ruby_repr_put(ruby_repr_buf *rbuf, const char *s, unsigned int n)
 {
-	if (n > __ruby_repr_space(rbuf))
+	if (n + 1 > __ruby_repr_space(rbuf))
 		return false;
 	memcpy(rbuf->data + rbuf->wpos, s, n);
+	rbuf->data[rbuf->wpos + n] = '\0';
 	rbuf->wpos += n;
 
 	assert(rbuf->wpos + rbuf->reserved < rbuf->size);
@@ -199,7 +200,7 @@ __ruby_repr_printf(ruby_repr_context_t *ctx, const char *fmt, ...)
 
 	/* allocate an rbuf and attach it to the current context.
 	 * We do not open a context of our own */
-	rbuf = __ruby_repr_buf_alloc(ctx, buflen);
+	rbuf = __ruby_repr_buf_alloc(ctx, buflen + 1);
 
 	__ruby_repr_put(rbuf, buffer, buflen);
 	assert(rbuf->wpos == buflen);
