@@ -48,9 +48,9 @@ ruby_Int_del(ruby_Int *self)
 }
 
 static const char *
-ruby_Int_repr(ruby_Int *self)
+ruby_Int_repr(ruby_Int *self, ruby_repr_context_t *ctx)
 {
-	return __ruby_repr_printf("%ld", self->int_value);
+	return __ruby_repr_printf(ctx, "%ld", self->int_value);
 }
 
 ruby_type_t ruby_Int_type = {

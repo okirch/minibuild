@@ -60,16 +60,16 @@ ruby_UserMarshal_del(ruby_UserMarshal *self)
 }
 
 static const char *
-ruby_UserMarshal_repr(ruby_UserMarshal *self)
+ruby_UserMarshal_repr(ruby_UserMarshal *self, ruby_repr_context_t *ctx)
 {
 	ruby_repr_buf *rbuf;
 	const ruby_dict_t *vars;
 
-	rbuf = __ruby_repr_begin(128);
+	rbuf = __ruby_repr_begin(ctx, 128);
 	__ruby_repr_appendf(rbuf, "%s(",
 			self->marsh_base.obj_classname);
 	if (self->marsh_data != NULL)
-		__ruby_repr_append(rbuf, ruby_instance_repr(self->marsh_data));
+		__ruby_repr_append(rbuf, __ruby_instance_repr(self->marsh_data, ctx));
 	else
 		__ruby_repr_append(rbuf, "<NIL>");
 	__ruby_repr_append(rbuf, ")");
@@ -77,7 +77,7 @@ ruby_UserMarshal_repr(ruby_UserMarshal *self)
 	vars = &self->marsh_base.obj_vars;
 	if (vars->dict_keys.count != 0) {
 		__ruby_repr_appendf(rbuf, "; ");
-		if (!__ruby_dict_repr(vars, rbuf))
+		if (!__ruby_dict_repr(vars, ctx, rbuf))
 			return __ruby_repr_abort(rbuf);
 	}
 	return __ruby_repr_finish(rbuf);

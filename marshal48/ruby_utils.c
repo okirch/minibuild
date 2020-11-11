@@ -20,6 +20,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "extension.h"
 #include "ruby_impl.h"
 
+#include <sys/resource.h>
+
 /*
  * Array functions
  */
@@ -180,4 +182,13 @@ __ruby_byteseq_repr(const ruby_byteseq_t *seq, ruby_repr_buf *rbuf)
 		__ruby_repr_append(rbuf, "...");
 
 	return true;
+}
+
+unsigned long
+__report_memory_rss(void)
+{
+	struct rusage ru;
+
+	getrusage(RUSAGE_SELF, &ru);
+	return ru.ru_maxrss;
 }

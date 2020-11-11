@@ -30,6 +30,7 @@ typedef struct ruby_unmarshal	ruby_unmarshal_t;
 
 /* anonymous decls for some structs */
 struct ruby_byteseq;
+typedef struct ruby_repr_context ruby_repr_context_t;
 
 enum {
 	RUBY_REG_EPHEMERAL,
@@ -46,7 +47,7 @@ struct ruby_type {
 	ruby_instance_t *(*unmarshal)(ruby_unmarshal_t *);
 
 	void		(*del)(ruby_instance_t *);
-	const char *	(*repr)(ruby_instance_t *);
+	const char *	(*repr)(ruby_instance_t *, ruby_repr_context_t *);
 	bool		(*set_var)(ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value);
 	PyObject *	(*convert)(ruby_instance_t *);
 };
@@ -66,12 +67,6 @@ static inline void
 ruby_instance_del(ruby_instance_t *self)
 {
 	self->op->del(self);
-}
-
-static inline const char *
-ruby_instance_repr(ruby_instance_t *self)
-{
-	return self->op->repr(self);
 }
 
 static inline bool
@@ -117,6 +112,8 @@ extern ruby_context_t *	ruby_context_new(void);
 extern void		ruby_context_free(ruby_context_t *);
 extern ruby_instance_t *ruby_context_get_symbol(ruby_context_t *, unsigned int);
 extern ruby_instance_t *ruby_context_get_object(ruby_context_t *, unsigned int);
+
+extern const char *	ruby_instance_repr(ruby_instance_t *self);
 
 extern bool		ruby_Bool_check(const ruby_instance_t *self);
 extern bool		ruby_Bool_is_true(const ruby_instance_t *self);

@@ -31,7 +31,7 @@ typedef struct unmarshal_processor {
 	ruby_instance_t *	(*process)(ruby_unmarshal_t *s);
 } unmarshal_processor_t;
 
-extern ruby_instance_t *unmarshal_process_quiet(ruby_unmarshal_t *s);
+extern ruby_instance_t *ruby_unmarshal_next_instance_quiet(ruby_unmarshal_t *s);
 
 void
 __ruby_unmarshal_trace(ruby_unmarshal_t *s, const char *fmt, ...)
@@ -277,11 +277,11 @@ ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object
 	for (i = 0; i < count; ++i) {
 		ruby_instance_t *key, *value;
 
-		key = ruby_unmarshal_next_instance(s);
+		key = ruby_unmarshal_next_instance_quiet(s);
 		if (key == NULL)
 			return false;
 
-		value = ruby_unmarshal_next_instance(s);
+		value = ruby_unmarshal_next_instance_quiet(s);
 		if (value == NULL)
 			return false;
 
@@ -343,6 +343,7 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 	};
 	const unmarshal_processor_t *processor;
 	const ruby_type_t *type;
+	ruby_instance_t *result = NULL;
 	int cc;
 
 	if (!ruby_reader_nextc(s->reader, &cc))
@@ -355,17 +356,32 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 		assert(type->unmarshal != NULL);
 
 		ruby_unmarshal_trace(s, "process(%c -> %s)", cc, type->name);
-		return type->unmarshal(s);
+		result = type->unmarshal(s);
+	} else {
+		processor = unmarshal_processor_table[cc];
+		if (processor != NULL) {
+			ruby_unmarshal_trace(s, "process(%c -> %s)", cc, processor->name);
+			result = processor->process(s);
+		}
 	}
 
-	processor = unmarshal_processor_table[cc];
-	if (processor != NULL) {
-		ruby_unmarshal_trace(s, "process(%c -> %s)", cc, processor->name);
-		return processor->process(s);
+	if (result == NULL) {
+		fprintf(stderr, "Don't know how to handle marshal type %c(0x%02x)\n", cc, cc);
+		return NULL;
 	}
 
-	fprintf(stderr, "Don't know how to handle marshal type %c(0x%02x)\n", cc, cc);
-	return NULL;
+	ruby_unmarshal_trace(s, "Returning %s: %s", result->op->name, ruby_instance_repr(result));
+
+	if (false) {
+		static unsigned int num;
+
+		if ((num % 100) == 0) {
+			printf("%6u: RSS %lu kB\n", num, __report_memory_rss());
+			fflush(stdout);
+		}
+		num += 1;
+	}
+	return result;
 }
 
 ruby_instance_t *
@@ -384,7 +400,7 @@ ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 }
 
 ruby_instance_t *
-unmarshal_process_quiet(ruby_unmarshal_t *s)
+ruby_unmarshal_next_instance_quiet(ruby_unmarshal_t *s)
 {
 	bool saved_quiet = s->log.quiet;
 	ruby_instance_t *result;
@@ -423,10 +439,8 @@ marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io)
 	ruby_unmarshal_t *marshal = ruby_unmarshal_new(ruby, io);
 	ruby_instance_t *result;
 
-	printf("%s()\n", __func__);
-
 	/* shut down messages */
-	// marshal->log.quiet = true;
+	marshal->log.quiet = true;
 
 	if (!marshal48_check_signature(marshal)) {
 		/* PyErr_SetString(PyExc_ValueError, "Data does not start with Marshal48 signature"); */

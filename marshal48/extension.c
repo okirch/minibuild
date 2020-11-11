@@ -90,6 +90,8 @@ marshal48_Unmarshal(PyObject *self, PyObject *args, PyObject *kwds)
 	unmarshaled = marshal48_unmarshal_io(ruby, io);
 	if (unmarshaled != NULL) {
 		/* now convert it */
+		printf("Not yet converting anything\n");
+		exit(55);
 	}
 
 	ruby_context_free(ruby);

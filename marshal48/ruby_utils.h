@@ -57,7 +57,7 @@ extern void		ruby_dict_init(ruby_dict_t *);
 extern void		ruby_dict_add(ruby_dict_t *, ruby_instance_t *key, ruby_instance_t *value);
 /* This just zaps the dict, but does not destroy its dict members */
 extern void		ruby_dict_zap(ruby_dict_t *);
-extern bool		__ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_buf *rbuf);
+extern bool		__ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_context_t *, ruby_repr_buf *rbuf);
 extern bool		__ruby_dict_convert(const ruby_dict_t *dict,
 				PyObject *target,
 				bool (*apply_fn)(PyObject *target, PyObject *key, PyObject *value));
@@ -72,8 +72,9 @@ extern bool		__ruby_byteseq_repr(const ruby_byteseq_t *, ruby_repr_buf *rbuf);
 /*
  * Helper functions for repr machinery.
  */
-extern const char *	__ruby_repr_printf(const char *fmt, ...);
-extern ruby_repr_buf *	__ruby_repr_begin(unsigned int size);
+extern const char *	__ruby_instance_repr(ruby_instance_t *, ruby_repr_context_t *);
+extern const char *	__ruby_repr_printf(ruby_repr_context_t *, const char *fmt, ...);
+extern ruby_repr_buf *	__ruby_repr_begin(ruby_repr_context_t *, unsigned int size);
 extern void		__ruby_repr_reserve_tail(ruby_repr_buf *, unsigned int tail);
 extern void		__ruby_repr_unreserve(ruby_repr_buf *);
 extern bool		__ruby_repr_appendf(ruby_repr_buf *, const char *fmt, ...);
@@ -90,6 +91,7 @@ extern bool		ruby_reader_nextc(ruby_reader_t *reader, int *cccp);
 extern bool		ruby_reader_nextw(ruby_reader_t *reader, unsigned int count, long *resultp);
 extern bool		ruby_reader_next_byteseq(ruby_reader_t *reader, unsigned int count, ruby_byteseq_t *seq);
 
+extern unsigned long	__report_memory_rss(void);
 
 #endif /* RUBY_UTILS_H */
 

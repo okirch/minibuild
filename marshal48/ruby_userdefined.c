@@ -62,12 +62,12 @@ ruby_UserDefined_del(ruby_UserDefined *self)
 }
 
 static const char *
-ruby_UserDefined_repr(ruby_UserDefined *self)
+ruby_UserDefined_repr(ruby_UserDefined *self, ruby_repr_context_t *ctx)
 {
 	ruby_repr_buf *rbuf;
 	const ruby_dict_t *vars;
 
-	rbuf = __ruby_repr_begin(128);
+	rbuf = __ruby_repr_begin(ctx, 128);
 	__ruby_repr_appendf(rbuf, "%s(",
 			self->udef_base.obj_classname);
 	__ruby_byteseq_repr(&self->udef_data, rbuf);
@@ -75,8 +75,8 @@ ruby_UserDefined_repr(ruby_UserDefined *self)
 
 	vars = &self->udef_base.obj_vars;
 	if (vars->dict_keys.count != 0) {
-		__ruby_repr_appendf(rbuf, "; ");
-		if (!__ruby_dict_repr(vars, rbuf))
+		__ruby_repr_append(rbuf, "; ");
+		if (!__ruby_dict_repr(vars, ctx, rbuf))
 			return __ruby_repr_abort(rbuf);
 	}
 	return __ruby_repr_finish(rbuf);

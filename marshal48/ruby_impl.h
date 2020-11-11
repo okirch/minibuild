@@ -34,7 +34,7 @@ typedef struct ruby_type ruby_type_t;
 
 typedef void		(*ruby_instance_del_fn_t)(ruby_instance_t *);
 typedef ruby_instance_t *(*ruby_instance_unmarshal_fn_t)(ruby_unmarshal_t *);
-typedef const char *	(*ruby_instance_repr_fn_t)(ruby_instance_t *);
+typedef const char *	(*ruby_instance_repr_fn_t)(ruby_instance_t *, ruby_repr_context_t *);
 typedef bool		(*ruby_instance_set_var_fn_t)(ruby_instance_t *, ruby_instance_t *, ruby_instance_t *);
 typedef PyObject *	(*ruby_instance_convert_fn_t)(ruby_instance_t *);
 

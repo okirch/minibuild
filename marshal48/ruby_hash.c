@@ -66,7 +66,7 @@ ruby_Hash_del(ruby_Hash *self)
 }
 
 bool
-__ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_buf *rbuf)
+__ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_context_t *ctx, ruby_repr_buf *rbuf)
 {
 	const ruby_array_t *keys = &dict->dict_keys;
 	const ruby_array_t *values = &dict->dict_values;
@@ -80,10 +80,10 @@ __ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_buf *rbuf)
 	for (i = 0; i < keys->count; ++i) {
 		const char *key_rep, *value_rep;
 
-		key_rep = ruby_instance_repr(keys->items[i]);
+		key_rep = __ruby_instance_repr(keys->items[i], ctx);
 		if (key_rep == NULL)
 			key_rep = "<BAD>";
-		value_rep = ruby_instance_repr(values->items[i]);
+		value_rep = __ruby_instance_repr(values->items[i], ctx);
 		if (value_rep == NULL)
 			value_rep = "<BAD>";
 
@@ -135,12 +135,12 @@ __ruby_dict_convert(const ruby_dict_t *dict, PyObject *target,
 }
 
 static const char *
-ruby_Hash_repr(ruby_Hash *self)
+ruby_Hash_repr(ruby_Hash *self, ruby_repr_context_t *ctx)
 {
 	ruby_repr_buf *rbuf;
 
-	rbuf = __ruby_repr_begin(256);
-	if (!__ruby_dict_repr(&self->hash_dict, rbuf))
+	rbuf = __ruby_repr_begin(ctx, 256);
+	if (!__ruby_dict_repr(&self->hash_dict, ctx, rbuf))
 		return __ruby_repr_abort(rbuf);
 
 	return __ruby_repr_finish(rbuf);

@@ -21,13 +21,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "ruby_impl.h"
 
 struct ruby_repr_context {
-	struct ruby_repr_context *parent;
-	ruby_repr_buf *	siblings;
-	ruby_repr_buf *	children;
+	ruby_repr_buf *	bufs;
 };
 
 struct ruby_repr_buf_s {
-	struct ruby_repr_context context;
+	ruby_repr_buf *	next;
+	ruby_repr_context_t *owner;
 
 	unsigned int	wpos, size, reserved;
 	char		data[1];
@@ -35,20 +34,17 @@ struct ruby_repr_buf_s {
 
 static char		__parrot[4] = { 0xde, 0xad, 0xbe, 0xef }; /* this parrot is dead */
 
-static struct ruby_repr_context ruby_repr_top_context;
-static struct ruby_repr_context *ruby_repr_current_context = &ruby_repr_top_context;
-
 
 static void		__ruby_repr_buf_free(ruby_repr_buf *rbuf);
 
 static void
 __ruby_repr_context_insert(struct ruby_repr_context *ctx, ruby_repr_buf *child)
 {
-	struct ruby_repr_context *child_ctx = &child->context;
+	assert(child->owner == NULL);
 
-	child_ctx->siblings = ctx->children;
-	ctx->children = child;
-	child_ctx->parent = ctx;
+	child->owner = ctx;
+	child->next = ctx->bufs;
+	ctx->bufs = child;
 }
 
 static inline ruby_repr_buf *
@@ -56,37 +52,29 @@ __ruby_repr_context_pop_child(struct ruby_repr_context *ctx)
 {
 	ruby_repr_buf *child;
 
-	if ((child = ctx->children) != NULL) {
-		ctx->children = child->context.siblings;
-		child->context.parent = NULL;
+	if ((child = ctx->bufs) != NULL) {
+		assert(child->owner == ctx);
+		child->owner = NULL;
+		ctx->bufs = child->next;
+		child->next = NULL;
 	}
 
 	return child;
 }
 
 static void
-__ruby_repr_context_push(struct ruby_repr_context *ctx)
-{
-	assert(ctx->parent == ruby_repr_current_context);
-	ruby_repr_current_context = ctx;
-}
-
-static void
-__ruby_repr_context_pop(struct ruby_repr_context *ctx)
+ruby_repr_context_destroy(ruby_repr_context_t *ctx)
 {
 	ruby_repr_buf *child;
 
-	assert(ruby_repr_current_context == ctx);
-	ruby_repr_current_context = ctx->parent;
-
-	while ((child = __ruby_repr_context_pop_child(ctx)) != NULL) {
-		assert(child->context.children == NULL);
+	while ((child = __ruby_repr_context_pop_child(ctx)) != NULL)
 		__ruby_repr_buf_free(child);
-	}
+
+	assert(ctx->bufs == NULL);
 }
 
 static ruby_repr_buf *
-__ruby_repr_buf_alloc(unsigned int size)
+__ruby_repr_buf_alloc(ruby_repr_context_t *ctx, unsigned int size)
 {
 	ruby_repr_buf *rbuf;
 
@@ -96,8 +84,7 @@ __ruby_repr_buf_alloc(unsigned int size)
 	rbuf->size = size;
 	memcpy((char *) rbuf + size, __parrot, 4);
 
-	__ruby_repr_context_insert(ruby_repr_current_context, rbuf);
-
+	__ruby_repr_context_insert(ctx, rbuf);
 	return rbuf;
 }
 
@@ -105,33 +92,26 @@ static void
 __ruby_repr_buf_free(ruby_repr_buf *rbuf)
 {
 	assert(!memcmp((char *) rbuf + rbuf->size, __parrot, 4));
+	assert(rbuf->owner == NULL);
 	memset(rbuf, 0xa5, sizeof(*rbuf) + rbuf->size + 4);
 	free(rbuf);
 }
 
 ruby_repr_buf *
-__ruby_repr_begin(unsigned int size)
+__ruby_repr_begin(ruby_repr_context_t *ctx, unsigned int size)
 {
-	ruby_repr_buf *rbuf;
-
-	rbuf = __ruby_repr_buf_alloc(size);
-	__ruby_repr_context_push(&rbuf->context);
-
-	return rbuf;
+	return __ruby_repr_buf_alloc(ctx, size);
 }
 
 const char *
 __ruby_repr_finish(ruby_repr_buf *rbuf)
 {
-	__ruby_repr_context_pop(&rbuf->context);
-
 	return rbuf->data;
 }
 
 const char *
 __ruby_repr_abort(ruby_repr_buf *rbuf)
 {
-	__ruby_repr_context_pop(&rbuf->context);
 	return NULL;
 }
 
@@ -190,7 +170,7 @@ __ruby_repr_appendf(ruby_repr_buf *rbuf, const char *fmt, ...)
 }
 
 const char *
-__ruby_repr_printf(const char *fmt, ...)
+__ruby_repr_printf(ruby_repr_context_t *ctx, const char *fmt, ...)
 {
 	char buffer[1024];
 	unsigned int buflen;
@@ -205,7 +185,7 @@ __ruby_repr_printf(const char *fmt, ...)
 
 	/* allocate an rbuf and attach it to the current context.
 	 * We do not open a context of our own */
-	rbuf = __ruby_repr_buf_alloc(buflen);
+	rbuf = __ruby_repr_buf_alloc(ctx, buflen);
 
 	__ruby_repr_put(rbuf, buffer, buflen);
 	assert(rbuf->wpos == buflen);
@@ -213,3 +193,30 @@ __ruby_repr_printf(const char *fmt, ...)
 	return rbuf->data;
 }
 
+const char *
+__ruby_instance_repr(ruby_instance_t *self, ruby_repr_context_t *ctx)
+{
+	return self->op->repr(self, ctx);
+}
+
+const char *
+ruby_instance_repr(ruby_instance_t *self)
+{
+	static ruby_repr_context_t ctx;
+	static bool recursing = false;
+	const char *retval;
+
+	if (recursing) {
+		fprintf(stderr, "You must not call %s recursively\n", __func__);
+		abort();
+	}
+	recursing = true;
+
+	/* Zap any leftovers from a previous call */
+	ruby_repr_context_destroy(&ctx);
+
+	retval = __ruby_instance_repr(self, &ctx);
+
+	recursing = false;
+	return retval;
+}

@@ -171,7 +171,7 @@ ruby_instance_as_string(ruby_instance_t *self)
  * Booleans
  */
 static const char *
-ruby_Bool_repr(ruby_instance_t *instance)
+ruby_Bool_repr(ruby_instance_t *instance, ruby_repr_context_t *ctx)
 {
 	if (instance == &ruby_True)
 		return "True";
@@ -239,7 +239,7 @@ ruby_Bool_is_false(const ruby_instance_t *self)
  * None
  */
 static const char *
-ruby_None_repr(ruby_instance_t *instance)
+ruby_None_repr(ruby_instance_t *instance, ruby_repr_context_t *ctx)
 {
 	return "None";
 }

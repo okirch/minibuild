@@ -52,7 +52,7 @@ ruby_Symbol_del(ruby_Symbol *self)
 }
 
 static const char *
-ruby_Symbol_repr(ruby_Symbol *self)
+ruby_Symbol_repr(ruby_Symbol *self, ruby_repr_context_t *ctx)
 {
 	if (self->sym_name == NULL)
 		return "<NUL>";

@@ -54,16 +54,16 @@ ruby_GenericObject_del(ruby_GenericObject *self)
 }
 
 static const char *
-ruby_GenericObject_repr(ruby_GenericObject *self)
+ruby_GenericObject_repr(ruby_GenericObject *self, ruby_repr_context_t *ctx)
 {
 	ruby_repr_buf *rbuf;
 
-	rbuf = __ruby_repr_begin(128);
+	rbuf = __ruby_repr_begin(ctx, 128);
 	__ruby_repr_appendf(rbuf, "%s()", self->obj_classname);
 
 	if (self->obj_vars.dict_keys.count != 0) {
 		__ruby_repr_appendf(rbuf, "; ");
-		if (!__ruby_dict_repr(&self->obj_vars, rbuf))
+		if (!__ruby_dict_repr(&self->obj_vars, ctx, rbuf))
 			return __ruby_repr_abort(rbuf);
 	}
 	return __ruby_repr_finish(rbuf);

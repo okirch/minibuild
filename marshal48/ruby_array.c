@@ -64,7 +64,7 @@ ruby_Array_del(ruby_Array *self)
 }
 
 static const char *
-ruby_Array_repr(ruby_Array *self)
+ruby_Array_repr(ruby_Array *self, ruby_repr_context_t *ctx)
 {
 	ruby_repr_buf *rbuf;
 	unsigned int i;
@@ -72,14 +72,14 @@ ruby_Array_repr(ruby_Array *self)
 	if (self->arr_items.count == 0)
 		return "[]";
 
-	rbuf = __ruby_repr_begin(256);
+	rbuf = __ruby_repr_begin(ctx, 256);
 	__ruby_repr_reserve_tail(rbuf, sizeof(", ...]"));
 
 	__ruby_repr_append(rbuf, "[");
 	for (i = 0; i < self->arr_items.count; ++i) {
 		const char *item_rep;
 
-		item_rep = ruby_instance_repr(self->arr_items.items[i]);
+		item_rep = __ruby_instance_repr(self->arr_items.items[i], ctx);
 		if (item_rep == NULL)
 			item_rep = "<BAD>";
 
