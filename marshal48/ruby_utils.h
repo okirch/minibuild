@@ -32,6 +32,7 @@ typedef struct ruby_reader	ruby_reader_t;
 
 struct ruby_array {
 	unsigned int		count;
+	unsigned int		size;
 	ruby_instance_t **	items;
 };
 

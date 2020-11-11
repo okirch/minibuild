@@ -32,11 +32,17 @@ ruby_array_init(ruby_array_t *array)
 void
 ruby_array_append(ruby_array_t *array, ruby_instance_t *item)
 {
-	static const unsigned int CHUNK = 32;
+	if (array->count >= array->size) {
+		unsigned long new_size;
 
-	if ((array->count % CHUNK) == 0) {
-		unsigned long new_size = (array->count + CHUNK) * sizeof(array->items[0]);
+		if (array->size == 0)
+			array->size = 2;
+		else if (array->size < 8192)
+			array->size *= 2;
+		else
+			array->size += 8192;
 
+		new_size = array->size * sizeof(array->items[0]);
 		if (array->items == NULL)
 			array->items = malloc(new_size);
 		else
