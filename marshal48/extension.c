@@ -78,17 +78,19 @@ marshal48_Unmarshal(PyObject *self, PyObject *args, PyObject *kwds)
 	static char *kwlist[] = {
 		"io",
 		"factory",
+		"quiet",
 		NULL
 	};
 	ruby_instance_t *unmarshaled;
 	PyObject *io, *factory, *result = NULL;
+	int quiet = 1;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist, &io, &factory))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|i", kwlist, &io, &factory, &quiet))
 		return NULL;
 
 	ruby = ruby_context_new();
 
-	unmarshaled = marshal48_unmarshal_io(ruby, io);
+	unmarshaled = marshal48_unmarshal_io(ruby, io, quiet);
 	if (unmarshaled != NULL) {
 		ruby_converter_t *converter;
 

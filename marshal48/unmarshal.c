@@ -439,13 +439,13 @@ marshal48_check_signature(ruby_unmarshal_t *s)
 }
 
 ruby_instance_t *
-marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io)
+marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io, bool quiet)
 {
 	ruby_unmarshal_t *marshal = ruby_unmarshal_new(ruby, io);
 	ruby_instance_t *result;
 
-	/* shut down messages */
-	marshal->log.quiet = true;
+	/* enable debug messages? */
+	marshal->log.quiet = quiet;
 
 	if (!marshal48_check_signature(marshal)) {
 		/* PyErr_SetString(PyExc_ValueError, "Data does not start with Marshal48 signature"); */

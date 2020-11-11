@@ -26,7 +26,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "ruby.h"
 
-extern ruby_instance_t *marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io);
+extern ruby_instance_t *marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io, bool quiet);
 extern PyObject *	marshal48_instantiate_ruby_type(const char *name, ruby_converter_t *);
 extern PyObject *	marshal48_instantiate_ruby_type_with_arg(const char *name, PyObject *, ruby_converter_t *);
 
