@@ -21,11 +21,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef RUBY_MARSHAL_H
 #define RUBY_MARSHAL_H
 
+/* anonymous decls for some structs */
+struct ruby_reader;
+struct ruby_byteseq;
+
 typedef struct ruby_unmarshal	ruby_unmarshal_t;
 
 struct ruby_unmarshal {
 	ruby_context_t *	ruby;
-	ruby_reader_t *		reader;
+	struct ruby_reader *	reader;
 
 	struct {
 		unsigned int	indent;
@@ -37,7 +41,7 @@ struct ruby_unmarshal {
 extern ruby_unmarshal_t *ruby_unmarshal_new(ruby_context_t *ctx, PyObject *io);
 extern bool		ruby_unmarshal_next_fixnum(ruby_unmarshal_t *, long *);
 extern const char *	ruby_unmarshal_next_string(ruby_unmarshal_t *marshal, const char *encoding);
-extern bool		ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, ruby_byteseq_t *seq);
+extern bool		ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, struct ruby_byteseq *seq);
 extern ruby_instance_t *ruby_unmarshal_next_instance(ruby_unmarshal_t *);
 extern bool		ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object);
 

@@ -24,6 +24,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "ruby_marshal.h"
 
 typedef struct ruby_repr_buf_s	ruby_repr_buf;
+typedef struct ruby_array	ruby_array_t;
+typedef struct ruby_byteseq	ruby_byteseq_t;
+typedef struct ruby_dict	ruby_dict_t;
+typedef struct ruby_reader	ruby_reader_t;
+
 
 struct ruby_array {
 	unsigned int		count;
