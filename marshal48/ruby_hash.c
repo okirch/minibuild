@@ -118,9 +118,23 @@ __ruby_dict_convert(const ruby_dict_t *dict, PyObject *target,
 	len = keys->count;
 
 	for (i = 0; okay && i < len; ++i) {
-		PyObject *key, *value;
+		ruby_instance_t *ruby_key;
+		PyObject *key = NULL, *value;
 
-		key = ruby_instance_convert(keys->items[i], converter);
+		/* If the key is an attribute starting with @, strip it off.
+		 * We do this in order to be able to directly call
+		 * Python's setattr() with the attribute name */
+		ruby_key = keys->items[i];
+		if (ruby_Symbol_check(ruby_key)) {
+			const char *attr_name = ruby_Symbol_get_name(ruby_key);
+
+			if (attr_name && attr_name[0] == '@')
+				key = PyUnicode_FromString(attr_name + 1);
+		}
+
+		if (key == NULL)
+			key = ruby_instance_convert(ruby_key, converter);
+
 		value = ruby_instance_convert(values->items[i], converter);
 
 		if (key == NULL)

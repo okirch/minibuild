@@ -72,7 +72,7 @@ ruby_GenericObject_repr(ruby_GenericObject *self, ruby_repr_context_t *ctx)
 bool
 ruby_GenericObject_set_var(ruby_GenericObject *self, ruby_instance_t *key, ruby_instance_t *value)
 {
-	/* FIXME: strip @ off the attribute name? */
+	/* We don't strip @ off the attribute name; this happens later in __ruby_dict_convert. */
 	ruby_dict_add(&self->obj_vars, key, value);
 	return true;
 }
