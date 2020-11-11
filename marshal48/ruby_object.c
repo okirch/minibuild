@@ -87,50 +87,30 @@ __ruby_object_setattr(PyObject *result, PyObject *attr_name, PyObject *attr_valu
 }
 
 bool
-__ruby_GenericObject_apply_vars(ruby_instance_t *self, PyObject *result)
+__ruby_GenericObject_apply_vars(ruby_instance_t *self, PyObject *result, ruby_converter_t *converter)
 {
 	ruby_GenericObject *obj_self;
 
-	if (!ruby_GenericObject_check(self))
+	if (!ruby_GenericObject_check(self)) {
+		fprintf(stderr, "%s: object is not a GenericObject\n", __func__);
 		return false;
-
-	obj_self = (ruby_GenericObject *) self;
-	return !__ruby_dict_convert(&obj_self->obj_vars, result, __ruby_object_setattr);
-}
-
-PyObject *
-ruby_GenericObject_instantiate(ruby_GenericObject *self)
-{
-	PyObject *instance = NULL, *r;
-
-	/* Look up classname in ruby module and instantiate */
-	instance = marshal48_instantiate_ruby_type(self->obj_classname);
-	if (instance == NULL)
-		return NULL;
-
-	/* This will construct the object */
-	r = PyObject_CallMethod((PyObject *) self, "construct", "O", instance);
-	if (r == NULL) {
-		Py_DECREF(instance);
-		return NULL;
 	}
 
-	Py_DECREF(r);
-	return instance;
+	obj_self = (ruby_GenericObject *) self;
+	return __ruby_dict_convert(&obj_self->obj_vars, result, __ruby_object_setattr, converter);
 }
 
-
 static PyObject *
-ruby_GenericObject_convert(ruby_GenericObject *self)
+ruby_GenericObject_convert(ruby_GenericObject *self, ruby_converter_t *converter)
 {
 	PyObject *result;
 
 	/* Look up classname in ruby module and instantiate */
-	result = marshal48_instantiate_ruby_type(self->obj_classname);
+	result = marshal48_instantiate_ruby_type(self->obj_classname, converter);
 	if (result == NULL)
 		return NULL;
 
-	if (!__ruby_GenericObject_apply_vars(&self->obj_base, result)) {
+	if (!__ruby_GenericObject_apply_vars(&self->obj_base, result, converter)) {
 		/* FIXME: raise exception */
 		Py_DECREF(result);
 		return NULL;

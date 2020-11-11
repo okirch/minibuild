@@ -77,21 +77,25 @@ marshal48_Unmarshal(PyObject *self, PyObject *args, PyObject *kwds)
 	ruby_context_t *ruby;
 	static char *kwlist[] = {
 		"io",
+		"factory",
 		NULL
 	};
 	ruby_instance_t *unmarshaled;
-	PyObject *io, *result = NULL;
+	PyObject *io, *factory, *result = NULL;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &io))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist, &io, &factory))
 		return NULL;
 
 	ruby = ruby_context_new();
 
 	unmarshaled = marshal48_unmarshal_io(ruby, io);
 	if (unmarshaled != NULL) {
+		ruby_converter_t *converter;
+
 		/* now convert it */
-		printf("Not yet converting anything\n");
-		exit(55);
+		converter = ruby_converter_new(factory);
+		result = ruby_instance_convert(unmarshaled, converter);
+		ruby_converter_free(converter);
 	}
 
 	ruby_context_free(ruby);
@@ -146,42 +150,69 @@ ruby_get_module(void)
 }
 
 PyObject *
-marshal48_instantiate_ruby_type_with_arg(const char *name, PyObject *arg)
+marshal48_instantiate_ruby_type_with_arg(const char *name, PyObject *arg, ruby_converter_t *converter)
 {
 	PyObject *module, *func, *args, *result;
 
+	if (converter) {
+		PyObject *name_obj;
+
+		func = converter->factory;
+		if (!PyCallable_Check(func)) {
+			PyErr_SetString(PyExc_TypeError, "ruby: factory argument must be callable");
+			return NULL;
+		}
+
+		args = PyTuple_New(1 + (arg? 1 : 0));
+
+		name_obj = PyUnicode_FromString(name);
+		PyTuple_SetItem(args, 0, name_obj);
+
+		if (arg != NULL) {
+			PyTuple_SetItem(args, 1, arg);
+			Py_INCREF(arg);
+		}
+	} else {
 #if 1
-	module = theModule;
-#else
-	if (!(module = ruby_get_module()))
 		module = theModule;
+#else
+		if (!(module = ruby_get_module()))
+			module = theModule;
 #endif
 
-	if (module == NULL)
-		return NULL;
+		if (module == NULL)
+			return NULL;
 
-	func = PyDict_GetItemString(PyModule_GetDict(module), name);
-	if (!PyCallable_Check(func)) {
-		PyErr_Format(PyExc_TypeError, "ruby: cannot instantiate %s", name);
-		return NULL;
+		func = PyDict_GetItemString(PyModule_GetDict(module), name);
+		if (!PyCallable_Check(func)) {
+			PyErr_Format(PyExc_TypeError, "ruby: cannot instantiate %s", name);
+			return NULL;
+		}
+
+		if (arg != NULL) {
+			args = PyTuple_New(1);
+			PyTuple_SetItem(args, 0, arg);
+		} else {
+			args = PyTuple_New(0);
+		}
 	}
 
-	if (arg != NULL) {
-		args = PyTuple_New(1);
-		PyTuple_SetItem(args, 0, arg);
-	} else {
-		args = PyTuple_New(0);
-	}
 	result = PyObject_CallObject(func, args);
-
 	Py_DECREF(args);
+
+	/* Returning None is just like throwing an exception */
+	if (result == Py_None) {
+		Py_DECREF(result);
+		result = NULL;
+	}
+
 	return result;
 }
 
 PyObject *
-marshal48_instantiate_ruby_type(const char *name)
+marshal48_instantiate_ruby_type(const char *name, ruby_converter_t *converter)
 {
-	return marshal48_instantiate_ruby_type_with_arg(name, NULL);
+	return marshal48_instantiate_ruby_type_with_arg(name, NULL, converter);
 }
 
 static struct PyModuleDef marshal48_module = {

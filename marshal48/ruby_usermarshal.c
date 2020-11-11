@@ -87,21 +87,23 @@ ruby_UserMarshal_repr(ruby_UserMarshal *self, ruby_repr_context_t *ctx)
  * Convert from ruby type to native python type
  */
 static PyObject *
-ruby_UserMarshal_convert(ruby_UserMarshal *self)
+ruby_UserMarshal_convert(ruby_UserMarshal *self, ruby_converter_t *converter)
 {
 	PyObject *result, *data, *r;
 
 	/* Look up classname in ruby module and instantiate */
-	result = marshal48_instantiate_ruby_type(self->marsh_base.obj_classname);
-
-	if (result == NULL)
+	result = marshal48_instantiate_ruby_type(self->marsh_base.obj_classname, converter);
+	if (result == NULL) {
+		fprintf(stderr, "UserMarshal: unable to instantiate class %s\n", self->marsh_base.obj_classname);
+		PyErr_Format(PyExc_RuntimeError, "unable to instantiate class %s", self->marsh_base.obj_classname);
 		return NULL;
+	}
 
 	if (self->marsh_data == NULL) {
 		data = Py_None;
 		Py_INCREF(data);
 	} else {
-		data = ruby_instance_convert(self->marsh_data);
+		data = ruby_instance_convert(self->marsh_data, converter);
 		if (data == NULL)
 			goto failed;
 	}
@@ -110,12 +112,16 @@ ruby_UserMarshal_convert(ruby_UserMarshal *self)
 	r = PyObject_CallMethod(result, "load", "O", data);
 	Py_DECREF(data);
 
-	if (r == NULL)
+	if (r == NULL) {
+		fprintf(stderr, "UserMarshal: unable to unmarshal: %s.load() failed\n", self->marsh_base.obj_classname);
+		PyErr_Format(PyExc_RuntimeError, "%s.load() failed", self->marsh_base.obj_classname);
 		goto failed;
+	}
 	Py_DECREF(r);
 
-	if (!__ruby_GenericObject_apply_vars(&self->marsh_base.obj_base, result)) {
-		/* FIXME: raise exception */
+	if (!__ruby_GenericObject_apply_vars(&self->marsh_base.obj_base, result, converter)) {
+		fprintf(stderr, "UserMarshal: %s: failed to apply instance vars\n", self->marsh_base.obj_classname);
+		PyErr_Format(PyExc_RuntimeError, "%s: failed to apply instance vars", self->marsh_base.obj_classname);
 		goto failed;
 	}
 

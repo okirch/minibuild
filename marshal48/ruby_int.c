@@ -53,6 +53,12 @@ ruby_Int_repr(ruby_Int *self, ruby_repr_context_t *ctx)
 	return __ruby_repr_printf(ctx, "%ld", self->int_value);
 }
 
+static PyObject *
+ruby_Int_convert(ruby_Int *self, ruby_converter_t *converter)
+{
+	return PyLong_FromLong(self->int_value);
+}
+
 ruby_type_t ruby_Int_type = {
 	.name		= "Int",
 	.size		= sizeof(ruby_Int),
@@ -60,6 +66,7 @@ ruby_type_t ruby_Int_type = {
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Int_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Int_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Int_repr,
+	.convert	= (ruby_instance_convert_fn_t) ruby_Int_convert,
 };
 
 ruby_instance_t *

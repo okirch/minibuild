@@ -107,7 +107,8 @@ __ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_context_t *ctx, ruby_repr_bu
  */
 bool
 __ruby_dict_convert(const ruby_dict_t *dict, PyObject *target,
-		bool (*apply_fn)(PyObject *target, PyObject *key, PyObject *value))
+		bool (*apply_fn)(PyObject *target, PyObject *key, PyObject *value),
+		ruby_converter_t *converter)
 {
 	const ruby_array_t *keys = &dict->dict_keys;
 	const ruby_array_t *values = &dict->dict_values;
@@ -119,13 +120,19 @@ __ruby_dict_convert(const ruby_dict_t *dict, PyObject *target,
 	for (i = 0; okay && i < len; ++i) {
 		PyObject *key, *value;
 
-		key = ruby_instance_convert(keys->items[i]);
-		value = ruby_instance_convert(values->items[i]);
+		key = ruby_instance_convert(keys->items[i], converter);
+		value = ruby_instance_convert(values->items[i], converter);
 
-		/* FIXME: raise exception if conversion fails */
-		assert(key && value);
+		if (key == NULL)
+			return false;
+		if (value == NULL) {
+			Py_DECREF(key);
+			return false;
+		}
 
 		okay = apply_fn(target, key, value);
+		if (!okay)
+			fprintf(stderr, "failed to apply %s\n", ruby_instance_repr(keys->items[i]));
 
 		Py_DECREF(key);
 		Py_DECREF(value);
@@ -157,12 +164,12 @@ __ruby_Hash_apply_key_value(PyObject *result, PyObject *key, PyObject *value)
 }
 
 static PyObject *
-ruby_Hash_convert(ruby_Hash *self)
+ruby_Hash_convert(ruby_Hash *self, ruby_converter_t *converter)
 {
 	PyObject *result;
 
 	result = PyDict_New();
-	if (!__ruby_dict_convert(&self->hash_dict, result, __ruby_Hash_apply_key_value)) {
+	if (!__ruby_dict_convert(&self->hash_dict, result, __ruby_Hash_apply_key_value, converter)) {
 		Py_DECREF(result);
 		return NULL;
 	}

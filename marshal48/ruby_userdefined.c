@@ -86,13 +86,13 @@ ruby_UserDefined_repr(ruby_UserDefined *self, ruby_repr_context_t *ctx)
  * Convert from ruby type to native python type
  */
 static PyObject *
-ruby_UserDefined_convert(ruby_UserDefined *self)
+ruby_UserDefined_convert(ruby_UserDefined *self, ruby_converter_t *converter)
 {
 	const ruby_byteseq_t *bytes = &self->udef_data;
 	PyObject *result, *data, *r;
 
 	/* Look up classname in ruby module and instantiate */
-	result = marshal48_instantiate_ruby_type(self->udef_base.obj_classname);
+	result = marshal48_instantiate_ruby_type(self->udef_base.obj_classname, converter);
 
 	if (result == NULL)
 		return NULL;
@@ -114,7 +114,7 @@ ruby_UserDefined_convert(ruby_UserDefined *self)
 		goto failed;
 	Py_DECREF(r);
 
-	if (!__ruby_GenericObject_apply_vars(&self->udef_base.obj_base, result)) {
+	if (!__ruby_GenericObject_apply_vars(&self->udef_base.obj_base, result, converter)) {
 		/* FIXME: raise exception */
 		goto failed;
 	}

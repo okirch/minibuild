@@ -27,6 +27,7 @@ typedef struct ruby_context	ruby_context_t;
 typedef struct ruby_instance	ruby_instance_t;
 typedef struct ruby_type	ruby_type_t;
 typedef struct ruby_unmarshal	ruby_unmarshal_t;
+typedef struct ruby_converter	ruby_converter_t;
 
 /* anonymous decls for some structs */
 struct ruby_byteseq;
@@ -49,7 +50,7 @@ struct ruby_type {
 	void		(*del)(ruby_instance_t *);
 	const char *	(*repr)(ruby_instance_t *, ruby_repr_context_t *);
 	bool		(*set_var)(ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value);
-	PyObject *	(*convert)(ruby_instance_t *);
+	PyObject *	(*convert)(ruby_instance_t *, ruby_converter_t *);
 };
 
 struct ruby_instance {
@@ -61,6 +62,10 @@ struct ruby_instance {
 	} reg;
 
 	PyObject *	native;
+};
+
+struct ruby_converter {
+	PyObject *	factory;
 };
 
 static inline void
@@ -83,10 +88,10 @@ ruby_instance_set_var(ruby_instance_t *self, ruby_instance_t *key, ruby_instance
 }
 
 static inline PyObject *
-ruby_instance_convert(ruby_instance_t *self)
+ruby_instance_convert(ruby_instance_t *self, ruby_converter_t *converter)
 {
 	if (self->native == NULL) {
-		self->native = self->op->convert(self);
+		self->native = self->op->convert(self, converter);
 		if (self->native == NULL)
 			return NULL;
 	}
@@ -112,6 +117,9 @@ extern ruby_context_t *	ruby_context_new(void);
 extern void		ruby_context_free(ruby_context_t *);
 extern ruby_instance_t *ruby_context_get_symbol(ruby_context_t *, unsigned int);
 extern ruby_instance_t *ruby_context_get_object(ruby_context_t *, unsigned int);
+
+extern ruby_converter_t *ruby_converter_new(PyObject *factory);
+extern void		ruby_converter_free(ruby_converter_t *);
 
 extern const char *	ruby_instance_repr(ruby_instance_t *self);
 
@@ -143,7 +151,7 @@ extern bool		ruby_Hash_add(const ruby_instance_t *self, ruby_instance_t *key, ru
 extern ruby_instance_t *ruby_GenericObject_new(ruby_context_t *, const char *classname);
 extern bool		ruby_GenericObject_check(const ruby_instance_t *self);
 extern ruby_instance_t *__ruby_GenericObject_new(ruby_context_t *, const char *classname, const ruby_type_t *type);
-extern bool		__ruby_GenericObject_apply_vars(ruby_instance_t *self, PyObject *result);
+extern bool		__ruby_GenericObject_apply_vars(ruby_instance_t *self, PyObject *result, ruby_converter_t *);
 
 extern ruby_instance_t *ruby_UserDefined_new(ruby_context_t *ctx, const char *classname);
 extern bool		ruby_UserDefined_check(const ruby_instance_t *self);
@@ -155,10 +163,6 @@ extern bool		ruby_UserMarshal_check(const ruby_instance_t *self);
 extern bool		ruby_UserMarshal_set_data(ruby_instance_t *self, ruby_instance_t *data);
 
 extern char *		ruby_instance_as_string(ruby_instance_t *self);
-
-extern ruby_instance_t *marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io);
-extern PyObject *	marshal48_instantiate_ruby_type(const char *name);
-extern PyObject *	marshal48_instantiate_ruby_type_with_arg(const char *name, PyObject *);
 
 #endif /* RUBY_H */
 

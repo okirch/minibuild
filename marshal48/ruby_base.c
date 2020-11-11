@@ -61,6 +61,29 @@ ruby_context_get_object(ruby_context_t *ctx, unsigned int ref)
 }
 
 /*
+ * Converter
+ * For now, this is just a thin wrapper object containing nothing but
+ * a callback to a python factory function
+ */
+ruby_converter_t *
+ruby_converter_new(PyObject *factory)
+{
+	ruby_converter_t *converter = calloc(1, sizeof(*converter));
+
+	converter->factory = factory;
+	Py_INCREF(factory);
+
+	return converter;
+}
+
+void
+ruby_converter_free(ruby_converter_t *converter)
+{
+	drop_object(&converter->factory);
+	free(converter);
+}
+
+/*
  * Generic instance functions
  */
 bool
@@ -182,7 +205,7 @@ ruby_Bool_repr(ruby_instance_t *instance, ruby_repr_context_t *ctx)
 }
 
 static PyObject *
-ruby_Bool_convert(ruby_instance_t *instance)
+ruby_Bool_convert(ruby_instance_t *instance, ruby_converter_t *converter)
 {
 	if (instance == &ruby_True)
 		Py_RETURN_TRUE;
@@ -245,7 +268,7 @@ ruby_None_repr(ruby_instance_t *instance, ruby_repr_context_t *ctx)
 }
 
 static PyObject *
-ruby_None_convert(ruby_instance_t *instance)
+ruby_None_convert(ruby_instance_t *instance, ruby_converter_t *converter)
 {
 	Py_RETURN_NONE;
 }

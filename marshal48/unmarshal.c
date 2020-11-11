@@ -450,7 +450,6 @@ marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io)
 
 	ruby_unmarshal_trace(marshal, "Unmarshaling data");
 	result = ruby_unmarshal_next_instance(marshal);
-	fprintf(stderr, "Result = %p\n", result);
 
 	ruby_unmarshal_free(marshal);
 
