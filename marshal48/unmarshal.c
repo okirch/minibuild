@@ -33,18 +33,6 @@ typedef struct unmarshal_processor {
 
 extern ruby_instance_t *ruby_unmarshal_next_instance_quiet(ruby_unmarshal_t *s);
 
-void
-__ruby_unmarshal_trace(ruby_unmarshal_t *s, const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	fprintf(stderr, "%*.*s", s->log.indent, s->log.indent, "");
-	vfprintf(stderr, fmt, ap);
-	fputs("\n", stderr);
-	va_end(ap);
-}
-
 /*
  * Manage the state object
  */
@@ -65,6 +53,9 @@ ruby_unmarshal_free(ruby_unmarshal_t *marshal)
 {
 	/* We do not delete the ruby context; that is done by the caller */
 	ruby_reader_free(marshal->reader);
+
+	if (marshal->tracing)
+		ruby_trace_free(marshal->tracing);
 }
 
 bool
@@ -389,32 +380,29 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 	return result;
 }
 
-ruby_instance_t *
-ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
+static ruby_instance_t *
+__ruby_unmarshal_next_instance_logwrap(ruby_unmarshal_t *s, bool quiet)
 {
-	unsigned int saved_indent = s->log.indent;
-	bool saved_quiet = s->log.quiet;
 	ruby_instance_t *result;
+	ruby_trace_id_t saved_id;
 
-	s->log.indent += 2;
+	saved_id = ruby_trace_push(&s->tracing, quiet);
 	result = __ruby_unmarshal_next_instance(s);
-	s->log.indent = saved_indent;
-	s->log.quiet = saved_quiet;
+	ruby_trace_pop(&s->tracing, saved_id);
 
 	return result;
 }
 
 ruby_instance_t *
+ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
+{
+	return __ruby_unmarshal_next_instance_logwrap(s, false);
+}
+
+ruby_instance_t *
 ruby_unmarshal_next_instance_quiet(ruby_unmarshal_t *s)
 {
-	bool saved_quiet = s->log.quiet;
-	ruby_instance_t *result;
-
-	s->log.quiet = true;
-	result = ruby_unmarshal_next_instance(s);
-	s->log.quiet = saved_quiet;
-
-	return result;
+	return __ruby_unmarshal_next_instance_logwrap(s, true);
 }
 
 static bool
@@ -445,7 +433,7 @@ marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io, bool quiet)
 	ruby_instance_t *result;
 
 	/* enable debug messages? */
-	marshal->log.quiet = quiet;
+	marshal->tracing = ruby_trace_new(quiet);
 
 	if (!marshal48_check_signature(marshal)) {
 		/* PyErr_SetString(PyExc_ValueError, "Data does not start with Marshal48 signature"); */

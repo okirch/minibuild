@@ -21,6 +21,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef RUBY_MARSHAL_H
 #define RUBY_MARSHAL_H
 
+#include "ruby_trace.h"
+
 /* anonymous decls for some structs */
 struct ruby_reader;
 struct ruby_byteseq;
@@ -31,11 +33,7 @@ struct ruby_unmarshal {
 	ruby_context_t *	ruby;
 	struct ruby_reader *	reader;
 
-	struct {
-		unsigned int	indent;
-		bool		quiet;
-	} log;
-
+	ruby_trace_state_t *	tracing;
 };
 
 extern ruby_unmarshal_t *ruby_unmarshal_new(ruby_context_t *ctx, PyObject *io);
@@ -48,12 +46,7 @@ extern bool		ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_insta
 typedef ruby_instance_t *(*ruby_object_factory_fn_t)(ruby_context_t *, const char *);
 extern ruby_instance_t *ruby_unmarshal_object_instance(ruby_unmarshal_t *s, ruby_object_factory_fn_t factory);
 
-extern void		__ruby_unmarshal_trace(ruby_unmarshal_t *s, const char *fmt, ...);
-
-#define ruby_unmarshal_trace(s, fmt ...) do { \
-        if (!(s)->log.quiet) \
-                __ruby_unmarshal_trace(s, ## fmt); \
-} while (0)
+#define ruby_unmarshal_trace(s, fmt ...) ruby_trace((s)->tracing, ##fmt)
 
 #endif /* RUBY_MARSHAL_H */
 

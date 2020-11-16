@@ -50,6 +50,7 @@ MARSHAL_SRCS = \
 	  ruby_repr.c \
 	  ruby_reader.c \
 	  ruby_utils.c \
+	  ruby_trace.c \
 	  unmarshal.c
 MARSHAL_OBJS = $(addprefix marshal48/,$(patsubst %.c,%.o,$(MARSHAL_SRCS)))
 
