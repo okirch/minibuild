@@ -72,6 +72,13 @@ ruby_Symbol_to_python(ruby_Symbol *self, ruby_converter_t *converter)
 	return PyUnicode_FromString(self->sym_name);
 }
 
+static bool
+ruby_Symbol_from_python(ruby_Symbol *self, PyObject *py_obj, ruby_converter_t *converter)
+{
+	/* This is handled in ruby_symbol_from_python() */
+	return false;
+}
+
 ruby_type_t ruby_Symbol_type = {
 	.name		= "Symbol",
 	.size		= sizeof(ruby_Symbol),
@@ -81,6 +88,7 @@ ruby_type_t ruby_Symbol_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_Symbol_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Symbol_repr,
 	.to_python	= (ruby_instance_to_python_fn_t) ruby_Symbol_to_python,
+	.from_python	= (ruby_instance_from_python_fn_t) ruby_Symbol_from_python,
 };
 
 ruby_instance_t *

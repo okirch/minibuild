@@ -37,6 +37,7 @@ typedef ruby_instance_t *(*ruby_instance_unmarshal_fn_t)(ruby_unmarshal_t *);
 typedef const char *	(*ruby_instance_repr_fn_t)(ruby_instance_t *, ruby_repr_context_t *);
 typedef bool		(*ruby_instance_set_var_fn_t)(ruby_instance_t *, ruby_instance_t *, ruby_instance_t *);
 typedef PyObject *	(*ruby_instance_to_python_fn_t)(ruby_instance_t *, ruby_converter_t *);
+typedef bool		(*ruby_instance_from_python_fn_t)(ruby_instance_t *, PyObject *, ruby_converter_t *);
 
 #define RUBY_NATIVE_NO_CACHE ((PyObject *) 0xdeadbeef)
 

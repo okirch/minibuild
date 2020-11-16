@@ -60,18 +60,56 @@ ruby_context_get_object(ruby_context_t *ctx, unsigned int ref)
 	return ruby_array_get(&ctx->objects, ref);
 }
 
+ruby_instance_t *
+ruby_context_find_symbol(ruby_context_t *ctx, const char *value)
+{
+	unsigned int i;
+
+	for (i = 0; i < ctx->symbols.count; ++i) {
+		ruby_instance_t *sym = ctx->symbols.items[i];
+		const char *sym_name;
+
+		sym_name = ruby_Symbol_get_name(sym);
+		if (sym_name && !strcmp(sym_name, value))
+			return sym;
+	}
+
+	return NULL;
+}
+
+ruby_instance_t *
+ruby_context_find_python(ruby_context_t *ctx, PyObject *py_obj)
+{
+	/* This is a quadratic algorithm, and sucks */
+#ifdef notyet
+	unsigned int i;
+
+	for (i = 0; i < ctx->objects.count; ++i) {
+		ruby_instance_t *obj = ctx->objects.items[i];
+
+		if (obj->native == py_obj)
+			return obj;
+	}
+#endif
+
+	return NULL;
+}
+
 /*
  * Converter
  * For now, this is just a thin wrapper object containing nothing but
  * a callback to a python factory function
  */
 ruby_converter_t *
-ruby_converter_new(PyObject *factory)
+ruby_converter_new(ruby_context_t *ctx, PyObject *factory)
 {
 	ruby_converter_t *converter = calloc(1, sizeof(*converter));
 
-	converter->factory = factory;
-	Py_INCREF(factory);
+	converter->context = ctx;
+	if (factory) {
+		converter->factory = factory;
+		Py_INCREF(factory);
+	}
 
 	return converter;
 }
@@ -183,6 +221,87 @@ ruby_instance_to_python(ruby_instance_t *self, ruby_converter_t *converter)
 
 	Py_INCREF(self->native);
 	return self->native;
+}
+
+ruby_instance_t *
+ruby_symbol_from_python(PyObject *self, ruby_converter_t *converter)
+{
+	ruby_instance_t *instance;
+	const char *value;
+
+	if ((value = PyUnicode_AsUTF8(self)) == NULL) {
+		PyErr_SetString(PyExc_TypeError, "object does not seem to be a string");
+		return NULL;
+	}
+
+	instance = ruby_context_find_symbol(converter->context, value);
+	if (instance != NULL)
+		return instance;
+
+	instance = ruby_Symbol_new(converter->context, value);
+
+	instance->native = self;
+	Py_INCREF(self);
+
+	return instance;
+}
+
+ruby_instance_t *
+ruby_instance_from_python(PyObject *self, ruby_converter_t *converter)
+{
+	const ruby_type_t *type = NULL;
+	ruby_instance_t *instance;
+
+	// printf("%s(%s)\n", __func__, self->ob_type->tp_name);
+	if (self == Py_True)
+		return (ruby_instance_t *) &ruby_True;
+	if (self == Py_False)
+		return (ruby_instance_t *) &ruby_False;
+	if (self == Py_None)
+		return (ruby_instance_t *) &ruby_None;
+
+	/* Avoid doing this for ephemeral (ie non-object) types like ints */
+	instance = ruby_context_find_python(converter->context, self);
+	if (instance != NULL)
+		return instance;
+
+	if (PyList_Check(self))
+		type = &ruby_Array_type;
+	else if (PyLong_Check(self))
+		type = &ruby_Int_type;
+	else if (PyUnicode_Check(self))
+		type = &ruby_String_type;
+	else if (PyDict_Check(self))
+		type = &ruby_Hash_type;
+	else if (PyObject_HasAttrString(self, "dump"))
+		type = &ruby_UserDefined_type;
+	else if (PyObject_HasAttrString(self, "marshal_dump"))
+		type = &ruby_UserMarshal_type;
+	else if (PyObject_IsInstance(self, (PyObject *) &PyBaseObject_Type))
+		type = &ruby_GenericObject_type;
+
+	if (type == NULL || type->from_python == NULL) {
+		PyErr_Format(PyExc_TypeError, "Python type %s has no corresponding ruby type", self->ob_type->tp_name);
+		return NULL;
+	}
+
+	// printf("Trying to convert to %s\n", type->name);
+	instance = __ruby_instance_new(converter->context, type);
+	if (instance == NULL) {
+		PyErr_Format(PyExc_RuntimeError, "Unable to instantiate ruby %s", type->name);
+		return NULL;
+	}
+
+	instance->native = self;
+	Py_INCREF(self);
+
+	if (!type->from_python(instance, self, converter)) {
+		if (!PyErr_Occurred())
+			PyErr_Format(PyExc_RuntimeError, "Python conversion failed for ruby %s", type->name);
+		return NULL;
+	}
+
+	return instance;
 }
 
 char *

@@ -51,6 +51,7 @@ struct ruby_type {
 	const char *	(*repr)(ruby_instance_t *, ruby_repr_context_t *);
 	bool		(*set_var)(ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value);
 
+	bool		(*from_python)(ruby_instance_t *, PyObject *, ruby_converter_t *);
 	PyObject *	(*to_python)(ruby_instance_t *, ruby_converter_t *);
 };
 
@@ -66,6 +67,7 @@ struct ruby_instance {
 };
 
 struct ruby_converter {
+	ruby_context_t *context;
 	PyObject *	factory;
 };
 
@@ -106,10 +108,11 @@ extern void		ruby_context_free(ruby_context_t *);
 extern ruby_instance_t *ruby_context_get_symbol(ruby_context_t *, unsigned int);
 extern ruby_instance_t *ruby_context_get_object(ruby_context_t *, unsigned int);
 
-extern ruby_converter_t *ruby_converter_new(PyObject *factory);
+extern ruby_converter_t *ruby_converter_new(ruby_context_t *, PyObject *factory);
 extern void		ruby_converter_free(ruby_converter_t *);
 
 extern PyObject *	ruby_instance_to_python(ruby_instance_t *self, ruby_converter_t *converter);
+extern ruby_instance_t *ruby_instance_from_python(PyObject *self, ruby_converter_t *converter);
 extern const char *	ruby_instance_repr(ruby_instance_t *self);
 
 extern bool		ruby_Bool_check(const ruby_instance_t *self);

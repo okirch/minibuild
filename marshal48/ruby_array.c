@@ -117,7 +117,7 @@ ruby_Array_to_python(ruby_Array *self, ruby_converter_t *converter)
 		py_item = ruby_instance_to_python(ruby_item, converter);
 		if (py_item == NULL) {
 			fprintf(stderr, "Array item %u(%s): python conversion failed\n", i, ruby_item->op->name);
-			PyErr_Format(PyExc_RuntimeError, "Conversion of %s instance failed", ruby_item->op->name);
+			// PyErr_Format(PyExc_RuntimeError, "Conversion of %s instance failed", ruby_item->op->name);
 			goto failed;
 		}
 
@@ -131,6 +131,31 @@ failed:
 	return NULL;
 }
 
+static bool
+ruby_Array_from_python(ruby_instance_t *self, PyObject *py_obj, ruby_converter_t *converter)
+{
+	unsigned int i, count;
+
+	if (!PyList_Check(py_obj))
+		return false;
+
+	count = PyList_GET_SIZE(py_obj);
+	for (i = 0; i < count; ++i) {
+		ruby_instance_t *item;
+
+		item = ruby_instance_from_python(PyList_GET_ITEM(py_obj, i), converter);
+		if (item == NULL) {
+			fprintf(stderr, "%s: list item %i converstion failed\n", __func__, i);
+			return false;
+		}
+
+		if (!ruby_Array_append(self, item))
+			return false;
+	}
+
+	return true;
+}
+
 ruby_type_t ruby_Array_type = {
 	.name		= "Array",
 	.size		= sizeof(ruby_Array),
@@ -140,6 +165,7 @@ ruby_type_t ruby_Array_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_Array_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Array_repr,
 	.to_python	= (ruby_instance_to_python_fn_t) ruby_Array_to_python,
+	.from_python	= (ruby_instance_from_python_fn_t) ruby_Array_from_python,
 };
 
 ruby_instance_t *

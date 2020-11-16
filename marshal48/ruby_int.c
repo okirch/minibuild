@@ -59,6 +59,12 @@ ruby_Int_to_python(ruby_Int *self, ruby_converter_t *converter)
 	return PyLong_FromLong(self->int_value);
 }
 
+static bool
+ruby_Int_from_python(ruby_Int *self, PyObject *py_obj, ruby_converter_t *converter)
+{
+	return false; /* not yet */
+}
+
 ruby_type_t ruby_Int_type = {
 	.name		= "Int",
 	.size		= sizeof(ruby_Int),
@@ -67,6 +73,7 @@ ruby_type_t ruby_Int_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_Int_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Int_repr,
 	.to_python	= (ruby_instance_to_python_fn_t) ruby_Int_to_python,
+	.from_python	= (ruby_instance_from_python_fn_t) ruby_Int_from_python,
 };
 
 ruby_instance_t *

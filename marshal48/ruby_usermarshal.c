@@ -108,13 +108,13 @@ ruby_UserMarshal_to_python(ruby_UserMarshal *self, ruby_converter_t *converter)
 			goto failed;
 	}
 
-	/* Call the load_marshal() method of the new instance and pass it the data object */
+	/* Call the marshal_load() method of the new instance and pass it the data object */
 	r = PyObject_CallMethod(result, "marshal_load", "O", data);
 	Py_DECREF(data);
 
 	if (r == NULL) {
 		fprintf(stderr, "UserMarshal: unable to unmarshal: %s.marshal_load() failed\n", self->marsh_base.obj_classname);
-		PyErr_Format(PyExc_RuntimeError, "%s.marshal_load() failed", self->marsh_base.obj_classname);
+		// PyErr_Format(PyExc_RuntimeError, "%s.marshal_load() failed", self->marsh_base.obj_classname);
 		goto failed;
 	}
 	Py_DECREF(r);
@@ -132,6 +132,27 @@ failed:
 	return NULL;
 }
 
+static bool
+ruby_UserMarshal_from_python(ruby_UserMarshal *self, PyObject *py_obj, ruby_converter_t *converter)
+{
+	PyObject *data;
+
+	/* Call the marshal_dump() method of the new instance and pass it the data object */
+	data = PyObject_CallMethod(py_obj, "marshal_dump", "");
+	if (data == NULL) {
+		fprintf(stderr, "UserMarshal: unable to marshal: %s.marshal_dump() failed\n", py_obj->ob_type->tp_name);
+		return false;
+	}
+
+	self->marsh_data = ruby_instance_from_python(data, converter);
+	Py_DECREF(data);
+
+	if (self->marsh_data == NULL)
+		return false;
+
+	return true;
+}
+
 ruby_type_t ruby_UserMarshal_type = {
 	.name		= "UserMarshal",
 	.size		= sizeof(ruby_UserMarshal),
@@ -141,6 +162,7 @@ ruby_type_t ruby_UserMarshal_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_UserMarshal_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_UserMarshal_repr,
 	.to_python	= (ruby_instance_to_python_fn_t) ruby_UserMarshal_to_python,
+	.from_python	= (ruby_instance_from_python_fn_t) ruby_UserMarshal_from_python,
 };
 
 ruby_instance_t *

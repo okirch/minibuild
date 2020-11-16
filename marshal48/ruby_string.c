@@ -84,6 +84,20 @@ ruby_String_to_python(ruby_String *self, ruby_converter_t *converter)
 }
 
 static bool
+ruby_String_from_python(ruby_String *self, PyObject *py_obj, ruby_converter_t *converter)
+{
+        const char *value;
+
+        if ((value = PyUnicode_AsUTF8(py_obj)) == NULL) {
+                PyErr_SetString(PyExc_TypeError, "object does not seem to be a string");
+                return false;
+        }
+
+	assign_string(&self->str_value, value);
+	return true;
+}
+
+static bool
 ruby_String_set_var(ruby_String *self, ruby_instance_t *key, ruby_instance_t *value)
 {
 	const char *name;
@@ -125,6 +139,7 @@ ruby_type_t ruby_String_type = {
 	.repr		= (ruby_instance_repr_fn_t) ruby_String_repr,
 	.set_var	= (ruby_instance_set_var_fn_t) ruby_String_set_var,
 	.to_python	= (ruby_instance_to_python_fn_t) ruby_String_to_python,
+	.from_python	= (ruby_instance_from_python_fn_t) ruby_String_from_python,
 };
 
 ruby_instance_t *

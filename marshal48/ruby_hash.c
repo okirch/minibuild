@@ -191,6 +191,12 @@ ruby_Hash_to_python(ruby_Hash *self, ruby_converter_t *converter)
 	return result;
 }
 
+static bool
+ruby_Hash_from_python(ruby_Hash *self, PyObject *py_obj, ruby_converter_t *converter)
+{
+	return false; /* not yet */
+}
+
 ruby_type_t ruby_Hash_type = {
 	.name		= "Hash",
 	.size		= sizeof(ruby_Hash),
@@ -200,6 +206,7 @@ ruby_type_t ruby_Hash_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_Hash_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Hash_repr,
 	.to_python	= (ruby_instance_to_python_fn_t) ruby_Hash_to_python,
+	.from_python	= (ruby_instance_from_python_fn_t) ruby_Hash_from_python,
 };
 
 ruby_instance_t *
