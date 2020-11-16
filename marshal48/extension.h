@@ -31,15 +31,18 @@ extern PyObject *	marshal48_instantiate_ruby_type(const char *name, ruby_convert
 extern PyObject *	marshal48_instantiate_ruby_type_with_arg(const char *name, PyObject *, ruby_converter_t *);
 
 static inline void
-assign_string(char **var, char *str)
+assign_string(char **var, const char *str)
 {
 	if (*var == str)
 		return;
-	if (str)
-		str = strdup(str);
-	if (*var)
+
+	if (*var) {
 		free(*var);
-	*var = str;
+		*var = NULL;
+	}
+
+	if (str)
+		*var = strdup(str);
 }
 
 static inline PyObject *
