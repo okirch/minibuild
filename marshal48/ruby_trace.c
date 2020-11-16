@@ -64,8 +64,9 @@ ruby_trace_push(ruby_trace_state_t **tracep, bool quiet)
 	ruby_trace_state_t *child;
 
 	child = __ruby_trace_new(parent->id + 1);
-	child->indent += 2;
-	child->quiet = child->quiet || quiet;
+	child->parent = parent;
+	child->indent = parent->indent + 2;
+	child->quiet = parent->quiet || quiet;
 
 	*tracep = child;
 	return parent->id;
