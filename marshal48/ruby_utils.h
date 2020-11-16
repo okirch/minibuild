@@ -27,7 +27,7 @@ typedef struct ruby_repr_buf_s	ruby_repr_buf;
 typedef struct ruby_array	ruby_array_t;
 typedef struct ruby_byteseq	ruby_byteseq_t;
 typedef struct ruby_dict	ruby_dict_t;
-typedef struct ruby_reader	ruby_reader_t;
+typedef struct ruby_io		ruby_io_t;
 
 
 struct ruby_array {
@@ -86,13 +86,13 @@ extern const char *	__ruby_repr_finish(ruby_repr_buf *);
 extern const char *	__ruby_repr_abort(ruby_repr_buf *);
 
 
-extern ruby_reader_t *	ruby_reader_new(PyObject *io);
-extern void		ruby_reader_free(ruby_reader_t *reader);
-extern int		ruby_reader_fillbuf(ruby_reader_t *reader);;
-extern int		__ruby_reader_nextc(ruby_reader_t *reader);
-extern bool		ruby_reader_nextc(ruby_reader_t *reader, int *cccp);
-extern bool		ruby_reader_nextw(ruby_reader_t *reader, unsigned int count, long *resultp);
-extern bool		ruby_reader_next_byteseq(ruby_reader_t *reader, unsigned int count, ruby_byteseq_t *seq);
+extern ruby_io_t *	ruby_io_new(PyObject *io);
+extern void		ruby_io_free(ruby_io_t *reader);
+extern int		ruby_io_fillbuf(ruby_io_t *reader);;
+extern int		__ruby_io_nextc(ruby_io_t *reader);
+extern bool		ruby_io_nextc(ruby_io_t *reader, int *cccp);
+extern bool		ruby_io_nextw(ruby_io_t *reader, unsigned int count, long *resultp);
+extern bool		ruby_io_next_byteseq(ruby_io_t *reader, unsigned int count, ruby_byteseq_t *seq);
 
 extern unsigned long	__report_memory_rss(void);
 

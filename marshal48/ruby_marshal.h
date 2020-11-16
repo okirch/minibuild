@@ -24,14 +24,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "ruby_trace.h"
 
 /* anonymous decls for some structs */
-struct ruby_reader;
+struct ruby_io;
 struct ruby_byteseq;
 
 typedef struct ruby_unmarshal	ruby_unmarshal_t;
 
 struct ruby_unmarshal {
 	ruby_context_t *	ruby;
-	struct ruby_reader *	reader;
+	struct ruby_io *	reader;
 
 	ruby_trace_state_t *	tracing;
 };

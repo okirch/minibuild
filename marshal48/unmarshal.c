@@ -43,7 +43,7 @@ ruby_unmarshal_new(ruby_context_t *ruby, PyObject *io)
 
 	marshal = calloc(1, sizeof(*marshal));
 	marshal->ruby = ruby;
-	marshal->reader = ruby_reader_new(io);
+	marshal->reader = ruby_io_new(io);
 
 	return marshal;
 }
@@ -52,7 +52,7 @@ void
 ruby_unmarshal_free(ruby_unmarshal_t *marshal)
 {
 	/* We do not delete the ruby context; that is done by the caller */
-	ruby_reader_free(marshal->reader);
+	ruby_io_free(marshal->reader);
 
 	if (marshal->tracing)
 		ruby_trace_free(marshal->tracing);
@@ -61,10 +61,10 @@ ruby_unmarshal_free(ruby_unmarshal_t *marshal)
 bool
 ruby_unmarshal_next_fixnum(ruby_unmarshal_t *s, long *fixnump)
 {
-	ruby_reader_t *reader = s->reader;
+	ruby_io_t *reader = s->reader;
 	int cc;
 
-	if (!ruby_reader_nextc(reader, &cc))
+	if (!ruby_io_nextc(reader, &cc))
 		return false;
 
 	// ruby_unmarshal_trace(s, "int0=0x%x", cc);
@@ -77,10 +77,10 @@ ruby_unmarshal_next_fixnum(ruby_unmarshal_t *s, long *fixnump)
 	case 1:
 	case 2:
 	case 3:
-		return ruby_reader_nextw(reader, cc, fixnump);
+		return ruby_io_nextw(reader, cc, fixnump);
 
 	case 0xff:
-		if (!ruby_reader_nextc(reader, &cc))
+		if (!ruby_io_nextc(reader, &cc))
 			return false;
 		*fixnump = 1 - cc;
 		return true;
@@ -91,7 +91,7 @@ ruby_unmarshal_next_fixnum(ruby_unmarshal_t *s, long *fixnump)
 		PyErr_Format(PyExc_NotImplementedError, "%s: fixnum format 0x%x not yet implemented", __func__, cc);
 		return false;
 
-		if (!ruby_reader_nextw(reader, cc ^ 0xff, fixnump))
+		if (!ruby_io_nextw(reader, cc ^ 0xff, fixnump))
 			return false;
 		*fixnump = -(*fixnump);
 		return true;
@@ -108,14 +108,14 @@ ruby_unmarshal_next_fixnum(ruby_unmarshal_t *s, long *fixnump)
 bool
 ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, ruby_byteseq_t *seq)
 {
-	ruby_reader_t *reader = s->reader;
+	ruby_io_t *reader = s->reader;
 	long count;
 
 	if (!ruby_unmarshal_next_fixnum(s, &count))
 		return false;
 
 	assert(seq->count == 0);
-	return ruby_reader_next_byteseq(reader, count, seq);
+	return ruby_io_next_byteseq(reader, count, seq);
 }
 
 const char *
@@ -342,7 +342,7 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 	ruby_instance_t *result = NULL;
 	int cc;
 
-	if (!ruby_reader_nextc(s->reader, &cc))
+	if (!ruby_io_nextc(s->reader, &cc))
 		return NULL;
 
 	assert(0 <= cc && cc < 256);
@@ -411,7 +411,7 @@ unmarshal_check_signature(ruby_unmarshal_t *s, const unsigned char *sig, unsigne
 	unsigned int i;
 
 	for (i = 0; i < sig_len; ++i) {
-		if (__ruby_reader_nextc(s->reader) != sig[i])
+		if (__ruby_io_nextc(s->reader) != sig[i])
 			return false;
 	}
 

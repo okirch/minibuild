@@ -32,15 +32,15 @@ enum {
 };
 
 
-struct ruby_read_buffer;
-extern void			ruby_read_buffer_init(struct ruby_read_buffer *bp);
-extern void			ruby_read_buffer_clear(struct ruby_read_buffer *bp);
-extern void			ruby_read_buffer_destroy(struct ruby_read_buffer *bp);
+struct ruby_iobuf;
+extern void			ruby_iobuf_init(struct ruby_iobuf *bp);
+extern void			ruby_iobuf_clear(struct ruby_iobuf *bp);
+extern void			ruby_iobuf_destroy(struct ruby_iobuf *bp);
 
-struct ruby_reader {
+struct ruby_io {
 	PyObject *		io;
 
-	struct ruby_read_buffer {
+	struct ruby_iobuf {
 		unsigned int	pos;
 		unsigned int	count;
 		unsigned char	_data[1024];
@@ -48,10 +48,10 @@ struct ruby_reader {
 };
 
 
-ruby_reader_t *
-ruby_reader_new(PyObject *io)
+ruby_io_t *
+ruby_io_new(PyObject *io)
 {
-	ruby_reader_t *reader = calloc(1, sizeof(*reader));
+	ruby_io_t *reader = calloc(1, sizeof(*reader));
 
 	Py_INCREF(io);
 	reader->io = io;
@@ -60,7 +60,7 @@ ruby_reader_new(PyObject *io)
 }
 
 void
-ruby_reader_free(ruby_reader_t *reader)
+ruby_io_free(ruby_io_t *reader)
 {
 	drop_object(&reader->io);
 	free(reader);
@@ -70,28 +70,28 @@ ruby_reader_free(ruby_reader_t *reader)
  * Manage the buffer object
  */
 void
-ruby_read_buffer_init(struct ruby_read_buffer *bp)
+ruby_iobuf_init(struct ruby_iobuf *bp)
 {
 	memset(bp, 0, sizeof(*bp));
 }
 
 void
-ruby_read_buffer_clear(struct ruby_read_buffer *bp)
+ruby_iobuf_clear(struct ruby_iobuf *bp)
 {
 	bp->pos = bp->count = 0;
 	memset(bp->_data, 0, sizeof(bp->_data));
 }
 
 void
-ruby_read_buffer_destroy(struct ruby_read_buffer *bp)
+ruby_iobuf_destroy(struct ruby_iobuf *bp)
 {
-	ruby_read_buffer_init(bp);
+	ruby_iobuf_init(bp);
 }
 
 int
-ruby_reader_fillbuf(ruby_reader_t *reader)
+ruby_io_fillbuf(ruby_io_t *reader)
 {
-	struct ruby_read_buffer *bp = &reader->buffer;
+	struct ruby_iobuf *bp = &reader->buffer;
 	PyObject *b;
 
 	memset(bp, 0, sizeof(*bp));
@@ -118,12 +118,12 @@ ruby_reader_fillbuf(ruby_reader_t *reader)
 }
 
 int
-__ruby_reader_nextc(ruby_reader_t *reader)
+__ruby_io_nextc(ruby_io_t *reader)
 {
-	struct ruby_read_buffer *bp = &reader->buffer;
+	struct ruby_iobuf *bp = &reader->buffer;
 
 	if (bp->pos >= bp->count) {
-		if (ruby_reader_fillbuf(reader) < 0)
+		if (ruby_io_fillbuf(reader) < 0)
 			return RUBY_READER_ERROR;
 		if (bp->count == 0)
 			return RUBY_READER_EOF;
@@ -133,9 +133,9 @@ __ruby_reader_nextc(ruby_reader_t *reader)
 }
 
 inline bool
-ruby_reader_nextc(ruby_reader_t *reader, int *cccp)
+ruby_io_nextc(ruby_io_t *reader, int *cccp)
 {
-	*cccp = __ruby_reader_nextc(reader);
+	*cccp = __ruby_io_nextc(reader);
 	if (*cccp < 0) {
 		/* unmarshal_raise_exception(*cccp); */
 		return false;
@@ -145,7 +145,7 @@ ruby_reader_nextc(ruby_reader_t *reader, int *cccp)
 }
 
 bool
-ruby_reader_nextw(ruby_reader_t *reader, unsigned int count, long *resultp)
+ruby_io_nextw(ruby_io_t *reader, unsigned int count, long *resultp)
 {
 	unsigned int shift = 0;
 
@@ -155,7 +155,7 @@ ruby_reader_nextw(ruby_reader_t *reader, unsigned int count, long *resultp)
 	for (shift = 0; count; --count, shift += 8) {
 		int cc;
 
-		if (!ruby_reader_nextc(reader, &cc))
+		if (!ruby_io_nextc(reader, &cc))
 			return false;
 
 		*resultp += (cc << shift);
@@ -165,9 +165,9 @@ ruby_reader_nextw(ruby_reader_t *reader, unsigned int count, long *resultp)
 }
 
 bool
-ruby_reader_next_byteseq(ruby_reader_t *reader, unsigned int count, ruby_byteseq_t *seq)
+ruby_io_next_byteseq(ruby_io_t *reader, unsigned int count, ruby_byteseq_t *seq)
 {
-	struct ruby_read_buffer *bp = &reader->buffer;
+	struct ruby_iobuf *bp = &reader->buffer;
 
 	assert(seq->count == 0);
 
@@ -176,7 +176,7 @@ ruby_reader_next_byteseq(ruby_reader_t *reader, unsigned int count, ruby_byteseq
 
 		/* refill buffer if empty */
 		if (bp->pos >= bp->count) {
-			if (ruby_reader_fillbuf(reader) < 0) {
+			if (ruby_io_fillbuf(reader) < 0) {
 				fprintf(stderr, "Read error");
 				return false;
 			}
