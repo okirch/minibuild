@@ -96,7 +96,7 @@ marshal48_Unmarshal(PyObject *self, PyObject *args, PyObject *kwds)
 
 		/* now convert it */
 		converter = ruby_converter_new(factory);
-		result = ruby_instance_convert(unmarshaled, converter);
+		result = ruby_instance_to_python(unmarshaled, converter);
 		ruby_converter_free(converter);
 	}
 

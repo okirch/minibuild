@@ -75,7 +75,7 @@ ruby_String_repr(ruby_String *self)
  * Convert from ruby type to native python type
  */
 static PyObject *
-ruby_String_convert(ruby_String *self, ruby_converter_t *converter)
+ruby_String_to_python(ruby_String *self, ruby_converter_t *converter)
 {
 	if (self->str_value == NULL) {
 		Py_RETURN_NONE;
@@ -124,7 +124,7 @@ ruby_type_t ruby_String_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_String_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_String_repr,
 	.set_var	= (ruby_instance_set_var_fn_t) ruby_String_set_var,
-	.convert	= (ruby_instance_convert_fn_t) ruby_String_convert,
+	.to_python	= (ruby_instance_to_python_fn_t) ruby_String_to_python,
 };
 
 ruby_instance_t *

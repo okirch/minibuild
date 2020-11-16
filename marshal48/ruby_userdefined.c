@@ -86,7 +86,7 @@ ruby_UserDefined_repr(ruby_UserDefined *self, ruby_repr_context_t *ctx)
  * Convert from ruby type to native python type
  */
 static PyObject *
-ruby_UserDefined_convert(ruby_UserDefined *self, ruby_converter_t *converter)
+ruby_UserDefined_to_python(ruby_UserDefined *self, ruby_converter_t *converter)
 {
 	const ruby_byteseq_t *bytes = &self->udef_data;
 	PyObject *result, *data, *r;
@@ -140,7 +140,7 @@ ruby_type_t ruby_UserDefined_type = {
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_UserDefined_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_UserDefined_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_UserDefined_repr,
-	.convert	= (ruby_instance_convert_fn_t) ruby_UserDefined_convert,
+	.to_python	= (ruby_instance_to_python_fn_t) ruby_UserDefined_to_python,
 };
 
 ruby_instance_t *

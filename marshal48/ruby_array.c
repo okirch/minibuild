@@ -102,7 +102,7 @@ ruby_Array_repr(ruby_Array *self, ruby_repr_context_t *ctx)
  * Convert from ruby type to native python type
  */
 static PyObject *
-ruby_Array_convert(ruby_Array *self, ruby_converter_t *converter)
+ruby_Array_to_python(ruby_Array *self, ruby_converter_t *converter)
 {
 	PyObject *result;
 	unsigned int i, len;
@@ -114,7 +114,7 @@ ruby_Array_convert(ruby_Array *self, ruby_converter_t *converter)
 		ruby_instance_t *ruby_item = self->arr_items.items[i];
 		PyObject *py_item;
 
-		py_item = ruby_instance_convert(ruby_item, converter);
+		py_item = ruby_instance_to_python(ruby_item, converter);
 		if (py_item == NULL) {
 			fprintf(stderr, "Array item %u(%s): python conversion failed\n", i, ruby_item->op->name);
 			PyErr_Format(PyExc_RuntimeError, "Conversion of %s instance failed", ruby_item->op->name);
@@ -139,7 +139,7 @@ ruby_type_t ruby_Array_type = {
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Array_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Array_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Array_repr,
-	.convert	= (ruby_instance_convert_fn_t) ruby_Array_convert,
+	.to_python	= (ruby_instance_to_python_fn_t) ruby_Array_to_python,
 };
 
 ruby_instance_t *

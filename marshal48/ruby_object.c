@@ -72,7 +72,7 @@ ruby_GenericObject_repr(ruby_GenericObject *self, ruby_repr_context_t *ctx)
 bool
 ruby_GenericObject_set_var(ruby_GenericObject *self, ruby_instance_t *key, ruby_instance_t *value)
 {
-	/* We don't strip @ off the attribute name; this happens later in __ruby_dict_convert. */
+	/* We don't strip @ off the attribute name; this happens later in __ruby_dict_to_python. */
 	ruby_dict_add(&self->obj_vars, key, value);
 	return true;
 }
@@ -97,11 +97,11 @@ __ruby_GenericObject_apply_vars(ruby_instance_t *self, PyObject *result, ruby_co
 	}
 
 	obj_self = (ruby_GenericObject *) self;
-	return __ruby_dict_convert(&obj_self->obj_vars, result, __ruby_object_setattr, converter);
+	return __ruby_dict_to_python(&obj_self->obj_vars, result, __ruby_object_setattr, converter);
 }
 
 static PyObject *
-ruby_GenericObject_convert(ruby_GenericObject *self, ruby_converter_t *converter)
+ruby_GenericObject_to_python(ruby_GenericObject *self, ruby_converter_t *converter)
 {
 	PyObject *result;
 
@@ -128,7 +128,7 @@ ruby_type_t ruby_GenericObject_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_GenericObject_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_GenericObject_repr,
 	.set_var	= (ruby_instance_set_var_fn_t) ruby_GenericObject_set_var,
-	.convert	= (ruby_instance_convert_fn_t) ruby_GenericObject_convert,
+	.to_python	= (ruby_instance_to_python_fn_t) ruby_GenericObject_to_python,
 };
 
 ruby_instance_t *

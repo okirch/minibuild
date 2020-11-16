@@ -170,13 +170,13 @@ __ruby_instance_del(ruby_instance_t *self)
 }
 
 PyObject *
-ruby_instance_convert(ruby_instance_t *self, ruby_converter_t *converter)
+ruby_instance_to_python(ruby_instance_t *self, ruby_converter_t *converter)
 {
 	if (self->native == RUBY_NATIVE_NO_CACHE)
-		return self->op->convert(self, converter);
+		return self->op->to_python(self, converter);
 
 	if (self->native == NULL) {
-		self->native = self->op->convert(self, converter);
+		self->native = self->op->to_python(self, converter);
 		if (self->native == NULL)
 			return NULL;
 	}
@@ -221,7 +221,7 @@ ruby_Bool_repr(ruby_instance_t *instance, ruby_repr_context_t *ctx)
 }
 
 static PyObject *
-ruby_Bool_convert(ruby_instance_t *instance, ruby_converter_t *converter)
+ruby_Bool_to_python(ruby_instance_t *instance, ruby_converter_t *converter)
 {
 	if (instance == &ruby_True)
 		Py_RETURN_TRUE;
@@ -238,7 +238,7 @@ static ruby_type_t ruby_Bool_methods = {
 
 	.del		= NULL,
 	.repr		= ruby_Bool_repr,
-	.convert	= ruby_Bool_convert,
+	.to_python	= ruby_Bool_to_python,
 };
 
 const ruby_instance_t ruby_True = {
@@ -286,7 +286,7 @@ ruby_None_repr(ruby_instance_t *instance, ruby_repr_context_t *ctx)
 }
 
 static PyObject *
-ruby_None_convert(ruby_instance_t *instance, ruby_converter_t *converter)
+ruby_None_to_python(ruby_instance_t *instance, ruby_converter_t *converter)
 {
 	Py_RETURN_NONE;
 }
@@ -297,7 +297,7 @@ static ruby_type_t ruby_None_methods = {
 
 	.del		= NULL,
 	.repr		= ruby_None_repr,
-	.convert	= ruby_None_convert,
+	.to_python	= ruby_None_to_python,
 };
 
 const ruby_instance_t ruby_None = {

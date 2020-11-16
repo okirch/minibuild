@@ -58,7 +58,7 @@ extern void		ruby_dict_add(ruby_dict_t *, ruby_instance_t *key, ruby_instance_t 
 /* This just zaps the dict, but does not destroy its dict members */
 extern void		ruby_dict_zap(ruby_dict_t *);
 extern bool		__ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_context_t *, ruby_repr_buf *rbuf);
-extern bool		__ruby_dict_convert(const ruby_dict_t *dict,
+extern bool		__ruby_dict_to_python(const ruby_dict_t *dict,
 				PyObject *target,
 				bool (*apply_fn)(PyObject *target, PyObject *key, PyObject *value),
 				ruby_converter_t *converter);

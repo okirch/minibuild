@@ -106,7 +106,7 @@ __ruby_dict_repr(const ruby_dict_t *dict, ruby_repr_context_t *ctx, ruby_repr_bu
  * Helper function for converting ruby instances that come with a dict
  */
 bool
-__ruby_dict_convert(const ruby_dict_t *dict, PyObject *target,
+__ruby_dict_to_python(const ruby_dict_t *dict, PyObject *target,
 		bool (*apply_fn)(PyObject *target, PyObject *key, PyObject *value),
 		ruby_converter_t *converter)
 {
@@ -133,9 +133,9 @@ __ruby_dict_convert(const ruby_dict_t *dict, PyObject *target,
 		}
 
 		if (key == NULL)
-			key = ruby_instance_convert(ruby_key, converter);
+			key = ruby_instance_to_python(ruby_key, converter);
 
-		value = ruby_instance_convert(values->items[i], converter);
+		value = ruby_instance_to_python(values->items[i], converter);
 
 		if (key == NULL)
 			return false;
@@ -178,12 +178,12 @@ __ruby_Hash_apply_key_value(PyObject *result, PyObject *key, PyObject *value)
 }
 
 static PyObject *
-ruby_Hash_convert(ruby_Hash *self, ruby_converter_t *converter)
+ruby_Hash_to_python(ruby_Hash *self, ruby_converter_t *converter)
 {
 	PyObject *result;
 
 	result = PyDict_New();
-	if (!__ruby_dict_convert(&self->hash_dict, result, __ruby_Hash_apply_key_value, converter)) {
+	if (!__ruby_dict_to_python(&self->hash_dict, result, __ruby_Hash_apply_key_value, converter)) {
 		Py_DECREF(result);
 		return NULL;
 	}
@@ -199,7 +199,7 @@ ruby_type_t ruby_Hash_type = {
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Hash_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Hash_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Hash_repr,
-	.convert	= (ruby_instance_convert_fn_t) ruby_Hash_convert,
+	.to_python	= (ruby_instance_to_python_fn_t) ruby_Hash_to_python,
 };
 
 ruby_instance_t *

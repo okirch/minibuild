@@ -87,7 +87,7 @@ ruby_UserMarshal_repr(ruby_UserMarshal *self, ruby_repr_context_t *ctx)
  * Convert from ruby type to native python type
  */
 static PyObject *
-ruby_UserMarshal_convert(ruby_UserMarshal *self, ruby_converter_t *converter)
+ruby_UserMarshal_to_python(ruby_UserMarshal *self, ruby_converter_t *converter)
 {
 	PyObject *result, *data, *r;
 
@@ -103,7 +103,7 @@ ruby_UserMarshal_convert(ruby_UserMarshal *self, ruby_converter_t *converter)
 		data = Py_None;
 		Py_INCREF(data);
 	} else {
-		data = ruby_instance_convert(self->marsh_data, converter);
+		data = ruby_instance_to_python(self->marsh_data, converter);
 		if (data == NULL)
 			goto failed;
 	}
@@ -140,7 +140,7 @@ ruby_type_t ruby_UserMarshal_type = {
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_UserMarshal_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_UserMarshal_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_UserMarshal_repr,
-	.convert	= (ruby_instance_convert_fn_t) ruby_UserMarshal_convert,
+	.to_python	= (ruby_instance_to_python_fn_t) ruby_UserMarshal_to_python,
 };
 
 ruby_instance_t *
