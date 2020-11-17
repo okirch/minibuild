@@ -28,7 +28,7 @@ typedef struct {
 } ruby_Array;
 
 static ruby_instance_t *
-ruby_Array_unmarshal(ruby_unmarshal_t *marshal)
+ruby_Array_unmarshal(ruby_marshal_t *marshal)
 {
 	ruby_instance_t *array;
 	long i, count;
@@ -36,7 +36,7 @@ ruby_Array_unmarshal(ruby_unmarshal_t *marshal)
 	if (!ruby_unmarshal_next_fixnum(marshal, &count))
 		return NULL;
 
-	ruby_unmarshal_trace(marshal, "Decoding array with %ld objects", count);
+	ruby_marshal_trace(marshal, "Decoding array with %ld objects", count);
 
 	array = ruby_Array_new(marshal->ruby);
 	if (array == NULL)

@@ -34,7 +34,7 @@ typedef struct {
  * marshal_load() with an unmarshaled ruby object
  */
 static ruby_instance_t *
-ruby_UserMarshal_unmarshal(ruby_unmarshal_t *marshal)
+ruby_UserMarshal_unmarshal(ruby_marshal_t *marshal)
 {
 	ruby_instance_t *object, *data;
 

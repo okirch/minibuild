@@ -27,26 +27,26 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 struct ruby_io;
 struct ruby_byteseq;
 
-typedef struct ruby_unmarshal	ruby_unmarshal_t;
+typedef struct ruby_marshal	ruby_marshal_t;
 
-struct ruby_unmarshal {
+struct ruby_marshal {
 	ruby_context_t *	ruby;
-	struct ruby_io *	reader;
+	struct ruby_io *	ioctx;
 
 	ruby_trace_state_t *	tracing;
 };
 
-extern ruby_unmarshal_t *ruby_unmarshal_new(ruby_context_t *ctx, PyObject *io);
-extern bool		ruby_unmarshal_next_fixnum(ruby_unmarshal_t *, long *);
-extern const char *	ruby_unmarshal_next_string(ruby_unmarshal_t *marshal, const char *encoding);
-extern bool		ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, struct ruby_byteseq *seq);
-extern ruby_instance_t *ruby_unmarshal_next_instance(ruby_unmarshal_t *);
-extern bool		ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object);
+extern ruby_marshal_t *ruby_unmarshal_new(ruby_context_t *ctx, PyObject *io);
+extern bool		ruby_unmarshal_next_fixnum(ruby_marshal_t *, long *);
+extern const char *	ruby_unmarshal_next_string(ruby_marshal_t *marshal, const char *encoding);
+extern bool		ruby_unmarshal_next_byteseq(ruby_marshal_t *s, struct ruby_byteseq *seq);
+extern ruby_instance_t *ruby_unmarshal_next_instance(ruby_marshal_t *);
+extern bool		ruby_unmarshal_object_instance_vars(ruby_marshal_t *s, ruby_instance_t *object);
 
 typedef ruby_instance_t *(*ruby_object_factory_fn_t)(ruby_context_t *, const char *);
-extern ruby_instance_t *ruby_unmarshal_object_instance(ruby_unmarshal_t *s, ruby_object_factory_fn_t factory);
+extern ruby_instance_t *ruby_unmarshal_object_instance(ruby_marshal_t *s, ruby_object_factory_fn_t factory);
 
-#define ruby_unmarshal_trace(s, fmt ...) ruby_trace((s)->tracing, ##fmt)
+#define ruby_marshal_trace(s, fmt ...) ruby_trace((s)->tracing, ##fmt)
 
 #endif /* RUBY_MARSHAL_H */
 

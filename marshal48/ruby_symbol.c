@@ -33,7 +33,7 @@ typedef struct {
  * A symbol is a byte sequence; no character encoding.
  */
 static ruby_instance_t *
-ruby_Symbol_unmarshal(ruby_unmarshal_t *marshal)
+ruby_Symbol_unmarshal(ruby_marshal_t *marshal)
 {
 	const char *string;
 

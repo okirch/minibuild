@@ -28,46 +28,52 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 typedef struct unmarshal_processor {
 	const char *		name;
-	ruby_instance_t *	(*process)(ruby_unmarshal_t *s);
+	ruby_instance_t *	(*process)(ruby_marshal_t *s);
 } unmarshal_processor_t;
 
-extern ruby_instance_t *ruby_unmarshal_next_instance_quiet(ruby_unmarshal_t *s);
+extern ruby_instance_t *ruby_unmarshal_next_instance_quiet(ruby_marshal_t *s);
 
 /*
  * Manage the state object
  */
-ruby_unmarshal_t *
+ruby_marshal_t *
 ruby_unmarshal_new(ruby_context_t *ruby, PyObject *io)
 {
-	ruby_unmarshal_t *marshal;
+	ruby_marshal_t *marshal;
 
 	marshal = calloc(1, sizeof(*marshal));
 	marshal->ruby = ruby;
-	marshal->reader = ruby_io_new(io);
+	marshal->ioctx = ruby_io_new(io);
 
 	return marshal;
 }
 
 void
-ruby_unmarshal_free(ruby_unmarshal_t *marshal)
+ruby_unmarshal_flush(ruby_marshal_t *marshal)
+{
+	ruby_io_flushbuf(marshal->ioctx);
+}
+
+void
+ruby_unmarshal_free(ruby_marshal_t *marshal)
 {
 	/* We do not delete the ruby context; that is done by the caller */
-	ruby_io_free(marshal->reader);
+	ruby_io_free(marshal->ioctx);
 
 	if (marshal->tracing)
 		ruby_trace_free(marshal->tracing);
 }
 
 bool
-ruby_unmarshal_next_fixnum(ruby_unmarshal_t *s, long *fixnump)
+ruby_unmarshal_next_fixnum(ruby_marshal_t *s, long *fixnump)
 {
-	ruby_io_t *reader = s->reader;
+	ruby_io_t *reader = s->ioctx;
 	int cc;
 
 	if (!ruby_io_nextc(reader, &cc))
 		return false;
 
-	// ruby_unmarshal_trace(s, "int0=0x%x", cc);
+	// ruby_marshal_trace(s, "int0=0x%x", cc);
 
 	switch (cc) {
 	case 0:
@@ -106,9 +112,9 @@ ruby_unmarshal_next_fixnum(ruby_unmarshal_t *s, long *fixnump)
 }
 
 bool
-ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, ruby_byteseq_t *seq)
+ruby_unmarshal_next_byteseq(ruby_marshal_t *s, ruby_byteseq_t *seq)
 {
-	ruby_io_t *reader = s->reader;
+	ruby_io_t *reader = s->ioctx;
 	long count;
 
 	if (!ruby_unmarshal_next_fixnum(s, &count))
@@ -119,7 +125,7 @@ ruby_unmarshal_next_byteseq(ruby_unmarshal_t *s, ruby_byteseq_t *seq)
 }
 
 const char *
-ruby_unmarshal_next_string(ruby_unmarshal_t *marshal, const char *encoding)
+ruby_unmarshal_next_string(ruby_marshal_t *marshal, const char *encoding)
 {
 	/* This is a static byteseq object, so we can return its internal
 	 * data pointer and it will remain valid until the next call
@@ -158,7 +164,7 @@ static unmarshal_processor_t	ruby_##NAME##_processor = { \
  * Simple constants
  */
 static ruby_instance_t *
-ruby_None_unmarshal(ruby_unmarshal_t *s)
+ruby_None_unmarshal(ruby_marshal_t *s)
 {
 	return (ruby_instance_t *) &ruby_None;
 }
@@ -166,7 +172,7 @@ ruby_None_unmarshal(ruby_unmarshal_t *s)
 RUBY_UNMARSHAL_PROCESSOR(None);
 
 static ruby_instance_t *
-ruby_True_unmarshal(ruby_unmarshal_t *s)
+ruby_True_unmarshal(ruby_marshal_t *s)
 {
 	return (ruby_instance_t *) &ruby_True;
 }
@@ -174,7 +180,7 @@ ruby_True_unmarshal(ruby_unmarshal_t *s)
 RUBY_UNMARSHAL_PROCESSOR(True);
 
 static ruby_instance_t *
-ruby_False_unmarshal(ruby_unmarshal_t *s)
+ruby_False_unmarshal(ruby_marshal_t *s)
 {
 	return (ruby_instance_t *) &ruby_False;
 }
@@ -185,7 +191,7 @@ RUBY_UNMARSHAL_PROCESSOR(False);
  * Process a symbol reference
  */
 static ruby_instance_t *
-ruby_SymbolReference_unmarshal(ruby_unmarshal_t *s)
+ruby_SymbolReference_unmarshal(ruby_marshal_t *s)
 {
 	ruby_instance_t *symbol;
 	long ref;
@@ -199,7 +205,7 @@ ruby_SymbolReference_unmarshal(ruby_unmarshal_t *s)
 		return NULL;
 	}
 
-	ruby_unmarshal_trace(s, "Referenced dymbol #%ld: %s", ref, ruby_Symbol_get_name(symbol));
+	ruby_marshal_trace(s, "Referenced dymbol #%ld: %s", ref, ruby_Symbol_get_name(symbol));
 	return symbol;
 }
 
@@ -209,7 +215,7 @@ RUBY_UNMARSHAL_PROCESSOR(SymbolReference);
  * Process an object reference
  */
 static ruby_instance_t *
-ruby_ObjectReference_unmarshal(ruby_unmarshal_t *s)
+ruby_ObjectReference_unmarshal(ruby_marshal_t *s)
 {
 	ruby_instance_t *object;
 	long ref;
@@ -223,7 +229,7 @@ ruby_ObjectReference_unmarshal(ruby_unmarshal_t *s)
 		return NULL;
 	}
 
-	ruby_unmarshal_trace(s, "Referenced object #%ld: %s", ref, ruby_instance_repr(object));
+	ruby_marshal_trace(s, "Referenced object #%ld: %s", ref, ruby_instance_repr(object));
 	return object;
 }
 
@@ -233,7 +239,7 @@ RUBY_UNMARSHAL_PROCESSOR(ObjectReference);
  * Common helper to create object instances that specify a Classname
  */
 ruby_instance_t *
-ruby_unmarshal_object_instance(ruby_unmarshal_t *s,
+ruby_unmarshal_object_instance(ruby_marshal_t *s,
                ruby_instance_t * (*constructor)(ruby_context_t *, const char *))
 {
 	ruby_instance_t *name_instance, *object;
@@ -256,14 +262,14 @@ ruby_unmarshal_object_instance(ruby_unmarshal_t *s,
  * Common helper function to process instance variables
  */
 bool
-ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object)
+ruby_unmarshal_object_instance_vars(ruby_marshal_t *s, ruby_instance_t *object)
 {
 	long i, count;
 
 	if (!ruby_unmarshal_next_fixnum(s, &count))
 		return false;
 
-	ruby_unmarshal_trace(s, "%s is followed by %ld instance variables", object->op->name, count);
+	ruby_marshal_trace(s, "%s is followed by %ld instance variables", object->op->name, count);
 
 	for (i = 0; i < count; ++i) {
 		ruby_repr_context_t *repr_ctx;
@@ -278,7 +284,7 @@ ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object
 			return false;
 
 		repr_ctx = ruby_repr_context_new();
-		ruby_unmarshal_trace(s, "  key=%s value=%s",
+		ruby_marshal_trace(s, "  key=%s value=%s",
 					__ruby_instance_repr(key, repr_ctx),
 					__ruby_instance_repr(value, repr_ctx));
 		ruby_repr_context_free(repr_ctx);
@@ -295,7 +301,7 @@ ruby_unmarshal_object_instance_vars(ruby_unmarshal_t *s, ruby_instance_t *object
  * Arbitrary object, followed by a bunch of instance variables
  */
 static ruby_instance_t *
-ruby_ObjectWithInstanceVars_unmarshal(ruby_unmarshal_t *s)
+ruby_ObjectWithInstanceVars_unmarshal(ruby_marshal_t *s)
 {
 	ruby_instance_t *object;
 
@@ -317,7 +323,7 @@ ruby_ObjectWithInstanceVars_unmarshal(ruby_unmarshal_t *s)
 RUBY_UNMARSHAL_PROCESSOR(ObjectWithInstanceVars);
 
 static ruby_instance_t *
-__ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
+__ruby_unmarshal_next_instance(ruby_marshal_t *s)
 {
 	static const ruby_type_t *unmarshal_type_table[256] = {
 		['i'] = &ruby_Int_type,
@@ -342,7 +348,7 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 	ruby_instance_t *result = NULL;
 	int cc;
 
-	if (!ruby_io_nextc(s->reader, &cc))
+	if (!ruby_io_nextc(s->ioctx, &cc))
 		return NULL;
 
 	assert(0 <= cc && cc < 256);
@@ -351,12 +357,12 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 	if (type != NULL) {
 		assert(type->unmarshal != NULL);
 
-		ruby_unmarshal_trace(s, "process(%c -> %s)", cc, type->name);
+		ruby_marshal_trace(s, "process(%c -> %s)", cc, type->name);
 		result = type->unmarshal(s);
 	} else {
 		processor = unmarshal_processor_table[cc];
 		if (processor != NULL) {
-			ruby_unmarshal_trace(s, "process(%c -> %s)", cc, processor->name);
+			ruby_marshal_trace(s, "process(%c -> %s)", cc, processor->name);
 			result = processor->process(s);
 		}
 	}
@@ -366,7 +372,7 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 		return NULL;
 	}
 
-	ruby_unmarshal_trace(s, "Returning %s: %s", result->op->name, ruby_instance_repr(result));
+	ruby_marshal_trace(s, "Returning %s: %s", result->op->name, ruby_instance_repr(result));
 
 	if (false) {
 		static unsigned int num;
@@ -381,7 +387,7 @@ __ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
 }
 
 static ruby_instance_t *
-__ruby_unmarshal_next_instance_logwrap(ruby_unmarshal_t *s, bool quiet)
+__ruby_unmarshal_next_instance_logwrap(ruby_marshal_t *s, bool quiet)
 {
 	ruby_instance_t *result;
 	ruby_trace_id_t saved_id;
@@ -394,24 +400,24 @@ __ruby_unmarshal_next_instance_logwrap(ruby_unmarshal_t *s, bool quiet)
 }
 
 ruby_instance_t *
-ruby_unmarshal_next_instance(ruby_unmarshal_t *s)
+ruby_unmarshal_next_instance(ruby_marshal_t *s)
 {
 	return __ruby_unmarshal_next_instance_logwrap(s, false);
 }
 
 ruby_instance_t *
-ruby_unmarshal_next_instance_quiet(ruby_unmarshal_t *s)
+ruby_unmarshal_next_instance_quiet(ruby_marshal_t *s)
 {
 	return __ruby_unmarshal_next_instance_logwrap(s, true);
 }
 
 static bool
-unmarshal_check_signature(ruby_unmarshal_t *s, const unsigned char *sig, unsigned int sig_len)
+unmarshal_check_signature(ruby_marshal_t *s, const unsigned char *sig, unsigned int sig_len)
 {
 	unsigned int i;
 
 	for (i = 0; i < sig_len; ++i) {
-		if (__ruby_io_nextc(s->reader) != sig[i])
+		if (__ruby_io_nextc(s->ioctx) != sig[i])
 			return false;
 	}
 
@@ -419,7 +425,7 @@ unmarshal_check_signature(ruby_unmarshal_t *s, const unsigned char *sig, unsigne
 }
 
 bool
-marshal48_check_signature(ruby_unmarshal_t *s)
+marshal48_check_signature(ruby_marshal_t *s)
 {
 	static unsigned char marshal48_sig[2] = {0x04, 0x08};
 
@@ -429,19 +435,19 @@ marshal48_check_signature(ruby_unmarshal_t *s)
 ruby_instance_t *
 marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io, bool quiet)
 {
-	ruby_unmarshal_t *marshal = ruby_unmarshal_new(ruby, io);
+	ruby_marshal_t *marshal = ruby_unmarshal_new(ruby, io);
 	ruby_instance_t *result;
 
 	/* enable debug messages? */
 	marshal->tracing = ruby_trace_new(quiet);
 
 	if (!marshal48_check_signature(marshal)) {
-		/* PyErr_SetString(PyExc_ValueError, "Data does not start with Marshal48 signature"); */
+		fprintf(stderr, "Data does not start with Marshal48 signature\n");
 		ruby_unmarshal_free(marshal);
 		return NULL;
 	}
 
-	ruby_unmarshal_trace(marshal, "Unmarshaling data");
+	ruby_marshal_trace(marshal, "Unmarshaling data");
 	result = ruby_unmarshal_next_instance(marshal);
 
 	ruby_unmarshal_free(marshal);

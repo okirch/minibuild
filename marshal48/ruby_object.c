@@ -28,7 +28,7 @@ typedef ruby_instance_t *(*ruby_object_factory_fn_t)(ruby_context_t *, const cha
  * Generic object, which is constructed as Classname + instance variables
  */
 static ruby_instance_t *
-ruby_GenericObject_unmarshal(ruby_unmarshal_t *marshal)
+ruby_GenericObject_unmarshal(ruby_marshal_t *marshal)
 {
 	ruby_instance_t *object;
 

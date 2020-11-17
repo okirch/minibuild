@@ -38,7 +38,7 @@ typedef struct {
  * protocol.
  */
 static ruby_instance_t *
-ruby_String_unmarshal(ruby_unmarshal_t *marshal)
+ruby_String_unmarshal(ruby_marshal_t *marshal)
 {
 	const char *raw_string;
 	ruby_instance_t *string = NULL;
@@ -46,7 +46,7 @@ ruby_String_unmarshal(ruby_unmarshal_t *marshal)
 	if (!(raw_string = ruby_unmarshal_next_string(marshal, "latin1")))
 		return NULL;
 
-	ruby_unmarshal_trace(marshal, "decoded string \"%s\"", raw_string);
+	ruby_marshal_trace(marshal, "decoded string \"%s\"", raw_string);
 
 	string = ruby_String_new(marshal->ruby, raw_string);
 	if (string == NULL)

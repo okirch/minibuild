@@ -26,7 +26,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 typedef struct ruby_context	ruby_context_t;
 typedef struct ruby_instance	ruby_instance_t;
 typedef struct ruby_type	ruby_type_t;
-typedef struct ruby_unmarshal	ruby_unmarshal_t;
+typedef struct ruby_marshal	ruby_marshal_t;
 typedef struct ruby_converter	ruby_converter_t;
 
 /* anonymous decls for some structs */
@@ -45,7 +45,7 @@ struct ruby_type {
 	int		registration;
 	ruby_type_t *	base_type;
 
-	ruby_instance_t *(*unmarshal)(ruby_unmarshal_t *);
+	ruby_instance_t *(*unmarshal)(ruby_marshal_t *);
 
 	void		(*del)(ruby_instance_t *);
 	const char *	(*repr)(ruby_instance_t *, ruby_repr_context_t *);

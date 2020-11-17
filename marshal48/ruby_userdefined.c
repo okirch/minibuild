@@ -27,7 +27,7 @@ typedef struct {
 } ruby_UserDefined;
 
 static ruby_instance_t *
-ruby_UserDefined_unmarshal(ruby_unmarshal_t *marshal)
+ruby_UserDefined_unmarshal(ruby_marshal_t *marshal)
 {
 	ruby_instance_t *object;
 	ruby_byteseq_t *data;

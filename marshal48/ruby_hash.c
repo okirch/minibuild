@@ -28,7 +28,7 @@ typedef struct {
 
 
 static ruby_instance_t *
-ruby_Hash_unmarshal(ruby_unmarshal_t *marshal)
+ruby_Hash_unmarshal(ruby_marshal_t *marshal)
 {
 	ruby_instance_t *hash;
 	long i, count;
@@ -36,7 +36,7 @@ ruby_Hash_unmarshal(ruby_unmarshal_t *marshal)
 	if (!ruby_unmarshal_next_fixnum(marshal, &count))
 		return NULL;
 
-	ruby_unmarshal_trace(marshal, "Decoding hash with %ld objects", count);
+	ruby_marshal_trace(marshal, "Decoding hash with %ld objects", count);
 
 	hash = ruby_Hash_new(marshal->ruby);
 

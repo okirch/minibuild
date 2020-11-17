@@ -31,7 +31,7 @@ typedef struct {
 } ruby_Int;
 
 static ruby_instance_t *
-ruby_Int_unmarshal(ruby_unmarshal_t *marshal)
+ruby_Int_unmarshal(ruby_marshal_t *marshal)
 {
 	long value;
 
