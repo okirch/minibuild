@@ -89,10 +89,12 @@ extern const char *	__ruby_repr_abort(ruby_repr_buf *);
 extern ruby_io_t *	ruby_io_new(PyObject *io);
 extern void		ruby_io_free(ruby_io_t *reader);
 extern int		ruby_io_fillbuf(ruby_io_t *reader);;
+extern bool		ruby_io_flushbuf(ruby_io_t *reader);;
 extern int		__ruby_io_nextc(ruby_io_t *reader);
 extern bool		ruby_io_nextc(ruby_io_t *reader, int *cccp);
 extern bool		ruby_io_nextw(ruby_io_t *reader, unsigned int count, long *resultp);
 extern bool		ruby_io_next_byteseq(ruby_io_t *reader, unsigned int count, ruby_byteseq_t *seq);
+extern bool		ruby_io_putc(ruby_io_t *reader, int);
 
 extern unsigned long	__report_memory_rss(void);
 

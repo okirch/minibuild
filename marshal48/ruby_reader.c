@@ -193,3 +193,39 @@ ruby_io_next_byteseq(ruby_io_t *reader, unsigned int count, ruby_byteseq_t *seq)
 	return true;
 }
 
+bool
+ruby_io_flushbuf(ruby_io_t *writer)
+{
+	struct ruby_iobuf *bp = &writer->buffer;
+	PyObject *b, *r;
+
+	b = PyBytes_FromStringAndSize((const char *) bp->_data, bp->count);
+
+	r = PyObject_CallMethod(writer->io, "write", "O", b);
+	Py_DECREF(b);
+
+	if (r == NULL) {
+		/* Display exception? */
+		return false;
+	}
+
+	Py_DECREF(r);
+
+	memset(bp, 0, sizeof(*bp));
+	return true;
+}
+
+bool
+ruby_io_putc(ruby_io_t *writer, int cc)
+{
+	struct ruby_iobuf *bp = &writer->buffer;
+
+	if (bp->count >= sizeof(bp->_data)) {
+		if (!ruby_io_flushbuf(writer))
+			return false;
+	}
+
+	bp->_data[bp->count++] = cc;
+	return true;
+}
+
