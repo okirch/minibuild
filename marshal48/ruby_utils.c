@@ -31,8 +31,8 @@ ruby_array_init(ruby_array_t *array)
 	memset(array, 0, sizeof(*array));
 }
 
-void
-ruby_array_append(ruby_array_t *array, ruby_instance_t *item)
+static inline void
+__ruby_array_ensure_tailroom(ruby_array_t *array)
 {
 	if (array->count >= array->size) {
 		unsigned long new_size;
@@ -50,8 +50,28 @@ ruby_array_append(ruby_array_t *array, ruby_instance_t *item)
 		else
 			array->items = realloc(array->items, new_size);
 	}
+}
 
+void
+ruby_array_append(ruby_array_t *array, ruby_instance_t *item)
+{
+	__ruby_array_ensure_tailroom(array);
 	array->items[array->count++] = item;
+}
+
+void
+ruby_array_insert(ruby_array_t *array, unsigned int where, ruby_instance_t *item)
+{
+	if (where >= array->count) {
+		ruby_array_append(array, item);
+		return;
+	}
+
+	__ruby_array_ensure_tailroom(array);
+	memmove(array->items + where + 1, array->items + where, (array->count - where) * sizeof(array->items[0]));
+
+	array->items[where] = item;
+	array->count += 1;
 }
 
 ruby_instance_t *

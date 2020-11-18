@@ -48,6 +48,7 @@ struct ruby_dict {
 
 extern void		ruby_array_init(ruby_array_t *);
 extern void		ruby_array_append(ruby_array_t *, ruby_instance_t *);
+extern void		ruby_array_insert(ruby_array_t *, unsigned int, ruby_instance_t *);
 extern ruby_instance_t *ruby_array_get(ruby_array_t *array, unsigned int index);
 /* This just zaps the array, but does not destroy its array members */
 extern void		ruby_array_zap(ruby_array_t *);
