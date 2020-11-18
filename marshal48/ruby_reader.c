@@ -229,3 +229,14 @@ ruby_io_putc(ruby_io_t *writer, int cc)
 	return true;
 }
 
+bool
+ruby_io_put_bytes(ruby_io_t *writer, const void *mem, unsigned int count)
+{
+	unsigned char *bytes = (unsigned char *) mem;
+
+	while (count--) {
+		if (!ruby_io_putc(writer, *bytes++))
+			return false;
+	}
+	return true;
+}

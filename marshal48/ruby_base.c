@@ -45,6 +45,7 @@ ruby_context_free(ruby_context_t *ctx)
 	ruby_array_destroy(&ctx->symbols);
 	ruby_array_destroy(&ctx->objects);
 	ruby_array_destroy(&ctx->emphemerals);
+
 	free(ctx);
 }
 
@@ -73,24 +74,6 @@ ruby_context_find_symbol(ruby_context_t *ctx, const char *value)
 		if (sym_name && !strcmp(sym_name, value))
 			return sym;
 	}
-
-	return NULL;
-}
-
-ruby_instance_t *
-ruby_context_find_python(ruby_context_t *ctx, PyObject *py_obj)
-{
-	/* This is a quadratic algorithm, and sucks */
-#ifdef notyet
-	unsigned int i;
-
-	for (i = 0; i < ctx->objects.count; ++i) {
-		ruby_instance_t *obj = ctx->objects.items[i];
-
-		if (obj->native == py_obj)
-			return obj;
-	}
-#endif
 
 	return NULL;
 }
@@ -190,6 +173,7 @@ __ruby_instance_new(ruby_context_t *ctx, const ruby_type_t *type)
 	instance->op = type;
 	instance->reg.kind = -1;
 	instance->reg.id = -1;
+	instance->marshal_id = -1;
 
 	/* automatically register the instance */
 	__ruby_instance_register(ctx, instance);
@@ -246,6 +230,48 @@ ruby_symbol_from_python(PyObject *self, ruby_converter_t *converter)
 	return instance;
 }
 
+static ruby_instance_t *
+__ruby_String_maybe_reference(ruby_converter_t *converter, PyObject *py_obj)
+{
+	static unsigned long item_count, hit_count;
+	ruby_instance_t *instance;
+	char *raw_string;
+
+	item_count++;
+
+	raw_string = PyUnicode_AsUTF8(py_obj);
+
+	if (!converter->strings)
+		converter->strings = ruby_string_instancedict_new(ruby_String_get_value);
+
+	instance = ruby_string_instancedict_lookup(converter->strings, raw_string);
+	if (instance != NULL)
+		hit_count ++;
+
+#if 0
+	if (item_count && 0 == (item_count % 10000)) {
+		unsigned int avg_depth, avg_leaf_size;
+
+		ruby_instancedict_stats(converter->strings, &avg_depth, &avg_leaf_size);
+		fprintf(stderr, "reused %.2f%% of %lu strings (avg_depth=%u, avg_leaf_size=%u)\n",
+				100.0 * hit_count / item_count, item_count,
+				avg_depth, avg_leaf_size);
+
+		/* If you really want to know what's going on, you could also call:
+		   ruby_instancedict_dump(converter->strings);
+		 */
+	}
+#endif
+
+	return instance;
+}
+
+static void
+__ruby_String_remember(ruby_converter_t *converter, PyObject *py_obj, ruby_instance_t *instance)
+{
+	ruby_string_instancedict_insert(converter->strings, instance);
+}
+
 ruby_instance_t *
 ruby_instance_from_python(PyObject *self, ruby_converter_t *converter)
 {
@@ -260,25 +286,23 @@ ruby_instance_from_python(PyObject *self, ruby_converter_t *converter)
 	if (self == Py_None)
 		return (ruby_instance_t *) &ruby_None;
 
-	/* Avoid doing this for ephemeral (ie non-object) types like ints */
-	instance = ruby_context_find_python(converter->context, self);
-	if (instance != NULL)
-		return instance;
-
-	if (PyList_Check(self))
+	if (PyList_Check(self)) {
 		type = &ruby_Array_type;
-	else if (PyLong_Check(self))
+	} else if (PyLong_Check(self)) {
 		type = &ruby_Int_type;
-	else if (PyUnicode_Check(self))
+	} else if (PyUnicode_Check(self)) {
+		if ((instance = __ruby_String_maybe_reference(converter, self)) != NULL)
+			return instance;
 		type = &ruby_String_type;
-	else if (PyDict_Check(self))
+	} else if (PyDict_Check(self)) {
 		type = &ruby_Hash_type;
-	else if (PyObject_HasAttrString(self, "dump"))
+	} else if (PyObject_HasAttrString(self, "dump")) {
 		type = &ruby_UserDefined_type;
-	else if (PyObject_HasAttrString(self, "marshal_dump"))
+	} else if (PyObject_HasAttrString(self, "marshal_dump")) {
 		type = &ruby_UserMarshal_type;
-	else if (PyObject_IsInstance(self, (PyObject *) &PyBaseObject_Type))
+	} else if (PyObject_IsInstance(self, (PyObject *) &PyBaseObject_Type)) {
 		type = &ruby_GenericObject_type;
+	}
 
 	if (type == NULL || type->from_python == NULL) {
 		PyErr_Format(PyExc_TypeError, "Python type %s has no corresponding ruby type", self->ob_type->tp_name);
@@ -300,6 +324,9 @@ ruby_instance_from_python(PyObject *self, ruby_converter_t *converter)
 			PyErr_Format(PyExc_RuntimeError, "Python conversion failed for ruby %s", type->name);
 		return NULL;
 	}
+
+	if (type == &ruby_String_type)
+		__ruby_String_remember(converter, self, instance);
 
 	return instance;
 }

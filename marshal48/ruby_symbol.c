@@ -32,6 +32,12 @@ typedef struct {
 /*
  * A symbol is a byte sequence; no character encoding.
  */
+static bool
+ruby_Symbol_marshal(ruby_Symbol *self, ruby_marshal_t *marshal)
+{
+	return ruby_marshal_symbol(marshal, self->sym_name, &self->sym_base.marshal_id);
+}
+
 static ruby_instance_t *
 ruby_Symbol_unmarshal(ruby_marshal_t *marshal)
 {
@@ -84,6 +90,7 @@ ruby_type_t ruby_Symbol_type = {
 	.size		= sizeof(ruby_Symbol),
 	.registration	= RUBY_REG_SYMBOL,
 
+	.marshal	= (ruby_instance_marshal_fn_t) ruby_Symbol_marshal,
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Symbol_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Symbol_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Symbol_repr,

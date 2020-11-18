@@ -29,6 +29,16 @@ typedef struct {
 	ruby_instance_t *	marsh_data;
 } ruby_UserMarshal;
 
+static bool
+ruby_UserMarshal_marshal(ruby_UserMarshal *self, ruby_marshal_t *marshal)
+{
+	if (!ruby_marshal_user_marshal_begin(marshal, self->marsh_base.obj_classname, &self->marsh_base.obj_base.marshal_id))
+		return false;
+
+	return ruby_marshal_next_instance(marshal, self->marsh_data);
+	/* FIXME: encode instance variables? */
+}
+
 /*
  * Marshaled object, which is constructed by instantiating Classname() and calling
  * marshal_load() with an unmarshaled ruby object
@@ -137,6 +147,19 @@ ruby_UserMarshal_from_python(ruby_UserMarshal *self, PyObject *py_obj, ruby_conv
 {
 	PyObject *data;
 
+	/* Convert the object class name back to the python name */
+	{
+		const char *py_classname = py_obj->ob_type->tp_name;
+		const char *ruby_classname;
+
+		if (!strcmp(py_classname, "GemVersion"))
+			ruby_classname = "Gem::Version";
+		else
+			ruby_classname = py_classname;
+
+		assign_string(&self->marsh_base.obj_classname, ruby_classname);
+	}
+
 	/* Call the marshal_dump() method of the new instance and pass it the data object */
 	data = PyObject_CallMethod(py_obj, "marshal_dump", "");
 	if (data == NULL) {
@@ -158,6 +181,7 @@ ruby_type_t ruby_UserMarshal_type = {
 	.size		= sizeof(ruby_UserMarshal),
 	.base_type	= &ruby_GenericObject_type,
 
+	.marshal	= (ruby_instance_marshal_fn_t) ruby_UserMarshal_marshal,
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_UserMarshal_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_UserMarshal_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_UserMarshal_repr,

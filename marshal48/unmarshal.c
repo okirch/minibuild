@@ -45,6 +45,9 @@ ruby_unmarshal_new(ruby_context_t *ruby, PyObject *io)
 	marshal->ruby = ruby;
 	marshal->ioctx = ruby_io_new(io);
 
+	marshal->next_obj_id = 0;
+	marshal->next_sym_id = 0;
+
 	return marshal;
 }
 
@@ -64,6 +67,23 @@ ruby_unmarshal_free(ruby_marshal_t *marshal)
 		ruby_trace_free(marshal->tracing);
 }
 
+ruby_instance_t *
+ruby_marshal_define_symbol(ruby_marshal_t *marshal, const char *value)
+{
+	ruby_context_t *ruby = marshal->ruby;
+	ruby_instance_t *symbol;
+
+	symbol = ruby_context_find_symbol(ruby, value);
+	if (symbol == NULL)
+		symbol = ruby_Symbol_new(ruby, value);
+
+	return symbol;
+}
+
+/*
+ * Representation of integers in ruby marshal48 is very compact, but
+ * also somewhat bizarre.
+ */
 bool
 ruby_unmarshal_next_fixnum(ruby_marshal_t *s, long *fixnump)
 {
@@ -109,6 +129,48 @@ ruby_unmarshal_next_fixnum(ruby_marshal_t *s, long *fixnump)
 			*fixnump = 0x80 - cc - 5;
 		return true;
 	}
+}
+
+bool
+ruby_marshal_fixnum(ruby_marshal_t *s, long fixnum)
+{
+	ruby_io_t *writer = s->ioctx;
+	long orig_value = fixnum;
+
+	if (fixnum == 0)
+		return ruby_io_putc(writer, '\0');
+
+	if (fixnum >= 0) {
+		unsigned char bytes[8];
+		unsigned int i, len;
+
+		if (fixnum < 0x80 - 5)
+			return ruby_io_putc(writer, fixnum + 5);
+
+		if (fixnum < 256)
+			return ruby_io_putc(writer, 1)
+			    && ruby_io_putc(writer, fixnum);
+
+		for (len = 0; fixnum; fixnum >>= 8)
+			bytes[len++] = fixnum & 0xff;
+
+		if (len > 4) {
+			fprintf(stderr, "value of %ld exceeds fixnum format\n", orig_value);
+			return false;
+		}
+
+		if (!ruby_io_putc(writer, len))
+			return false;
+
+		for (i = 0; i < len; ++i)
+			if (!ruby_io_putc(writer, bytes[i]))
+				return false;
+
+		return true;
+	}
+
+	fprintf(stderr, "Unable to represent fixnum %ld\n", orig_value);
+	return false;
 }
 
 bool
@@ -411,6 +473,161 @@ ruby_unmarshal_next_instance_quiet(ruby_marshal_t *s)
 	return __ruby_unmarshal_next_instance_logwrap(s, true);
 }
 
+bool
+ruby_marshal_true(ruby_marshal_t *marshal)
+{
+	return ruby_io_putc(marshal->ioctx, 'T');
+}
+
+bool
+ruby_marshal_false(ruby_marshal_t *marshal)
+{
+	return ruby_io_putc(marshal->ioctx, 'F');
+}
+
+bool
+ruby_marshal_none(ruby_marshal_t *marshal)
+{
+	return ruby_io_putc(marshal->ioctx, '0');
+}
+
+bool
+ruby_marshal_symbol_reference(ruby_marshal_t *marshal, unsigned int id)
+{
+	ruby_io_t *writer = marshal->ioctx;
+
+	return ruby_io_putc(writer, ';') && ruby_marshal_fixnum(marshal, id);
+}
+
+bool
+ruby_marshal_object_reference(ruby_marshal_t *marshal, unsigned int id)
+{
+	ruby_io_t *writer = marshal->ioctx;
+
+	return ruby_io_putc(writer, '@') && ruby_marshal_fixnum(marshal, id);
+}
+
+/*
+ * This function is different from the other ruby_marshal_ functions in
+ * that its return value does not indicate an error.
+ * true: we've seen this object before, I inserted a reference and the caller
+ *	does not need to do anything.
+ * false: new object, please marshal the object in its full glory.
+ */
+static bool
+__ruby_marshal_maybe_object_reference(ruby_marshal_t *marshal, int *obj_id_ret)
+{
+	if (*obj_id_ret > 0)
+		return ruby_marshal_object_reference(marshal, *obj_id_ret);
+
+	*obj_id_ret = marshal->next_obj_id++;
+	return false;
+}
+
+bool
+ruby_marshal_bytes(ruby_marshal_t *marshal, const void *bytes, unsigned int count)
+{
+	ruby_io_t *writer = marshal->ioctx;
+
+	return ruby_marshal_fixnum(marshal, count) && ruby_io_put_bytes(writer, bytes, count);
+}
+
+bool
+ruby_marshal_symbol(ruby_marshal_t *marshal, const char *s, int *sym_id_ret)
+{
+	ruby_io_t *writer = marshal->ioctx;
+
+	if (*sym_id_ret >= 0)
+		return ruby_marshal_symbol_reference(marshal, *sym_id_ret);
+
+	*sym_id_ret = marshal->next_sym_id++;
+	return ruby_io_putc(writer, ':') && ruby_marshal_bytes(marshal, s, strlen(s));
+}
+
+bool
+ruby_marshal_string(ruby_marshal_t *marshal, const char *s, int *obj_id_ret)
+{
+	static int e_sym_id = -1;
+	ruby_io_t *writer = marshal->ioctx;
+
+	/* If we've seen this object before, just insert a reference to it */
+	if (__ruby_marshal_maybe_object_reference(marshal, obj_id_ret))
+		return true;
+
+	if (s == NULL || *s == '\0')
+		return ruby_io_putc(writer, '"') && ruby_io_putc(writer, 0);
+
+	if (!ruby_io_putc(writer, 'I')
+	 || !ruby_io_putc(writer, '"')
+         || !ruby_marshal_bytes(marshal, s, strlen(s)))
+		return false;
+
+	/* Followed by 1 instance variable E=True */
+	if (!ruby_marshal_fixnum(marshal, 1))
+                return false;
+
+        if (!ruby_marshal_symbol(marshal, "E", &e_sym_id)
+         || !ruby_marshal_true(marshal))
+                return false;
+
+	return true;
+}
+
+bool
+ruby_marshal_array_begin(ruby_marshal_t *marshal, unsigned int count, int *obj_id_ret)
+{
+	ruby_io_t *writer = marshal->ioctx;
+
+	/* If we've seen this object before, just insert a reference to it */
+	if (__ruby_marshal_maybe_object_reference(marshal, obj_id_ret))
+		return true;
+
+	if (!ruby_io_putc(writer, '[')
+	 || !ruby_marshal_fixnum(marshal, count))
+		return false;
+
+	return true;
+}
+
+bool
+ruby_marshal_user_marshal_begin(ruby_marshal_t *marshal, const char *classname, int *obj_id_ret)
+{
+	ruby_io_t *writer = marshal->ioctx;
+	ruby_instance_t *symbol;
+
+	/* If we've seen this object before, just insert a reference to it */
+	if (__ruby_marshal_maybe_object_reference(marshal, obj_id_ret))
+		return true;
+
+	symbol = ruby_marshal_define_symbol(marshal, classname);
+
+	if (!ruby_io_putc(writer, 'U')
+	 || !ruby_marshal_next_instance(marshal, symbol))
+		return false;
+
+	return true;
+}
+
+bool
+ruby_marshal_next_instance(ruby_marshal_t *s, ruby_instance_t *instance)
+{
+	const ruby_type_t *type = instance->op;
+
+	ruby_marshal_trace(s, "%s(%s = %s)", __func__, type->name, ruby_instance_repr(instance));
+
+	if (type->marshal == NULL) {
+		fprintf(stderr, "Don't know how to marshal a %s object (not implemented)\n", type->name);
+		return false;
+	}
+
+	if (!type->marshal(instance, s)) {
+		fprintf(stderr, "Failed to marshal %s object\n", type->name);
+		return false;
+	}
+
+	return true;
+}
+
 static bool
 unmarshal_check_signature(ruby_marshal_t *s, const unsigned char *sig, unsigned int sig_len)
 {
@@ -430,6 +647,27 @@ marshal48_check_signature(ruby_marshal_t *s)
 	static unsigned char marshal48_sig[2] = {0x04, 0x08};
 
 	return unmarshal_check_signature(s, marshal48_sig, sizeof(marshal48_sig));
+}
+
+static bool
+marshal_write_signature(ruby_marshal_t *s, const unsigned char *sig, unsigned int sig_len)
+{
+	unsigned int i;
+
+	for (i = 0; i < sig_len; ++i) {
+		if (!ruby_io_putc(s->ioctx, sig[i]))
+			return false;
+	}
+
+	return true;
+}
+
+static bool
+marshal48_write_signature(ruby_marshal_t *s)
+{
+	static unsigned char marshal48_sig[2] = {0x04, 0x08};
+
+	return marshal_write_signature(s, marshal48_sig, sizeof(marshal48_sig));
 }
 
 ruby_instance_t *
@@ -453,4 +691,25 @@ marshal48_unmarshal_io(ruby_context_t *ruby, PyObject *io, bool quiet)
 	ruby_unmarshal_free(marshal);
 
 	return result;
+}
+
+bool
+marshal48_marshal_io(ruby_context_t *ruby, ruby_instance_t *instance, PyObject *io, bool quiet)
+{
+	ruby_marshal_t *marshal = ruby_unmarshal_new(ruby, io);
+	bool ok;
+
+	marshal->tracing = ruby_trace_new(quiet);
+
+	if (!marshal48_write_signature(marshal)) {
+		fprintf(stderr, "Failed to write Marshal48 signature\n");
+		ruby_unmarshal_free(marshal);
+		return false;
+	}
+
+	ok = ruby_marshal_next_instance(marshal, instance);
+
+	ruby_unmarshal_flush(marshal);
+	ruby_unmarshal_free(marshal);
+	return ok;
 }

@@ -23,12 +23,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 static PyObject	*	theModule = NULL;
 
+static PyObject *	marshal48_Marshal(PyObject *self, PyObject *args, PyObject *kwds);
 static PyObject *	marshal48_Unmarshal(PyObject *, PyObject *, PyObject *);
 
 /*
  * Methods belonging to the module itself.
  */
 static PyMethodDef marshal48_methods[] = {
+	{ "marshal", (PyCFunction) marshal48_Marshal, METH_VARARGS | METH_KEYWORDS, "Marshal ruby data"},
 	{ "unmarshal", (PyCFunction) marshal48_Unmarshal, METH_VARARGS | METH_KEYWORDS, "Unmarshal ruby data"},
 
 	{ NULL }
@@ -100,6 +102,46 @@ marshal48_Unmarshal(PyObject *self, PyObject *args, PyObject *kwds)
 		ruby_converter_free(converter);
 	}
 
+	ruby_context_free(ruby);
+	return result;
+}
+
+static PyObject *
+marshal48_Marshal(PyObject *self, PyObject *args, PyObject *kwds)
+{
+	ruby_context_t *ruby;
+	static char *kwlist[] = {
+		"object",
+		"io",
+		"quiet",
+		NULL
+	};
+	PyObject *io, *object, *result = NULL;
+	ruby_converter_t *converter;
+	ruby_instance_t *instance;
+	int quiet = 1;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|i", kwlist, &object, &io, &quiet))
+		return NULL;
+
+	ruby = ruby_context_new();
+
+	converter = ruby_converter_new(ruby, NULL);
+	instance = ruby_instance_from_python(object, converter);
+	ruby_converter_free(converter);
+
+	if (instance == NULL)
+		goto out;
+
+	if (!marshal48_marshal_io(ruby, instance, io, quiet)) {
+		PyErr_SetString(PyExc_RuntimeError, "Unable to marshal objects to file");
+		goto out;
+	}
+
+	Py_INCREF(Py_None);
+	result = Py_None;
+
+out:
 	ruby_context_free(ruby);
 	return result;
 }
@@ -234,20 +276,6 @@ PyInit_marshal48(void)
 	if (m == NULL)
 		return NULL;
 
-#if 0
-	/* These two aren't really used right now */
-	marshal48_registerType(m, "Symbol", &marshal48_SymbolType);
-	marshal48_registerType(m, "Int", &marshal48_IntType);
-
-	marshal48_registerType(m, "String", &marshal48_StringType);
-	marshal48_registerType(m, "Array", &marshal48_ArrayType);
-	marshal48_registerType(m, "Hash", &marshal48_HashType);
-	marshal48_registerType(m, "GenericObject", &marshal48_GenericObjectType);
-	marshal48_registerType(m, "UserDefined", &marshal48_UserDefinedType);
-	marshal48_registerType(m, "UserMarshal", &marshal48_UserMarshalType);
-#endif
-
 	theModule = m;
-
 	return m;
 }

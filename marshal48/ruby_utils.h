@@ -110,6 +110,7 @@ extern bool		ruby_io_nextc(ruby_io_t *reader, int *cccp);
 extern bool		ruby_io_nextw(ruby_io_t *reader, unsigned int count, long *resultp);
 extern bool		ruby_io_next_byteseq(ruby_io_t *reader, unsigned int count, ruby_byteseq_t *seq);
 extern bool		ruby_io_putc(ruby_io_t *reader, int);
+extern bool		ruby_io_put_bytes(ruby_io_t *reader, const void *, unsigned int);
 
 extern unsigned long	__report_memory_rss(void);
 

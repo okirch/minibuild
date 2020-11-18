@@ -45,6 +45,7 @@ struct ruby_type {
 	int		registration;
 	ruby_type_t *	base_type;
 
+	bool		(*marshal)(ruby_instance_t *, ruby_marshal_t *);
 	ruby_instance_t *(*unmarshal)(ruby_marshal_t *);
 
 	void		(*del)(ruby_instance_t *);
@@ -62,6 +63,7 @@ struct ruby_instance {
 		int	kind;
 		int	id;
 	} reg;
+	int		marshal_id;
 
 	PyObject *	native;
 	unsigned int	hash_value;
@@ -70,6 +72,7 @@ struct ruby_instance {
 struct ruby_converter {
 	ruby_context_t *context;
 	PyObject *	factory;
+	struct ruby_instancedict *strings;
 };
 
 static inline void
@@ -108,6 +111,8 @@ extern ruby_context_t *	ruby_context_new(void);
 extern void		ruby_context_free(ruby_context_t *);
 extern ruby_instance_t *ruby_context_get_symbol(ruby_context_t *, unsigned int);
 extern ruby_instance_t *ruby_context_get_object(ruby_context_t *, unsigned int);
+extern ruby_instance_t *ruby_context_find_symbol(ruby_context_t *, const char *);
+
 
 extern ruby_converter_t *ruby_converter_new(ruby_context_t *, PyObject *factory);
 extern void		ruby_converter_free(ruby_converter_t *);

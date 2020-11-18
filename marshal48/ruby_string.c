@@ -28,8 +28,9 @@ typedef struct {
 } ruby_String;
 
 
+
 /*
- * String unmarshaling
+ * String marshaling/unmarshaling
  *
  * It would be nice if a string was just a string.
  * However, the string encoding is often transported as a string object
@@ -37,6 +38,15 @@ typedef struct {
  * So we need a ruby.String object that understands the set_instance_var
  * protocol.
  */
+static bool
+ruby_String_marshal(ruby_String *self, ruby_marshal_t *marshal)
+{
+	if (!ruby_marshal_string(marshal, self->str_value, &self->str_base.marshal_id))
+		return false;
+
+	return true;
+}
+
 static ruby_instance_t *
 ruby_String_unmarshal(ruby_marshal_t *marshal)
 {
@@ -134,6 +144,7 @@ ruby_type_t ruby_String_type = {
 	.size		= sizeof(ruby_String),
 	.registration	= RUBY_REG_OBJECT,
 
+	.marshal	= (ruby_instance_marshal_fn_t) ruby_String_marshal,
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_String_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_String_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_String_repr,

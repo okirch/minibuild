@@ -27,6 +27,24 @@ typedef struct {
 	ruby_array_t	arr_items;
 } ruby_Array;
 
+static bool
+ruby_Array_marshal(ruby_Array *self, ruby_marshal_t *marshal)
+{
+	unsigned int i;
+
+	if (!ruby_marshal_array_begin(marshal, self->arr_items.count, &self->arr_base.marshal_id))
+		return false;
+
+	for (i = 0; i < self->arr_items.count; ++i) {
+		ruby_instance_t *item = self->arr_items.items[i];
+
+		if (!ruby_marshal_next_instance(marshal, item))
+			return false;
+	}
+
+	return true;
+}
+
 static ruby_instance_t *
 ruby_Array_unmarshal(ruby_marshal_t *marshal)
 {
@@ -161,6 +179,7 @@ ruby_type_t ruby_Array_type = {
 	.size		= sizeof(ruby_Array),
 	.registration	= RUBY_REG_OBJECT,
 
+	.marshal	= (ruby_instance_marshal_fn_t) ruby_Array_marshal,
 	.unmarshal	= (ruby_instance_unmarshal_fn_t) ruby_Array_unmarshal,
 	.del		= (ruby_instance_del_fn_t) ruby_Array_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_Array_repr,
