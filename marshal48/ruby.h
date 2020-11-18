@@ -64,6 +64,7 @@ struct ruby_instance {
 	} reg;
 
 	PyObject *	native;
+	unsigned int	hash_value;
 };
 
 struct ruby_converter {
