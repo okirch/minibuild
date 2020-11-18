@@ -1,0 +1,56 @@
+#!/usr/bin/python3
+#
+# This is a test script for the marshal48 code
+#
+import marshal48
+
+orig_path = "/home/okir/.gem/specs/localhost%8081/repository/ruby-group/specs.4.8"
+temp_path = "/tmp/blahspecs.4.8"
+
+class GemVersion:
+	ruby_classname = "Gem::Version"
+
+	def __init__(self):
+		self.data = None
+
+	def marshal_load(self, data):
+		self.data = data
+
+	def marshal_dump(self):
+		return self.data
+
+	def __repr__(self):
+		return "GemVersion(%s)" % self.data
+
+	def __eq__(self, other):
+		return self.data == other.data
+
+def factory(name, *args):
+	if name == "Gem::Version":
+		return GemVersion()
+
+	print("factory: requested %s(%s)" % (name, ", ".join(args)))
+	return None
+
+with open(orig_path, "rb") as f:
+	x = marshal48.unmarshal(f, factory)
+
+print("Read %d elements from %s" % (len(x), orig_path))
+
+with open(temp_path, "wb") as f:
+	marshal48.marshal(x, f, True);
+
+print("Wrote %d elements to %s" % (len(x), temp_path))
+
+with open(temp_path, "rb") as f:
+	y = marshal48.unmarshal(f, factory);
+
+print("Read %d elements back from %s" % (len(y), temp_path))
+
+for a, b in zip(x, y):
+	if a != b:
+		print("Difference in item %s != %s" % (a, b))
+		exit(1)
+
+print("Both lists are identical - good")
+
