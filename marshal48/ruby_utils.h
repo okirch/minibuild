@@ -53,6 +53,20 @@ extern ruby_instance_t *ruby_array_get(ruby_array_t *array, unsigned int index);
 extern void		ruby_array_zap(ruby_array_t *);
 extern void		ruby_array_destroy(ruby_array_t *);
 
+
+/*
+ * instancedict lets you search for ruby instances
+ */
+typedef struct ruby_instancedict ruby_instancedict_t;
+
+extern ruby_instancedict_t *ruby_string_instancedict_new(const char *(*keyfunc)(const ruby_instance_t *));
+extern ruby_instance_t *ruby_string_instancedict_lookup(ruby_instancedict_t *, const char *);
+extern void		ruby_string_instancedict_insert(ruby_instancedict_t *, ruby_instance_t *);
+extern void		ruby_instancedict_dump(ruby_instancedict_t *);
+extern void		ruby_instancedict_stats(ruby_instancedict_t *,
+				unsigned int *avg_depth,
+				unsigned int *avg_leaf_size);
+
 extern void		ruby_dict_init(ruby_dict_t *);
 extern void		ruby_dict_add(ruby_dict_t *, ruby_instance_t *key, ruby_instance_t *value);
 /* This just zaps the dict, but does not destroy its dict members */
