@@ -37,6 +37,8 @@ typedef bool		(*ruby_instance_marshal_fn_t)(ruby_instance_t *, ruby_marshal_t *)
 typedef ruby_instance_t *(*ruby_instance_unmarshal_fn_t)(ruby_marshal_t *);
 typedef const char *	(*ruby_instance_repr_fn_t)(ruby_instance_t *, ruby_repr_context_t *);
 typedef bool		(*ruby_instance_set_var_fn_t)(ruby_instance_t *, ruby_instance_t *, ruby_instance_t *);
+typedef ruby_instance_t *(*ruby_type_get_cached_fn_t)(ruby_converter_t *, PyObject *);
+typedef void		(*ruby_instance_add_cache_fn_t)(ruby_instance_t *, ruby_converter_t *);
 typedef PyObject *	(*ruby_instance_to_python_fn_t)(ruby_instance_t *, ruby_converter_t *);
 typedef bool		(*ruby_instance_from_python_fn_t)(ruby_instance_t *, PyObject *, ruby_converter_t *);
 

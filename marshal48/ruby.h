@@ -52,6 +52,9 @@ struct ruby_type {
 	const char *	(*repr)(ruby_instance_t *, ruby_repr_context_t *);
 	bool		(*set_var)(ruby_instance_t *self, ruby_instance_t *key, ruby_instance_t *value);
 
+	ruby_instance_t *(*get_cached)(ruby_converter_t *, PyObject *);
+	void		(*add_cache)(ruby_instance_t *, ruby_converter_t *);
+
 	bool		(*from_python)(ruby_instance_t *, PyObject *, ruby_converter_t *);
 	PyObject *	(*to_python)(ruby_instance_t *, ruby_converter_t *);
 };

@@ -107,6 +107,53 @@ ruby_String_from_python(ruby_String *self, PyObject *py_obj, ruby_converter_t *c
 	return true;
 }
 
+/*
+ * When converting python objects to ruby objects for the purpose of marshaling,
+ * try to compact the output by de-duplicating strings
+ */
+static ruby_instance_t *
+ruby_String_get_cached(ruby_converter_t *converter, PyObject *py_obj)
+{
+	static unsigned long item_count, hit_count;
+	ruby_instance_t *instance;
+	char *raw_string;
+
+	item_count++;
+
+	raw_string = PyUnicode_AsUTF8(py_obj);
+
+	if (!converter->strings)
+		converter->strings = ruby_string_instancedict_new(ruby_String_get_value);
+
+	instance = ruby_string_instancedict_lookup(converter->strings, raw_string);
+	if (instance != NULL)
+		hit_count ++;
+
+#if 0
+	if (item_count && 0 == (item_count % 10000)) {
+		unsigned int avg_depth, avg_leaf_size;
+
+		ruby_instancedict_stats(converter->strings, &avg_depth, &avg_leaf_size);
+		fprintf(stderr, "reused %.2f%% of %lu strings (avg_depth=%u, avg_leaf_size=%u)\n",
+				100.0 * hit_count / item_count, item_count,
+				avg_depth, avg_leaf_size);
+
+		/* If you really want to know what's going on, you could also call:
+		   ruby_instancedict_dump(converter->strings);
+		 */
+	}
+#endif
+
+	return instance;
+}
+
+static void
+ruby_String_add_cache(ruby_instance_t *instance, ruby_converter_t *converter)
+{
+	ruby_string_instancedict_insert(converter->strings, instance);
+}
+
+
 static bool
 ruby_String_set_var(ruby_String *self, ruby_instance_t *key, ruby_instance_t *value)
 {
@@ -149,6 +196,8 @@ ruby_type_t ruby_String_type = {
 	.del		= (ruby_instance_del_fn_t) ruby_String_del,
 	.repr		= (ruby_instance_repr_fn_t) ruby_String_repr,
 	.set_var	= (ruby_instance_set_var_fn_t) ruby_String_set_var,
+	.get_cached	= (ruby_type_get_cached_fn_t) ruby_String_get_cached,
+	.add_cache	= (ruby_instance_add_cache_fn_t) ruby_String_add_cache,
 	.to_python	= (ruby_instance_to_python_fn_t) ruby_String_to_python,
 	.from_python	= (ruby_instance_from_python_fn_t) ruby_String_from_python,
 };
