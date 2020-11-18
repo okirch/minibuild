@@ -145,17 +145,27 @@ failed:
 static bool
 ruby_UserMarshal_from_python(ruby_UserMarshal *self, PyObject *py_obj, ruby_converter_t *converter)
 {
+	const char *py_classname = py_obj->ob_type->tp_name;
 	PyObject *data;
 
 	/* Convert the object class name back to the python name */
 	{
-		const char *py_classname = py_obj->ob_type->tp_name;
+		PyObject *classname_obj;
 		const char *ruby_classname;
 
-		if (!strcmp(py_classname, "GemVersion"))
-			ruby_classname = "Gem::Version";
-		else
-			ruby_classname = py_classname;
+		classname_obj = PyObject_GetAttrString(py_obj, "ruby_classname");
+		if (classname_obj == NULL) {
+			fprintf(stderr, "UserMarshal: unable to convert python class name \"%s\" to ruby class name\n",
+					py_classname);
+			return false;
+		}
+
+		ruby_classname = PyUnicode_AsUTF8(classname_obj);
+		if (ruby_classname == NULL) {
+			fprintf(stderr, "UserMarshal: \"%s\" instance returns invalid ruby class name\n",
+					py_classname);
+			return false;
+		}
 
 		assign_string(&self->marsh_base.obj_classname, ruby_classname);
 	}
@@ -163,7 +173,7 @@ ruby_UserMarshal_from_python(ruby_UserMarshal *self, PyObject *py_obj, ruby_conv
 	/* Call the marshal_dump() method of the new instance and pass it the data object */
 	data = PyObject_CallMethod(py_obj, "marshal_dump", "");
 	if (data == NULL) {
-		fprintf(stderr, "UserMarshal: unable to marshal: %s.marshal_dump() failed\n", py_obj->ob_type->tp_name);
+		fprintf(stderr, "UserMarshal: unable to marshal: %s.marshal_dump() failed\n", py_classname);
 		return false;
 	}
 

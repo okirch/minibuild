@@ -68,6 +68,9 @@ class Ruby:
 			return f(len(self._version), len(other._version))
 
 	class GemVersion(object):
+		# Needed for marshaling
+		ruby_classname = 'Gem::Version'
+
 		def __init__(self):
 			self.versions = []
 
@@ -121,6 +124,9 @@ class Ruby:
 			raise ValueError("Unknown version comparison operator \"%s\"" % self.op)
 
 	class GemRequirement(object):
+		# Needed for marshaling
+		ruby_classname = 'Gem::Requirement'
+
 		def __init__(self):
 			self.req = []
 
@@ -148,6 +154,9 @@ class Ruby:
 			return iter(self.req)
 
 	class GemDependency(object):
+		# Needed for marshaling
+		ruby_classname = 'Gem::Dependency'
+
 		def __init__(self):
 			self.name = None
 			self.requirement = []
@@ -241,6 +250,9 @@ class Ruby:
 		)
 
 	class GemSpecification(object):
+		# Needed for marshaling
+		ruby_classname = 'Gem::Specification'
+
 		def __init__(self):
 			self.name = None
 			self.version = None
@@ -320,6 +332,9 @@ class Ruby:
 			return "GemSpecification(%s-%s)" % (self.name, self.version)
 
 	class Time:
+		# Needed for marshaling
+		ruby_classname = 'Time'
+
 		def __init__(self):
 			self.timedata = None
 
