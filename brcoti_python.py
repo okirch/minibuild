@@ -891,6 +891,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		for wheel in self.artefacts:
 			b.write("wheel %s\n" % wheel.name)
 			b.write("  version %s\n" % wheel.version)
+			b.write("  filename %s\n" % wheel.filename)
 
 			for algo in PythonEngine.REQUIRED_HASHES:
 				b.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
@@ -966,6 +967,144 @@ class PythonBuildState(brcoti_core.BuildState):
 	def create_empty_requires(self, name):
 		return PythonBuildInfo(name)
 
+# Publish a collection of python binary artefacts to a http tree (using a simple index).
+# This is not very efficient, as we rebuild the entire tree whenever we do this.
+# At least for the binary files themselves, it's probably better to just touch up an
+# existing tree.
+class PythonPublisher(brcoti_core.Publisher):
+	def __init__(self, repoconfig):
+		super(PythonPublisher, self).__init__("python", repoconfig)
+
+	def prepare(self):
+		self.prepare_repo_dir()
+
+		self.index_dir = self.prepare_repo_subdir("simple")
+		self.packages_dir = self.prepare_repo_subdir("packages")
+
+		self.packages = {}
+
+	def is_artefact(self, path):
+		return path.endswith(".whl")
+
+	def publish_artefact(self, path):
+		# FIXME: this is not good enough; we will also need requires-python info
+		(name, version, type) = PythonBuildInfo.parse_filename(os.path.basename(path))
+		build = PythonBuildInfo(name, version, type)
+		build.filename = os.path.basename(path)
+		build.local_path = path
+
+		build.update_hash("sha256")
+
+		pi = self.packages.get(name)
+		if pi is None:
+			pi = PythonPackageInfo(name)
+			self.packages[name] = pi
+
+		release = PythonReleaseInfo(name, version)
+		release.add_build(build)
+
+		pi.add_release(release)
+
+	def finish(self):
+		print("Writing index files")
+		for pi in self.packages.values():
+			pkg_index_path = os.path.join(self.index_dir, pi.name)
+			if not os.path.isdir(pkg_index_path):
+				os.makedirs(pkg_index_path, 0o755)
+
+			f = self.simple_index_open(pi.name)
+			for release in sorted(pi.releases, key = lambda r : r.parsed_version):
+				for build in release.builds:
+					if build.type == 'bdist_wheel':
+						self.simple_index_write_build(f, build)
+
+			self.simple_index_write_trailer(f)
+
+		print("Copying wheels")
+		for pi in self.packages.values():
+			for release in pi.releases:
+				for build in release.builds:
+					if build.type != 'bdist_wheel':
+						continue
+
+					location = self.package_location(build)
+					location = os.path.join(self.packages_dir, location)
+
+					dir = os.path.dirname(location)
+					if not os.path.exists(dir):
+						os.makedirs(dir, mode = 0o755)
+					shutil.copy(build.local_path, location)
+
+		self.simple_index_top_write([pi.name for pi in self.packages.values()])
+
+	pkg_index_header = (
+		'<!DOCTYPE html>',
+		'<html>',
+		'  <head>',
+		'    <title>Links for %PKG</title>',
+		'  </head>',
+		'  <body>',
+		'    <h1>Links for %PKG</h1>',
+	)
+	pkg_index_trailer = (
+		'  </body>',
+		'</html>',
+	)
+	def simple_index_open(self, pkg_name):
+		pkg_index_path = os.path.join(self.index_dir, pkg_name)
+		if not os.path.isdir(pkg_index_path):
+			os.makedirs(pkg_index_path, 0o755)
+
+		f = open(os.path.join(pkg_index_path, "index.html"), "w")
+		for l in self.pkg_index_header:
+			l = l.replace("%PKG", pkg_name)
+			print(l, file = f)
+
+		return f
+
+	def simple_index_write_build(self, f, build, algo = "sha256"):
+		# If the build requires specific python versions, we'll have to add something like
+		# data-requires-python="&gt;=3.4" or worse data-requires-python="&gt;=2.7, !=3.0, !=3.1, !=3.2, != 3.3"
+
+		location = self.package_location(build)
+
+		line = "    <a href=\"../../packages/%s#%s=%s\">%s</a><br/>" % (location, algo, build.get_hash(algo), build.filename)
+		print(line, file = f)
+
+	def simple_index_write_trailer(self, f):
+		for l in self.pkg_index_trailer:
+			print(l, file = f)
+
+	def package_location(self, build):
+		# pythonhosted.org uses a two-level hierarchy based on the file's hash, but
+		# for the time being, we don't go there. Not enough meat yet.
+		return build.filename
+
+	top_index_header = (
+		'<html>',
+		'  <head>',
+		'    <title>Simple index</title>',
+		'  </head>',
+		'  <body>',
+	)
+	top_index_trailer = (
+		'  </body>',
+		'</html>',
+	)
+
+	def simple_index_top_write(self, names):
+		path = os.path.join(self.index_dir, "index.html")
+		with open(path, "w") as f:
+			for l in self.top_index_header:
+				print(l, file = f)
+
+			for name in names:
+				line = "    <a href=\"/simple/%PKG/\">%PKG</a>".replace("%PKG", name)
+				print(line, file = f)
+
+			for l in self.top_index_trailer:
+				print(l, file = f)
+
 class PythonEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
@@ -983,6 +1122,9 @@ class PythonEngine(brcoti_core.Engine):
 
 	def create_uploader_from_repo(self, repo_config):
 		return PythonUploader(repo_config.url, user = repo_config.user, password = repo_config.password)
+
+	def create_publisher_from_repo(self, repo_config):
+		return PythonPublisher(repo_config)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)

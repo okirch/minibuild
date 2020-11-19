@@ -617,7 +617,6 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	# time being I don't know where to actually get this info from
 	def guess_build_dependencies(self):
 		from packaging.requirements import Requirement
-		import re
 
 		self.build_requires = []
 
@@ -644,6 +643,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		for build in self.artefacts:
 			b.write("gem %s\n" % build.name)
 			b.write("  version %s\n" % build.version)
+			b.write("  filename %s\n" % build.filename)
 
 			for algo in RubyEngine.REQUIRED_HASHES:
 				b.write("  hash %s %s\n" % (algo, build.get_hash(algo)))
@@ -724,6 +724,26 @@ class RubyBuildState(brcoti_core.BuildState):
 	def create_empty_requires(self, name):
 		return RubyBuildInfo(name)
 
+class RubyPublisher(brcoti_core.Publisher):
+	def __init__(self, repoconfig):
+		super(RubyPublisher, self).__init__("ruby", repoconfig)
+
+	def prepare(self):
+		self.prepare_repo_dir()
+
+		self.gems_dir = self.prepare_repo_subdir("gems")
+
+	def is_artefact(self, path):
+		return path.endswith(".gem")
+
+	def publish_artefact(self, path):
+		print(" %s" % path)
+		shutil.copy(path, self.gems_dir)
+
+	def finish(self):
+		cmd = "gem generate_index --directory %s" % self.repo_dir
+		brcoti_core.run_command(cmd)
+
 class RubyEngine(brcoti_core.Engine):
 	REQUIRED_HASHES = ('md5', 'sha256')
 
@@ -735,6 +755,9 @@ class RubyEngine(brcoti_core.Engine):
 
 	def create_uploader_from_repo(self, repo_config):
 		return RubyUploader(repo_config.url, user = repo_config.user, password = repo_config.password)
+
+	def create_publisher_from_repo(self, repo_config):
+		return RubyPublisher(repo_config)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)

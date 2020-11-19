@@ -81,6 +81,9 @@ class PackageBuildInfo(Object):
 	def id(self):
 		self.nmi()
 
+	def __repr__(self):
+		return "%s(%s)" % (self.__class__.__name__, self.id())
+
 	def git_url(self):
 		self.nmi()
 
@@ -514,6 +517,38 @@ class BuildState(Object):
 	def create_empty_requires(self, name):
 		self.mni()
 
+class Publisher(Object):
+	def __init__(self, type, repconfig):
+		self.type = type
+		self.repoconfig = repconfig
+
+	# TBD: implement a two-stage process where we first
+	# create the updated hierarchy in a temporary location,
+	# and then rename it to the final location (more or less
+	# atomically).
+
+	def commit(self):
+		pass
+
+	def prepare_repo_dir(self):
+		path = self.repoconfig.url
+
+		if not path.startswith("/"):
+			raise ValueError("Cannot create publisher for URL \"%s\"" % path)
+
+		if os.path.exists(path):
+			shutil.rmtree(path)
+
+		self.repo_dir = path
+		os.makedirs(self.repo_dir, mode = 0o755)
+
+		return path
+
+	def prepare_repo_subdir(self, relative_path):
+		path = os.path.join(self.repo_dir, relative_path)
+		os.makedirs(path)
+		return path
+
 class ComputeResourceFS(Object):
 	def __init__(self, path):
 		self.path = path
@@ -895,12 +930,13 @@ class Engine(Object):
 		self.state_dir = os.path.join(config.globals.output_dir, engine_config.name)
 
 		opts = config.command_line_options
-		self.prefer_git = opts.git
+		self.prefer_git = getattr(opts, "git", False)
 
 		self.index = self.create_index(engine_config)
 		self.upstream_index = self.create_upstream_index(engine_config)
 		self.downloader = self.create_downloader(engine_config)
 		self.uploader = self.create_uploader(engine_config)
+		self.publisher = self.create_publisher(engine_config)
 
 	def create_index(self, engine_config):
 		repo_config = engine_config.resolve_repository("download-repo")
@@ -919,6 +955,14 @@ class Engine(Object):
 		print("%s: upstream repo is %s" % (engine_config.name, repo_config.url))
 
 		return self.create_index_from_repo(repo_config)
+
+	def create_publisher(self, engine_config):
+		repo_config = engine_config.resolve_repository("publish-repo")
+		if repo_config is None:
+			raise ValueError("No publish-repo configured for engine \"%s\"" % engine_config.name)
+
+		print("%s: publish repo is %s" % (engine_config.name, repo_config.url))
+		return self.create_publisher_from_repo(repo_config)
 
 	def create_downloader(self, engine_config):
 		return Downloader()
@@ -958,6 +1002,26 @@ class Engine(Object):
 
 	def build_state_path(self, artefact_name):
 		return os.path.join(self.state_dir, artefact_name)
+
+	def publish_build_results(self):
+		publisher = self.publisher
+		if not publisher:
+			raise ValueError("%s: no publisher" % self.name)
+
+		publisher.prepare()
+
+		self.rescan_state_dir(publisher)
+
+		publisher.finish()
+		publisher.commit()
+
+	def rescan_state_dir(self, publisher):
+		print("Scanning %s for artefacts" % self.state_dir);
+		for (dir_path, dirnames, filenames) in os.walk(self.state_dir):
+			for f in filenames:
+				file_path = os.path.join(dir_path, f)
+				if publisher.is_artefact(file_path):
+					publisher.publish_artefact(file_path)
 
 	def build_unpack(self, compute, sdist):
 		self.mni()

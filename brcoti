@@ -244,6 +244,15 @@ def build_action(config, opts):
 	print("=== Done ===")
 	return exit_code
 
+def mkindex_action(config, opts):
+	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
+
+	print("=== Publishing %s build results ===" % engine.name)
+	engine.publish_build_results()
+
+	print("=== Done ===")
+	return 0
+
 def build_option_parser():
 	import argparse
 
@@ -286,13 +295,14 @@ def build_option_parser():
 	build_parser.add_argument('--force', default = False, action = 'store_true',
                 help = "Always store build results, even if they did not change")
 
+	mkindex_parser = subparsers.add_parser('make-index',
+		help = "Rebuild package index")
+	mkindex_parser.add_argument('--destdir', default = None,
+		help = "Specify the destination directory (defaults to working directory)")
+
 	return parser
 
 opts = build_option_parser().parse_args()
-
-if not opts.packages:
-	print("Nothing to be done.")
-	exit(0)
 
 config = brcoti_core.Config(opts)
 config.load_file("/etc/pybuilder.json")
@@ -300,9 +310,19 @@ for config_path in opts.config:
 	config.load_file(config_path)
 
 if opts.action == 'prep':
+	if not opts.packages:
+		print("Nothing to be done.")
+		exit(0)
+
 	exit_code = prep_action(config, opts)
 elif opts.action == 'build':
+	if not opts.packages:
+		print("Nothing to be done.")
+		exit(0)
+
 	exit_code = build_action(config, opts)
+elif opts.action == 'make-index':
+	exit_code = mkindex_action(config, opts)
 else:
 	raise NotImplementedError("Action %s not yet implemented" % opts.action)
 exit(exit_code)
