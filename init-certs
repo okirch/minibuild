@@ -1,0 +1,179 @@
+#!/bin/bash
+#
+# Helper script for generating CA and HTTPS server keys and certs
+#
+#
+# This generates the following files in subdirectory certificates/
+#
+# ca-cert.pem
+#	Phony CA certificate. This needs to be installed
+#	in all client containers that are supposed to interact with
+#	the minibuild service
+#
+# ca-key.pem, ca-signing-key.pem
+#	Keys of the CA. These need to be installed in the proxy
+#	container so that it is able to intercept https
+#	connections.
+#
+# minibuild-key.pem, minibuild-cert.pem, minibuild.crt
+#	HTTPS key and certificate files for use with the minibuild
+#	artefact server.
+#	The latter contains the entire certificate chain.
+
+
+set -e
+
+CERTDIR=certificates
+
+TEMPDIR=$(mktemp -td minibuild.XXXXXX)
+trap "rm -rf $TEMPDIR" 0 1 2 11 15
+
+
+PASS="none"
+CA_SUBJECT="/CN=minibuild-ca.suse.com"
+CA_KEY="$CERTDIR/ca-key.pem"
+CA_CERT="$CERTDIR/ca-cert.pem"
+PROXY_MITM_KEY="$CERTDIR/ca-signing-key.pem"
+
+SERVER_SUBJECT="/CN=minibuild.suse.com"
+SERVER_KEY="$CERTDIR/minibuild-key.pem"
+SELF_SIGNED_CERT="$TEMPDIR/cert.pem"
+SERVER_HOSTNAMES=
+SERVER_IPADDRS="127.0.0.2 127.0.0.3"
+SERVER_CSR=$TEMPDIR/csr.pem
+SERVER_CERT="$CERTDIR/minibuild-cert.pem"
+SERVER_CERT_CHAIN="$CERTDIR/minibuild.crt"
+
+function msg {
+
+	echo "=== $* ==="
+}
+
+function generate_private_key {
+
+	local KEYFILE=$1
+
+	openssl genrsa -aes256 -passout pass:$PASS -out $KEYFILE 2048
+	openssl rsa -passin pass:$PASS -in $KEYFILE -out $KEYFILE
+}
+
+function req_config {
+
+	local config_file="$TEMPDIR/req.conf"
+
+	if [ ! -f $config_file ]; then
+		cat >$config_file <<-EOF
+			[ req ]
+			distinguished_name      = req_distinguished_name
+
+			[ req_distinguished_name ]
+			# Nothing
+EOF
+	fi
+
+	echo $config_file
+}
+
+function generate_self_signed_cert {
+
+	local KEY=$1; shift
+	local SUBJECT=$1; shift
+	local CERT=$1; shift
+	local REQ_CONFIG=$(req_config)
+
+	openssl req -new -x509 -sha256 \
+		-days 365 -subj $SUBJECT \
+		-config $REQ_CONFIG \
+		-key $KEY -out $CERT
+}
+
+function generate_csr {
+
+	local KEY=$1
+	local CERT=$2
+	local CSR=$3
+
+	openssl x509 -x509toreq \
+		-in $CERT \
+		-signkey $KEY \
+		-out $CSR
+}
+
+function ext_config {
+
+	local config_file="$TEMPDIR/ext.conf"
+
+	if [ ! -f $config_file ]; then
+		{
+			echo -n "subjectAltName"
+			sepa='='
+			for name in $SERVER_HOSTNAMES; do
+				echo -n "${sepa}DNS:$name"
+				sepa=','
+			done
+			for name in $SERVER_IPADDRS; do
+				echo -n "${sepa}IP:$name"
+				sepa=','
+			done
+			echo
+		} >$config_file
+	fi
+
+	echo $config_file
+}
+
+function sign_csr {
+
+	local CA_KEY=$1; shift
+	local CA_CERT=$1; shift
+	local CSR=$1; shift
+	local CERT=$1; shift
+	local EXT_CONFIG=$(ext_config)
+
+	SERIAL=$(date +%s)
+	openssl x509 -req -sha256 \
+		-CA $CA_CERT -CAkey $CA_KEY \
+		-set_serial $SERIAL -days 365 \
+		-extfile $EXT_CONFIG \
+		-in $CSR -out $CERT
+}
+
+function show_cert {
+
+	openssl x509 -text -in $1 -noout
+}
+
+mkdir -p $CERTDIR
+rm -f $CERTDIR/*
+
+# Generate CA key
+msg "Generating CA private key ($CA_KEY)"
+generate_private_key $CA_KEY
+
+msg "Generate CA certificate ($CA_CERT)"
+generate_self_signed_cert $CA_KEY $CA_SUBJECT $CA_CERT
+
+# Generate key that will be used by the proxy to generate domain certificates on the fly
+# Generated certificates are then signed with CA certificate / key generated above
+msg "Generate proxy signing key ($PROXY_MITM_KEY)"
+generate_private_key $PROXY_MITM_KEY
+
+# Generate https server key
+msg "Generate https server key ($SERVER_KEY)"
+generate_private_key $SERVER_KEY
+
+msg "Generate https cert request ($SERVER_CSR)"
+generate_self_signed_cert $SERVER_KEY $SERVER_SUBJECT $SELF_SIGNED_CERT
+
+# Now turn this into a Cert Signing Request
+generate_csr $SERVER_KEY $SELF_SIGNED_CERT $SERVER_CSR
+# openssl req -text -in $SERVER_CSR -noout
+
+msg "Signing server certificate"
+sign_csr $CA_KEY $CA_CERT $SERVER_CSR $SERVER_CERT
+
+msg "Combining cert chain into $SERVER_CERT_CHAIN"
+cat $SERVER_CERT $CA_CERT > $SERVER_CERT_CHAIN
+
+sudo cp -v $SERVER_KEY $SERVER_CERT $SERVER_CERT_CHAIN /srv/minibuild/nginx
+echo "Generated server key: $SERVER_KEY; cert: $SERVER_CERT; cert chain: $SERVER_CERT_CHAIN"
