@@ -134,17 +134,20 @@ class Ruby:
 			# Calls look like
 			# GemRequirement.marshal_load([[['>=', 3.0.0]]])
 			# print("GemRequirement.marshal_load(%s)" % data)
-			for r in data:
-				assert(type(r) == list)
-				assert(len(r) == 1)
-				r = r[0]
+			if type(data) == list and len(data) == 1:
+				data = data[0]
 
+			for r in data:
+				# print("  %s" % r)
 				self.req.append(Ruby.Clause(*r))
 
 		def __repr__(self):
 			return "[%s]" % (", ".join(str(r) for r in self.req))
 
 		def __contains__(self, item):
+			return self.contains(item)
+
+		def contains(self, item):
 			if not isinstance(item, Ruby.ParsedVersion):
 				item = Ruby.ParsedVersion(item)
 
