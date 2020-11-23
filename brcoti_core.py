@@ -289,7 +289,12 @@ class BuildDirectory(Object):
 
 				line = f.readline()
 
+			log.close()
+
 			print("Command output written to %s" % self.build_log)
+
+			if f.close():
+				raise ValueError("Command `%s' returned non-zero exit status" % cmd)
 		else:
 			cmd += " >/dev/null 2>&1"
 			self.compute.run_command(cmd, working_dir = self.directory)
