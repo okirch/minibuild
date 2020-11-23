@@ -33,7 +33,7 @@
 		}, {
 			"type" :  "ruby",
 			"name" :  "rebuilds",
-			"url" :  "http://localhost:8081/repository/ruby-rebuilds/",
+			"url" :  "http://rubygems.minibuild",
 			"credentials" :  "nexus"
 		}, {
 			"type" :  "ruby",
@@ -42,7 +42,7 @@
 		}, {
 			"type" :  "ruby",
 			"name" :  "upstream",
-			"url" :  "https://rubygems.org/"
+			"url" :  "https://rubygems.org"
 		}, {
 			"type" :  "ruby",
 			"name" :  "publish",

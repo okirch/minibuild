@@ -315,11 +315,15 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 				# weird. rubygems.org always gives us an array of versions,
 				# but nexus seems to give us a single version object
 				if isinstance(version_list, ruby_utils.Ruby.GemVersion):
-					version = str(version_list)
+					v = str(version_list)
 				else:
-					version = version_list[0]
+					v = version_list[0]
+
 				if gem[2] != 'ruby':
-					raise ValueError("Cannot use %s-%s: platform is \"%s\"" % (name, version, gem[2]))
+					print("Warning: Cannot use %s-%s: platform is \"%s\"" % (name, v, gem[2]))
+					continue
+
+				version = v
 				break
 
 		if not version:
@@ -339,8 +343,9 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 	def _download_and_parse_specs(self, filename):
 		import urllib.request
 
-		url = self.url + "/" + filename
+		url = os.path.join(self.url, filename)
 
+		print("Downloading index at %s" % url)
 		resp = urllib.request.urlopen(url)
 		if resp.status != 200:
 			raise ValueError("Unable to download index %s: HTTP response %s (%s)" % (
@@ -382,9 +387,18 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		return build
 
 	def gemspec_to_source(self, gemspec):
+		if gemspec.metadata:
+			source_code_uri = gemspec.metadata.get('source_code_uri')
+			if source_code_uri is not None:
+				build = self.uri_to_source(gemspec, source_code_uri)
+				if build is not None:
+					return build
+
 		for url in (gemspec.homepage, gemspec.unknown3):
 			# source tarballs for eg sprockets-rails can be found at
 			# https://github.com/rails/sprockets-rails/archive/v${version}.tar.gz
+			if type(url) != str:
+				continue
 			if url.startswith('https://github.com/'):
 				url = "%s/archive/v%s.tar.gz" % (url, gemspec.version)
 				if self.uri_exists(url):
@@ -392,6 +406,36 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 					build.filename = "%s-%s.tar.gz" % (gemspec.name, gemspec.version)
 					build.url = url
 					return build
+
+		return None
+
+	def uri_to_source(self, gemspec, uri):
+		if type(uri) != str:
+			return None
+
+		def try_archive_url(uri):
+			uri = "%s/archive/v%s.tar.gz" % (uri, gemspec.version)
+			if self.uri_exists(uri):
+				build = self.gemspec_to_build_common(gemspec, 'source')
+				build.filename = "%s-%s.tar.gz" % (gemspec.name, gemspec.version)
+				build.url = uri
+				return build
+
+		print("Check if we can get source from URI %s" % uri)
+		if uri.startswith('https://github.com/'):
+			# railties metadata specifies a source_code_url of
+			# https://github.com/rails/rails/tree/v6.0.3.4/railties
+			needle = "/tree/v%s" % (gemspec.version,)
+			if uri.endswith(needle):
+				build = try_archive_url(uri[:-len(needle)])
+				if build is not None:
+					return build
+
+			# sprockets-rails specifies a homepage of 
+			# https://github.com/rails/sprockets-rails
+			build = try_archive_url(uri)
+			if build is not None:
+				return build
 
 		return None
 
@@ -423,9 +467,13 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		import urllib.request
 
 		req = urllib.request.Request(url=url, method='HEAD')
-		resp = urllib.request.urlopen(req)
 
-		return resp.status == 200
+		try:
+			resp = urllib.request.urlopen(req)
+			return resp.status == 200
+		except:
+			print("URI %s does not exist" % url)
+			return False
 
 # Upload package using "gem nexus"
 # You need to have the nexus gem installed for this
@@ -761,6 +809,10 @@ class RubyEngine(brcoti_core.Engine):
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
+
+		compute.putenv('http_proxy', 'localhost:8899')
+		compute.putenv('https_proxy', 'localhost:8899')
+		return compute
 
 		index_url = compute.translate_url(self.index.url)
 		urls = []
