@@ -784,14 +784,21 @@ class Config(object):
 		def __init__(self, config, d):
 			super(Config.Network, self).__init__(config, d)
 
+	class Pod(ConfigItem):
+		_fields = ('name', )
+
+		def __init__(self, config, d):
+			super(Config.Pod, self).__init__(config, d)
+
 	class Environment(ConfigItem):
-		_fields = ('name', 'type', 'build_dir', 'images', 'network')
+		_fields = ('name', 'type', 'build_dir', 'images', 'network', 'pod')
 
 		def __init__(self, config, d):
 			super(Config.Environment, self).__init__(config, d)
 
 			self.images = config._to_list(self.images, Config.Image)
 			self.network = config._to_object(self.network, Config.Network)
+			self.pod = config._to_object(self.pod, Config.Pod)
 
 		def get_image(self, flavor):
 			for img in self.images:

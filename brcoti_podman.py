@@ -43,6 +43,10 @@ class PodmanCmd(object):
 
 	def popen(self):
 		cmd = self.cmd
+
+		print("podman: " + self.cmd)
+		sys.stdout.flush()
+
 		if os.getuid() != 0:
 			cmd = "sudo -- " + cmd
 		return os.popen(cmd)
@@ -54,6 +58,8 @@ class PodmanCompute(brcoti_core.Compute):
 
 	def spawn(self, flavor):
 		img_config = self.config.get_image(flavor)
+
+		self.pod_name = self.config.pod.name
 
 		if not self.network_up:
 			self.setup_network()
@@ -159,7 +165,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		# Kludge to make https://localhost URLs work in the container
 		self._mapped_hostname = None
 
-		self.start(img_config, backend.network_name)
+		self.start(img_config, backend.network_name, backend.pod_name)
 
 		self.env = {}
 
@@ -174,19 +180,22 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		if self.container_id:
 			PodmanCmd("stop", self.container_id).run()
 
-	def start(self, img_config, network_name):
+	def start(self, img_config, network_name, pod_name):
 		assert(self.container_id is None)
+		assert(network_name is None or pod_name is None)
 
 		self.setup_localhost_mapping()
 
-		args = []
+		args = ["--rm", "-d"]
 		for host in self.hosts:
 			args.append("--add-host %s" % host)
 		if network_name:
 			args += ("--network", network_name)
+		if pod_name:
+			args += ("--pod", pod_name)
 		args.append(img_config.image)
 
-		f = PodmanCmd("run --rm -d", " ".join(args)).popen()
+		f = PodmanCmd("run", " ".join(args)).popen()
 		self.container_id = f.read().strip()
 		assert(self.container_id)
 
