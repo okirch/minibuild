@@ -38,8 +38,8 @@ PROXY_MITM_KEY="$CERTDIR/ca-signing-key.pem"
 SERVER_SUBJECT="/CN=minibuild.suse.com"
 SERVER_KEY="$CERTDIR/minibuild-key.pem"
 SELF_SIGNED_CERT="$TEMPDIR/cert.pem"
-SERVER_HOSTNAMES=
-SERVER_IPADDRS="127.0.0.2 127.0.0.3"
+SERVER_HOSTNAMES="pypi.minibuild rubygems.minibuild"
+SERVER_IPADDRS=
 SERVER_CSR=$TEMPDIR/csr.pem
 SERVER_CERT="$CERTDIR/minibuild-cert.pem"
 SERVER_CERT_CHAIN="$CERTDIR/minibuild.crt"
@@ -108,10 +108,12 @@ function ext_config {
 			echo -n "subjectAltName"
 			sepa='='
 			for name in $SERVER_HOSTNAMES; do
+				echo "  subjectAltName DNS:$name" >&2
 				echo -n "${sepa}DNS:$name"
 				sepa=','
 			done
 			for name in $SERVER_IPADDRS; do
+				echo "  subjectAltName IP:$name" >&2
 				echo -n "${sepa}IP:$name"
 				sepa=','
 			done
@@ -143,37 +145,73 @@ function show_cert {
 	openssl x509 -text -in $1 -noout
 }
 
-mkdir -p $CERTDIR
-rm -f $CERTDIR/*
+function action_clean {
 
-# Generate CA key
-msg "Generating CA private key ($CA_KEY)"
-generate_private_key $CA_KEY
+	mkdir -p $CERTDIR
+	rm -f $CERTDIR/*
+}
 
-msg "Generate CA certificate ($CA_CERT)"
-generate_self_signed_cert $CA_KEY $CA_SUBJECT $CA_CERT
+function action_ca {
+	# Generate CA key
+	msg "Generating CA private key ($CA_KEY)"
+	generate_private_key $CA_KEY
 
-# Generate key that will be used by the proxy to generate domain certificates on the fly
-# Generated certificates are then signed with CA certificate / key generated above
-msg "Generate proxy signing key ($PROXY_MITM_KEY)"
-generate_private_key $PROXY_MITM_KEY
+	msg "Generate CA certificate ($CA_CERT)"
+	generate_self_signed_cert $CA_KEY $CA_SUBJECT $CA_CERT
 
-# Generate https server key
-msg "Generate https server key ($SERVER_KEY)"
-generate_private_key $SERVER_KEY
+	# Generate key that will be used by the proxy to generate domain certificates on the fly
+	# Generated certificates are then signed with CA certificate / key generated above
+	msg "Generate proxy signing key ($PROXY_MITM_KEY)"
+	generate_private_key $PROXY_MITM_KEY
+}
 
-msg "Generate https cert request ($SERVER_CSR)"
-generate_self_signed_cert $SERVER_KEY $SERVER_SUBJECT $SELF_SIGNED_CERT
+function action_server {
+	# Generate https server key
+	msg "Generate https server key ($SERVER_KEY)"
+	generate_private_key $SERVER_KEY
 
-# Now turn this into a Cert Signing Request
-generate_csr $SERVER_KEY $SELF_SIGNED_CERT $SERVER_CSR
-# openssl req -text -in $SERVER_CSR -noout
+	msg "Generate https cert request ($SERVER_CSR)"
+	generate_self_signed_cert $SERVER_KEY $SERVER_SUBJECT $SELF_SIGNED_CERT
 
-msg "Signing server certificate"
-sign_csr $CA_KEY $CA_CERT $SERVER_CSR $SERVER_CERT
+	# Now turn this into a Cert Signing Request
+	generate_csr $SERVER_KEY $SELF_SIGNED_CERT $SERVER_CSR
+	# openssl req -text -in $SERVER_CSR -noout
 
-msg "Combining cert chain into $SERVER_CERT_CHAIN"
-cat $SERVER_CERT $CA_CERT > $SERVER_CERT_CHAIN
+	msg "Signing server certificate"
+	sign_csr $CA_KEY $CA_CERT $SERVER_CSR $SERVER_CERT
 
-sudo cp -v $SERVER_KEY $SERVER_CERT $SERVER_CERT_CHAIN /srv/minibuild/nginx
-echo "Generated server key: $SERVER_KEY; cert: $SERVER_CERT; cert chain: $SERVER_CERT_CHAIN"
+	msg "Combining cert chain into $SERVER_CERT_CHAIN"
+	cat $SERVER_CERT $CA_CERT > $SERVER_CERT_CHAIN
+}
+
+function publish {
+	sudo cp -v $SERVER_KEY $SERVER_CERT $SERVER_CERT_CHAIN /srv/minibuild/nginx
+	echo "Generated server key: $SERVER_KEY; cert: $SERVER_CERT; cert chain: $SERVER_CERT_CHAIN"
+
+	sudo mkdir -p /srv/minibuild/proxy
+	sudo cp certificates/ca*pem /srv/minibuild/proxy
+}
+
+if [ $# -eq 0 ]; then
+	set "all"
+fi
+
+for action; do
+	case $action in
+	clean)
+		action_clean;;
+	ca)
+		action_ca;;
+	server)
+		action_server;;
+	all)
+		action_clean
+		action_ca
+		action_server;;
+	*)
+		echo "Unknown action $action" >&2
+		exit 1;;
+	esac
+done
+
+publish
