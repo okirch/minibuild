@@ -54,15 +54,17 @@ def source_from_path(engine, name):
 
 	return sdist
 
-def find_source(engine, name, use_upstream = False):
-	print("=== Locating %s in %s repository ===" % (name, use_upstream and "upstream" or "rebuild"))
+def find_source(engine, req_string, use_upstream = False):
+	print("=== Locating %s in %s repository ===" % (req_string, use_upstream and "upstream" or "rebuild"))
+	req = engine.parse_build_requirement(req_string)
+
 	if not use_upstream:
-		sdist = engine.build_source_locate(name)
+		sdist = engine.build_source_locate(req)
 	else:
-		sdist = engine.build_source_locate_upstream(name)
+		sdist = engine.build_source_locate_upstream(req)
 
 	if sdist is None:
-		print("FAILED to locate source for %s" % name)
+		print("FAILED to locate source for %s" % req)
 		return None
 
 	return sdist
