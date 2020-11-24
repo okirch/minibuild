@@ -37,10 +37,10 @@ def get_rubygems_version():
 def canonical_package_name(name):
 	return name
 
-# FIXME: split BuildInfo and BuildRequirement
-class RubyBuildInfo(brcoti_core.PackageBuildInfo):
+# FIXME: split Artefact and BuildRequirement
+class RubyArtefact(brcoti_core.Artefact):
 	def __init__(self, name, version = None, type = None):
-		super(RubyBuildInfo, self).__init__(canonical_package_name(name), version)
+		super(RubyArtefact, self).__init__(canonical_package_name(name), version)
 
 		self.type = type
 		self.required_ruby_version = None
@@ -150,7 +150,7 @@ class RubyBuildInfo(brcoti_core.PackageBuildInfo):
 
 		if not name or not version or not type:
 			# try to detect version and type by looking at the file name
-			_name, _version, _type = RubyBuildInfo.parse_filename(filename)
+			_name, _version, _type = RubyArtefact.parse_filename(filename)
 
 			if name:
 				assert(name == _name)
@@ -162,7 +162,7 @@ class RubyBuildInfo(brcoti_core.PackageBuildInfo):
 				assert(type == _type)
 			type = _type
 
-		build = RubyBuildInfo(name, version, type)
+		build = RubyArtefact(name, version, type)
 		build.filename = filename
 		build.local_path = path
 
@@ -441,7 +441,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		return None
 
 	def gemspec_to_build_common(self, gemspec, build_type):
-		build = RubyBuildInfo(gemspec.name, gemspec.version, type = build_type)
+		build = RubyArtefact(gemspec.name, gemspec.version, type = build_type)
 		build.required_ruby_version = gemspec.required_ruby_version
 		build.required_rubygems_version = gemspec.required_rubygems_version
 
@@ -618,7 +618,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
 	def archive_get_unpack_directory(self, sdist):
-		name, version, type = RubyBuildInfo.parse_filename(sdist.local_path)
+		name, version, type = RubyArtefact.parse_filename(sdist.local_path)
 		return name + "-" + version
 
 	def unpack_git(self, sdist, destdir):
@@ -646,7 +646,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		for w in gems:
 			w = w.hostpath()
 
-			build = RubyBuildInfo.from_local_file(w)
+			build = RubyArtefact.from_local_file(w)
 
 			for algo in RubyEngine.REQUIRED_HASHES:
 				build.update_hash(algo)
@@ -673,7 +673,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		for dep in gemspec.dependencies:
 			if dep.type != 'development':
 				continue
-			req = RubyBuildInfo(dep.name, type = "gem")
+			req = RubyArtefact(dep.name, type = "gem")
 			req.fullreq = req.name + ",".join([str(x) for x in dep.requirement])
 			req.cooked_requirement = dep
 
@@ -765,7 +765,7 @@ class RubyEngine(brcoti_core.Engine):
 
 	# Used by the build-requires parsing
 	def create_empty_requires(self, name):
-		return RubyBuildInfo(name)
+		return RubyArtefact(name)
 
 	# Given a build requirement, find the best match in the package index
 	def resolve_build_requires(self, req):
@@ -802,7 +802,7 @@ class RubyEngine(brcoti_core.Engine):
 		return compute
 
 	def build_info_from_local_file(self, path):
-		return RubyBuildInfo.from_local_file(path)
+		return RubyArtefact.from_local_file(path)
 
 	def build_source_locate(self, req_string, verbose = False):
 		finder = RubySourceDownloadFinder(req_string, verbose)

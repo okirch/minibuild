@@ -68,7 +68,7 @@ class Object(object):
 		# Fall back to a more bland error message
 		raise NotImplementedError("%s: method not implemented" % (self.__class__.__name__))
 
-class PackageBuildInfo(Object):
+class Artefact(Object):
 	def __init__(self, name, version = None):
 		self.name = name
 		self.version = version

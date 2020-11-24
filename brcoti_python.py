@@ -205,9 +205,9 @@ def get_python_version():
 def canonical_package_name(name):
 	return name.replace('_', '-')
 
-class PythonBuildInfo(brcoti_core.PackageBuildInfo):
+class PythonArtefact(brcoti_core.Artefact):
 	def __init__(self, name, version = None, type = None):
-		super(PythonBuildInfo, self).__init__(canonical_package_name(name), version)
+		super(PythonArtefact, self).__init__(canonical_package_name(name), version)
 
 		self.type = type
 		self.requires_python = None
@@ -338,7 +338,7 @@ class PythonBuildInfo(brcoti_core.PackageBuildInfo):
 
 		if not name or not version or not type:
 			# try to detect version and type by looking at the file name
-			_name, _version, _type = PythonBuildInfo.parse_filename(filename)
+			_name, _version, _type = PythonArtefact.parse_filename(filename)
 
 			if name:
 				assert(name == _name)
@@ -350,7 +350,7 @@ class PythonBuildInfo(brcoti_core.PackageBuildInfo):
 				assert(type == _type)
 			type = _type
 
-		build = PythonBuildInfo(name, version, type)
+		build = PythonArtefact(name, version, type)
 		build.filename = filename
 		build.local_path = path
 
@@ -494,9 +494,9 @@ class JSONPackageIndex(brcoti_core.HTTPPackageIndex):
 				if type == 'sdist':
 					if download['python_version'] != 'source':
 						raise ValueError("%s: unable to deal with sdist package w/ version \"%s\"" % (download['filename'], download['python_version']))
-					pkgInfo = PythonBuildInfo(name, ver, type = type)
+					pkgInfo = PythonArtefact(name, ver, type = type)
 				elif type.startswith('bdist'):
-					pkgInfo = PythonBuildInfo(name, ver, type = type)
+					pkgInfo = PythonArtefact(name, ver, type = type)
 				else:
 					print("%s: don't know how to deal with package type \"%s\"" % (filename, type))
 					continue
@@ -614,7 +614,7 @@ class SimplePackageIndex(brcoti_core.HTTPPackageIndex):
 		assert(filename == anchor.text)
 
 		try:
-			name, version, type = PythonBuildInfo.parse_filename(filename)
+			name, version, type = PythonArtefact.parse_filename(filename)
 			# print("%s => (\"%s\", \"%s\", \"%s\")" % (filename, name, version, type))
 		except ValueError:
 			print("WARNING: Unable to parse filename \"%s\" in SimpleIndex response" % filename)
@@ -623,7 +623,7 @@ class SimplePackageIndex(brcoti_core.HTTPPackageIndex):
 		if type == 'rpm' or type == 'exe':
 			return None
 
-		build = PythonBuildInfo(name, version, type)
+		build = PythonArtefact(name, version, type)
 		build.filename = filename
 
 		build.url = urljoin(request_url, href)
@@ -725,7 +725,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
 	def archive_get_unpack_directory(self, sdist):
-		name, version, type = PythonBuildInfo.parse_filename(sdist.local_path)
+		name, version, type = PythonArtefact.parse_filename(sdist.local_path)
 		return name + "-" + version
 
 	def build(self):
@@ -755,7 +755,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 
 			# FIXME: use of hostpath is not pretty here. We should
 			# save this to a host side directory right away
-			build = PythonBuildInfo.from_local_file(w)
+			build = PythonArtefact.from_local_file(w)
 
 			for algo in PythonEngine.REQUIRED_HASHES:
 				build.update_hash(algo)
@@ -854,7 +854,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 					req = None
 					continue
 
-				req = PythonBuildInfo(name)
+				req = PythonArtefact(name)
 				self.build_requires.append(req)
 				if not self.quiet:
 					print("Found requirement %s" % req.name)
@@ -942,8 +942,8 @@ class PythonPublisher(brcoti_core.Publisher):
 
 	def publish_artefact(self, path):
 		# FIXME: this is not good enough; we will also need requires-python info
-		(name, version, type) = PythonBuildInfo.parse_filename(os.path.basename(path))
-		build = PythonBuildInfo(name, version, type)
+		(name, version, type) = PythonArtefact.parse_filename(os.path.basename(path))
+		build = PythonArtefact(name, version, type)
 		build.filename = os.path.basename(path)
 		build.local_path = path
 
@@ -1082,7 +1082,7 @@ class PythonEngine(brcoti_core.Engine):
 
 	# Used by build-requires parsing
 	def create_empty_requires(self, name):
-		return PythonBuildInfo(name)
+		return PythonArtefact(name)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
@@ -1090,7 +1090,7 @@ class PythonEngine(brcoti_core.Engine):
 		return compute
 
 	def build_info_from_local_file(self, path):
-		return PythonBuildInfo.from_local_file(path)
+		return PythonArtefact.from_local_file(path)
 
 	def build_source_locate(self, req_string, verbose = True):
 		finder = PythonSourceDownloadFinder(req_string, verbose)
