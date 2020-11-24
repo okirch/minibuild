@@ -44,7 +44,6 @@
 			"type" :  "python",
 			"config" : {
 				"download-repo" :  "rebuilds",
-				"upload-repo"   :  "rebuilds",
 				"upstream-repo" :  "upstream",
 				"publish-repo"  :  "publish",
 				"pip" : "pip3"
@@ -54,7 +53,6 @@
 			"type" :  "ruby",
 			"config" : {
 				"download-repo" :  "rebuilds",
-				"upload-repo"   :  "rebuilds",
 				"upstream-repo" :  "upstream",
 				"publish-repo"	:  "publish"
 			}
