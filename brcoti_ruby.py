@@ -47,6 +47,13 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 		self.cooked_requirement = ruby_utils.Ruby.parse_dependency(req_string)
 		self.req_string = req_string
 
+	@staticmethod
+	def from_string(req_string):
+		import ruby_utils
+
+		cooked_requirement = ruby_utils.Ruby.parse_dependency(req_string)
+		return RubyBuildRequirement(cooked_requirement.name, req_string, cooked_requirement)
+
 	def __repr__(self):
 		if self.cooked_requirement:
 			return repr(self.cooked_requirement)
@@ -194,17 +201,14 @@ class RubyPackageInfo(brcoti_core.PackageInfo):
 		super(RubyPackageInfo, self).__init__(canonical_package_name(name))
 
 class RubyDownloadFinder(brcoti_core.DownloadFinder):
-	def __init__(self, req_string, verbose, cooked_requirement = None):
-		from packaging.requirements import Requirement
-
+	def __init__(self, req, verbose, cooked_requirement = None):
 		super(RubyDownloadFinder, self).__init__(verbose)
-		if not cooked_requirement:
-			import ruby_utils
 
-			cooked_requirement = ruby_utils.Ruby.parse_dependency(req_string)
+		if type(req) != RubyBuildRequirement:
+			req = RubyBuildRequirement.from_string(req)
 
-		self.requirement = cooked_requirement
-		self.name = cooked_requirement.name
+		self.requirement = req.cooked_requirement
+		self.name = req.name
 		self.allow_prereleases = False
 
 	def release_match(self, release):
@@ -265,8 +269,8 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 		return best_match
 
 class RubySourceDownloadFinder(RubyDownloadFinder):
-	def __init__(self, req_string, verbose = False, cooked_requirement = None):
-		super(RubySourceDownloadFinder, self).__init__(req_string, verbose, cooked_requirement)
+	def __init__(self, req, verbose = False, cooked_requirement = None):
+		super(RubySourceDownloadFinder, self).__init__(req, verbose, cooked_requirement)
 
 	def build_match(self, build):
 		if self.verbose:
@@ -274,8 +278,8 @@ class RubySourceDownloadFinder(RubyDownloadFinder):
 		return build.type == 'source'
 
 class RubyBinaryDownloadFinder(RubyDownloadFinder):
-	def __init__(self, req_string, verbose = False, cooked_requirement = None):
-		super(RubyBinaryDownloadFinder, self).__init__(req_string, verbose, cooked_requirement)
+	def __init__(self, req, verbose = False, cooked_requirement = None):
+		super(RubyBinaryDownloadFinder, self).__init__(req, verbose, cooked_requirement)
 
 	def build_match(self, build):
 		if self.verbose:
@@ -765,11 +769,7 @@ class RubyEngine(brcoti_core.Engine):
 
 	# Given a build requirement, find the best match in the package index
 	def resolve_build_requires(self, req):
-		req_string = req.req_string
-		if req_string is None:
-			req_string = req.name
-
-		finder = RubyBinaryDownloadFinder(req_string, cooked_requirement = req.cooked_requirement)
+		finder = RubyBinaryDownloadFinder(req)
 		return finder.get_best_match(self.index)
 
 	def prepare_environment(self, compute_backend):
