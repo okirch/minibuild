@@ -130,6 +130,9 @@ class Ruby:
 		def __init__(self):
 			self.req = []
 
+		def add_clause(self, c):
+			self.req.append(c)
+
 		def marshal_load(self, data):
 			# Calls look like
 			# GemRequirement.marshal_load([[['>=', 3.0.0]]])
@@ -142,7 +145,24 @@ class Ruby:
 				self.req.append(Ruby.Clause(*r))
 
 		def __repr__(self):
-			return "[%s]" % (", ".join(str(r) for r in self.req))
+			return "%s" % (", ".join(str(r) for r in self.req))
+
+		@staticmethod
+		def parse(string):
+			# print("GemRequirement.parse(%s)" % string)
+			result = Ruby.GemRequirement()
+
+			for req in string.split(','):
+				req = req.replace(' ', '')
+
+				for i in range(len(req)):
+					if req[i] not in "<>=!~":
+						break
+
+				# print("  %s|%s" % (req[:i], req[i:]))
+				result.add_clause(Ruby.Clause(req[:i], req[i:]))
+
+			return result
 
 		def __contains__(self, item):
 			return self.contains(item)
@@ -162,7 +182,7 @@ class Ruby:
 
 		def __init__(self):
 			self.name = None
-			self.requirement = []
+			self.requirement = Ruby.GemRequirement()
 			self.type = 'any'
 			self.prerelease = False
 
@@ -181,7 +201,7 @@ class Ruby:
 			if self.name != name:
 				return False
 
-			return all(version in r for r in self.requirement)
+			return version in self.requirement
 
 		def format(self):
 			result = self.name + " " + ", ".join([str(x) for x in self.requirement])
@@ -193,19 +213,25 @@ class Ruby:
 
 		@staticmethod
 		def parse(string):
-			print("GemDependency.parse(%s)" % string)
+			def findsep(s):
+				for n in range(len(s)):
+					if s[n] in " <>=!~":
+						return n
+				return -1
+
+			# print("GemDependency.parse(%s)" % string)
 			dep = Ruby.GemDependency()
 
-			n = string.find("<>=!~")
+			n = findsep(string)
 			if n < 0:
 				dep.name = string
 				return dep
 
-			name = string[:n]
+			dep.name = string[:n]
 			string = string[n:]
 
 			w = string.split(';')
-			string = w.pop(0)
+			dep.requirement = Ruby.GemRequirement.parse(w.pop(0))
 
 			for mod in w:
 				mod = mod.replace(' ', '')
@@ -213,15 +239,6 @@ class Ruby:
 					self.prerelease = True
 				else:
 					dep.type = mod
-
-			for req in string.split(','):
-				req = req.replace(' ', '')
-
-				for i in range(len(req)):
-					if req[i] not in "<>=!~":
-						break
-
-				dep.requirement.append(Ruby.GemRequirement(req[:i], req[i:]))
 
 			return dep
 
