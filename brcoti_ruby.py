@@ -28,6 +28,8 @@ import ruby_utils
 
 import brcoti_core
 
+ENGINE_NAME	= 'ruby'
+
 def get_ruby_version():
 	return os.popen("ruby -e 'print(RUBY_VERSION)'").read()
 
@@ -38,6 +40,8 @@ def canonical_package_name(name):
 	return name
 
 class RubyBuildRequirement(brcoti_core.BuildRequirement):
+	engine = ENGINE_NAME
+
 	def __init__(self, name, req_string = None, cooked_requirement = None):
 		super(RubyBuildRequirement, self).__init__(canonical_package_name(name), req_string, cooked_requirement)
 
@@ -62,6 +66,8 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 		return self.name
 
 class RubyArtefact(brcoti_core.Artefact):
+	engine = ENGINE_NAME
+
 	def __init__(self, name, version = None, type = None):
 		super(RubyArtefact, self).__init__(canonical_package_name(name), version)
 

@@ -28,6 +28,8 @@ import shutil
 
 import brcoti_core
 
+ENGINE_NAME	= 'python'
+
 def getinfo_pkginfo(path):
 
 	if path.endswith(".whl"):
@@ -206,6 +208,8 @@ def canonical_package_name(name):
 	return name.replace('_', '-')
 
 class PythonBuildRequirement(brcoti_core.BuildRequirement):
+	engine = ENGINE_NAME
+
 	def __init__(self, name, req_string = None, cooked_requirement = None):
 		super(PythonBuildRequirement, self).__init__(canonical_package_name(name), req_string, cooked_requirement)
 
@@ -229,6 +233,8 @@ class PythonBuildRequirement(brcoti_core.BuildRequirement):
 		return super(PythonBuildRequirement, self).__repr__()
 
 class PythonArtefact(brcoti_core.Artefact):
+	engine = ENGINE_NAME
+
 	def __init__(self, name, version = None, type = None):
 		super(PythonArtefact, self).__init__(canonical_package_name(name), version)
 
