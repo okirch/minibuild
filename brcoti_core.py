@@ -1022,6 +1022,9 @@ class Engine(Object):
 		print("%s: upload repo is %s; user=%s" % (engine_config.name, repo_config.url, repo_config.user))
 		return self.create_uploader_from_repo(repo_config)
 
+	def create_source_download_finder(self, req, verbose = True):
+		self.mni()
+
 	# Returns a ComputeNode instance
 	def prepare_environment(self):
 		self.mni()
@@ -1035,11 +1038,13 @@ class Engine(Object):
 	def build_info_from_local_file(self, path):
 		self.mni()
 
-	def build_source_locate(self, req_string, verbose = True):
-		self.mni()
+	def build_source_locate(self, req, verbose = True):
+		finder = self.create_source_download_finder(req, verbose)
+		return finder.get_best_match(self.index)
 
-	def build_source_locate_upstream(self, req_string, verbose = True):
-		self.mni()
+	def build_source_locate_upstream(self, req, verbose = True):
+		finder = self.create_source_download_finder(req, verbose)
+		return finder.get_best_match(self.upstream_index)
 
 	def build_state_factory(self, sdist):
 		savedir = self.build_state_path(sdist.id())

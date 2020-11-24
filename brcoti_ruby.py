@@ -756,6 +756,9 @@ class RubyEngine(brcoti_core.Engine):
 	def create_publisher_from_repo(self, repo_config):
 		return RubyPublisher(repo_config)
 
+	def create_source_download_finder(self, req, verbose = False):
+		return RubySourceDownloadFinder(req, verbose)
+
 	# Used by the build-requires parsing
 	def create_empty_requires(self, name):
 		return RubyBuildRequirement(name)
@@ -796,14 +799,6 @@ class RubyEngine(brcoti_core.Engine):
 
 	def build_info_from_local_file(self, path):
 		return RubyArtefact.from_local_file(path)
-
-	def build_source_locate(self, req_string, verbose = False):
-		finder = RubySourceDownloadFinder(req_string, verbose)
-		return finder.get_best_match(self.index)
-
-	def build_source_locate_upstream(self, req_string, verbose = True):
-		finder = RubySourceDownloadFinder(req_string, verbose)
-		return finder.get_best_match(self.upstream_index)
 
 	def build_unpack(self, compute, sdist):
 		bd = RubyBuildDirectory(compute, self.engine_config)

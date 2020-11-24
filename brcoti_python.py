@@ -1099,6 +1099,9 @@ class PythonEngine(brcoti_core.Engine):
 	def create_publisher_from_repo(self, repo_config):
 		return PythonPublisher(repo_config)
 
+	def create_source_download_finder(self, req, verbose = True):
+		return PythonSourceDownloadFinder(req, verbose)
+
 	# Used by build-requires parsing
 	def create_empty_requires(self, name):
 		return PythonBuildRequirement(name)
@@ -1110,14 +1113,6 @@ class PythonEngine(brcoti_core.Engine):
 
 	def build_info_from_local_file(self, path):
 		return PythonArtefact.from_local_file(path)
-
-	def build_source_locate(self, req_string, verbose = True):
-		finder = PythonSourceDownloadFinder(req_string, verbose)
-		return finder.get_best_match(self.index)
-
-	def build_source_locate_upstream(self, req_string, verbose = True):
-		finder = PythonSourceDownloadFinder(req_string, verbose)
-		return finder.get_best_match(self.upstream_index)
 
 	def build_unpack(self, compute, sdist):
 		bd = PythonBuildDirectory(compute, self.engine_config)
