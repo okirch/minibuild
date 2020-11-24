@@ -1106,8 +1106,11 @@ class PythonEngine(brcoti_core.Engine):
 		return PythonSourceDownloadFinder(req, verbose)
 
 	# Used by build-requires parsing
-	def create_empty_requires(self, name):
+	def create_empty_requirement(self, name):
 		return PythonBuildRequirement(name)
+
+	def parse_build_requirement(self, req_string):
+		return PythonBuildRequirement.from_string(req_string)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
@@ -1127,7 +1130,7 @@ class PythonEngine(brcoti_core.Engine):
 		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
 		return bd
 
-	def resolve_build_requires(self, req):
+	def resolve_build_requirement(self, req):
 		finder = PythonBinaryDownloadFinder(req)
 		return finder.get_best_match(self.index)
 

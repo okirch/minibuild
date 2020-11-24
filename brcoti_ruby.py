@@ -767,8 +767,11 @@ class RubyEngine(brcoti_core.Engine):
 		return RubySourceDownloadFinder(req, verbose)
 
 	# Used by the build-requires parsing
-	def create_empty_requires(self, name):
+	def create_empty_requirement(self, name):
 		return RubyBuildRequirement(name)
+
+	def parse_build_requirement(self, req_string):
+		return RubyBuildRequirement.from_string(req_string)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)

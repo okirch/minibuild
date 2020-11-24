@@ -526,7 +526,7 @@ class BuildState(Object):
 	def build_changed(self, req):
 		print("Build requires %s" % req)
 
-		p = self.engine.resolve_build_requires(req)
+		p = self.engine.resolve_build_requirement(req)
 
 		print("  Best match available from package index: %s" % p.filename)
 		if req.version:
@@ -1099,7 +1099,7 @@ class Engine(Object):
 
 				tempdir = tempfile.TemporaryDirectory(prefix = "build-deps-")
 
-			resolved_req = self.resolve_build_requires(req)
+			resolved_req = self.resolve_build_requirement(req)
 			if not resolved_req:
 				raise ValueError("Unable to resolve build dependency %s" % req.name)
 			self.downloader.download(resolved_req, tempdir.name)
@@ -1112,8 +1112,14 @@ class Engine(Object):
 			tempdir.cleanup()
 
 
+	def create_empty_requirement(self, name):
+		self.mni()
+
+	def parse_build_requirement(self, req_string):
+		self.mni()
+
 	# Given a build requirement, find the best match in the package index
-	def resolve_build_requires(self, req, verbose = False):
+	def resolve_build_requirement(self, req, verbose = False):
 		finder = self.create_binary_download_finder(req, verbose)
 		return finder.get_best_match(self.index)
 
@@ -1131,7 +1137,7 @@ class Engine(Object):
 
 				if l.startswith("require"):
 					name = l[7:].strip()
-					req = self.create_empty_requires(name)
+					req = self.create_empty_requirement(name)
 					result.append(req)
 					continue
 
@@ -1153,9 +1159,6 @@ class Engine(Object):
 				raise ValueError("%s: unparseable line <%s>" % (path, l))
 
 		return result
-
-	def create_empty_requires(self, name):
-		self.mni()
 
 	@staticmethod
 	def factory(name, config, opts):
