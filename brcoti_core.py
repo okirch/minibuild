@@ -383,9 +383,10 @@ class BuildDirectory(Object):
 		return samesame
 
 class BuildState(Object):
-	def __init__(self, savedir):
+	def __init__(self, engine, savedir):
 		import tempfile
 
+		self.engine = engine
 		self.savedir = savedir
 		self.tmpdir = tempfile.TemporaryDirectory(prefix = "brcoti-")
 
@@ -471,7 +472,7 @@ class BuildState(Object):
 			return True
 
 		try:
-			req_list = self.parse_build_requires(path)
+			req_list = self.engine.parse_build_requires(path)
 		except Exception as e:
 			print("Cannot parse build-requires file at %s" % path)
 			print(e)
@@ -484,43 +485,6 @@ class BuildState(Object):
 			print("Build requirement %s did not change" % req.id())
 
 		return False
-
-	def parse_build_requires(self, path):
-		result = []
-
-		with open(path, 'r') as f:
-			req = None
-			for l in f.readlines():
-				if not l:
-					continue
-
-				if l.startswith("require"):
-					name = l[7:].strip()
-					req = self.create_empty_requires(name)
-					result.append(req)
-					continue
-
-				if req is None:
-					raise ValueError("%s: no build info in this context" % (path, ))
-
-				if l.startswith(' '):
-					words = l.strip().split()
-					if not words:
-						continue
-					if words[0] == 'specifier':
-						req.fullreq = " ".join(words[1:])
-						continue
-
-					if words[0] == 'hash':
-						req.add_hash(words[1], words[2])
-						continue
-
-				raise ValueError("%s: unparseable line <%s>" % (path, l))
-
-		return result
-
-	def create_empty_requires(self, name):
-		self.mni()
 
 class Publisher(Object):
 	def __init__(self, type, repconfig):
@@ -1075,6 +1039,46 @@ class Engine(Object):
 
 
 	def resolve_build_req(self, req):
+		self.mni()
+
+	#
+	# Parse the build-requires file
+	#
+	def parse_build_requires(self, path):
+		result = []
+
+		with open(path, 'r') as f:
+			req = None
+			for l in f.readlines():
+				if not l:
+					continue
+
+				if l.startswith("require"):
+					name = l[7:].strip()
+					req = self.create_empty_requires(name)
+					result.append(req)
+					continue
+
+				if req is None:
+					raise ValueError("%s: no build info in this context" % (path, ))
+
+				if l.startswith(' '):
+					words = l.strip().split()
+					if not words:
+						continue
+					if words[0] == 'specifier':
+						req.fullreq = " ".join(words[1:])
+						continue
+
+					if words[0] == 'hash':
+						req.add_hash(words[1], words[2])
+						continue
+
+				raise ValueError("%s: unparseable line <%s>" % (path, l))
+
+		return result
+
+	def create_empty_requires(self, name):
 		self.mni()
 
 	@staticmethod

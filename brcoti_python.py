@@ -922,8 +922,8 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		return build_state.write_file(name, buffer.getvalue())
 
 class PythonBuildState(brcoti_core.BuildState):
-	def __init__(self, savedir, index):
-		super(PythonBuildState, self).__init__(savedir)
+	def __init__(self, engine, savedir, index):
+		super(PythonBuildState, self).__init__(engine, savedir)
 
 		self.index = index
 
@@ -963,9 +963,6 @@ class PythonBuildState(brcoti_core.BuildState):
 
 		# print("Build requirement did not change")
 		return False
-
-	def create_empty_requires(self, name):
-		return PythonBuildInfo(name)
 
 # Publish a collection of python binary artefacts to a http tree (using a simple index).
 # This is not very efficient, as we rebuild the entire tree whenever we do this.
@@ -1126,6 +1123,10 @@ class PythonEngine(brcoti_core.Engine):
 	def create_publisher_from_repo(self, repo_config):
 		return PythonPublisher(repo_config)
 
+	# Used by build-requires parsing
+	def create_empty_requires(self, name):
+		return PythonBuildInfo(name)
+
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
 		compute.putenv("PIP_INDEX_URL", compute.translate_url(self.index.url))
@@ -1144,7 +1145,7 @@ class PythonEngine(brcoti_core.Engine):
 
 	def build_state_factory(self, sdist):
 		savedir = self.build_state_path(sdist.id())
-		return PythonBuildState(savedir, self.index)
+		return PythonBuildState(self, savedir, self.index)
 
 	def build_unpack(self, compute, sdist):
 		bd = PythonBuildDirectory(compute, self.engine_config)

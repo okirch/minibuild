@@ -728,8 +728,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		return build_state.write_file(name, buffer.getvalue())
 
 class RubyBuildState(brcoti_core.BuildState):
-	def __init__(self, savedir, index):
-		super(RubyBuildState, self).__init__(savedir)
+	def __init__(self, engine, savedir, index):
+		super(RubyBuildState, self).__init__(engine, savedir)
 
 		self.index = index
 
@@ -769,9 +769,6 @@ class RubyBuildState(brcoti_core.BuildState):
 
 		print("Build requirement did not change")
 
-	def create_empty_requires(self, name):
-		return RubyBuildInfo(name)
-
 class RubyPublisher(brcoti_core.Publisher):
 	def __init__(self, repoconfig):
 		super(RubyPublisher, self).__init__("ruby", repoconfig)
@@ -806,6 +803,10 @@ class RubyEngine(brcoti_core.Engine):
 
 	def create_publisher_from_repo(self, repo_config):
 		return RubyPublisher(repo_config)
+
+	# Used by the build-requires parsing
+	def create_empty_requires(self, name):
+		return RubyBuildInfo(name)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
@@ -845,7 +846,7 @@ class RubyEngine(brcoti_core.Engine):
 
 	def build_state_factory(self, sdist):
 		savedir = self.build_state_path(sdist.id())
-		return RubyBuildState(savedir, self.index)
+		return RubyBuildState(self, savedir, self.index)
 
 	def build_unpack(self, compute, sdist):
 		bd = RubyBuildDirectory(compute, self.engine_config)
