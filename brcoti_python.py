@@ -927,43 +927,6 @@ class PythonBuildState(brcoti_core.BuildState):
 
 		self.index = index
 
-	def build_changed(self, req):
-		if req.fullreq:
-			finder = PythonBinaryDownloadFinder(req.fullreq)
-		else:
-			finder = PythonBinaryDownloadFinder(req.name)
-
-		print("Build requires %s" % (finder.requirement))
-
-		p = finder.get_best_match(self.index)
-
-		print("  Best match available from package index: %s" % p.filename)
-		if req.version:
-			if req.version != p.version:
-				print("Building would pick %s-%s rather than %s-%s" % (
-					p.name, p.version,
-					req.name, req.version))
-				return True
-
-		match = False
-		for algo, md in req.hash.items():
-			print("  We are looking for %s %s %s" % (req.id(), algo, md))
-			have_md = p.hash.get(algo)
-			if have_md is None:
-				print("  => index does not provide %s hash for %s" % (algo, p.filename))
-				continue
-
-			print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
-			if have_md == md:
-				match = True
-
-		if not match:
-			print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
-			return True
-
-		# print("Build requirement did not change")
-		return False
-
 # Publish a collection of python binary artefacts to a http tree (using a simple index).
 # This is not very efficient, as we rebuild the entire tree whenever we do this.
 # At least for the binary files themselves, it's probably better to just touch up an
@@ -1157,7 +1120,7 @@ class PythonEngine(brcoti_core.Engine):
 		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
 		return bd
 
-	def resolve_build_req(self, req):
+	def resolve_build_requires(self, req):
 		req_string = req.fullreq
 		if not req_string:
 			req_string = req.name

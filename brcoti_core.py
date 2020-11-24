@@ -486,6 +486,37 @@ class BuildState(Object):
 
 		return False
 
+	def build_changed(self, req):
+		print("Build requires %s" % (req.fullreq or req.name))
+
+		p = self.engine.resolve_build_requires(req)
+
+		print("  Best match available from package index: %s" % p.filename)
+		if req.version:
+			if req.version != p.version:
+				print("Building would pick %s-%s rather than %s-%s" % (
+					p.name, p.version,
+					req.name, req.version))
+				return True
+
+		match = False
+		for algo, md in req.hash.items():
+			print("  We are looking for %s %s %s" % (req.id(), algo, md))
+			have_md = p.hash.get(algo)
+			if have_md is None:
+				print("  => index does not provide %s hash for %s" % (algo, p.filename))
+				continue
+
+			print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
+			if have_md == md:
+				match = True
+
+		if not match:
+			print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
+			return True
+
+		print("Build requirement did not change")
+
 class Publisher(Object):
 	def __init__(self, type, repconfig):
 		self.type = type
@@ -1013,6 +1044,8 @@ class Engine(Object):
 			if not missing:
 				continue
 
+			# FIXME: the proxy cache should tell us exactly what got downloaded in order
+			# to build the package
 			print("%s: update missing hash(es): %s" % (req.id(), " ".join(missing)))
 
 			if not tempdir:
@@ -1025,7 +1058,7 @@ class Engine(Object):
 				for algo in missing:
 					req.update_hash(algo)
 			else:
-				resolved_req = self.resolve_build_req(req)
+				resolved_req = self.resolve_build_requires(req)
 				if not resolved_req:
 					raise ValueError("Unable to resolve build dependency %s" % req.name)
 				self.downloader.download(resolved_req, tempdir.name)
@@ -1038,7 +1071,7 @@ class Engine(Object):
 			tempdir.cleanup()
 
 
-	def resolve_build_req(self, req):
+	def resolve_build_requires(self, req):
 		self.mni()
 
 	#

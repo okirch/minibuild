@@ -37,6 +37,7 @@ def get_rubygems_version():
 def canonical_package_name(name):
 	return name
 
+# FIXME: split BuildInfo and BuildRequirement
 class RubyBuildInfo(brcoti_core.PackageBuildInfo):
 	def __init__(self, name, version = None, type = None):
 		super(RubyBuildInfo, self).__init__(canonical_package_name(name), version)
@@ -733,42 +734,6 @@ class RubyBuildState(brcoti_core.BuildState):
 
 		self.index = index
 
-	def build_changed(self, req):
-		if req.fullreq:
-			finder = RubyBinaryDownloadFinder(req.fullreq)
-		else:
-			finder = RubyBinaryDownloadFinder(req.name)
-
-		print("Build requires %s" % (finder.requirement))
-
-		p = finder.get_best_match(self.index)
-
-		print("  Best match available from package index: %s" % p.filename)
-		if req.version:
-			if req.version != p.version:
-				print("Building would pick %s-%s rather than %s-%s" % (
-					p.name, p.version,
-					req.name, req.version))
-				return True
-
-		match = False
-		for algo, md in req.hash.items():
-			print("  We are looking for %s %s %s" % (req.id(), algo, md))
-			have_md = p.hash.get(algo)
-			if have_md is None:
-				print("  => index does not provide %s hash for %s" % (algo, p.filename))
-				continue
-
-			print("  => index provides %s %s %s" % (p.filename, algo, p.hash.get(algo)))
-			if have_md == md:
-				match = True
-
-		if not match:
-			print("%s was apparently rebuilt in the meantime, we need to rebuild" % p.filename)
-			return True
-
-		print("Build requirement did not change")
-
 class RubyPublisher(brcoti_core.Publisher):
 	def __init__(self, repoconfig):
 		super(RubyPublisher, self).__init__("ruby", repoconfig)
@@ -807,6 +772,15 @@ class RubyEngine(brcoti_core.Engine):
 	# Used by the build-requires parsing
 	def create_empty_requires(self, name):
 		return RubyBuildInfo(name)
+
+	# Given a build requirement, find the best match in the package index
+	def resolve_build_requires(self, req):
+		req_string = req.fullreq
+		if req_string is None:
+			req_string = req.name
+
+		finder = RubyBinaryDownloadFinder(req_string, cooked_requirement = req.cooked_requirement)
+		return finder.get_best_match(self.index)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
@@ -857,13 +831,6 @@ class RubyEngine(brcoti_core.Engine):
 
 		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
 		return bd
-
-	def resolve_build_req(self, req):
-		assert(req.cooked_requirement)
-		dep = req.cooked_requirement
-
-		finder = RubyBinaryDownloadFinder(req.fullreq, cooked_requirement = req.cooked_requirement)
-		return finder.get_best_match(self.index)
 
 def engine_factory(config, engine_config):
 	return RubyEngine(config, engine_config)
