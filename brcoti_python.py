@@ -215,6 +215,13 @@ class PythonBuildRequirement(brcoti_core.BuildRequirement):
 		self.cooked_requirement = Requirement(req_string)
 		self.req_string = req_string
 
+	@staticmethod
+	def from_string(req_string):
+		from packaging.requirements import Requirement
+
+		cooked_requirement = Requirement(req_string)
+		return PythonBuildRequirement(cooked_requirement.name, req_string, cooked_requirement)
+
 	def __repr__(self):
 		if self.cooked_requirement:
 			return str(self.cooked_requirement)
@@ -394,16 +401,18 @@ class PythonPackageInfo(brcoti_core.PackageInfo):
 		super(PythonPackageInfo, self).__init__(canonical_package_name(name))
 
 class PythonDownloadFinder(brcoti_core.DownloadFinder):
-	def __init__(self, req_string, verbose):
-		from packaging.requirements import Requirement
-
+	def __init__(self, req, verbose):
 		super(PythonDownloadFinder, self).__init__(verbose)
-		req = Requirement(req_string)
-		self.requirement = req
+
+		if type(req) != PythonBuildRequirement:
+			req = PythonBuildRequirement.from_string(req)
 
 		self.name = req.name
 		self.allow_prereleases = False
-		self.request_specifier = req.specifier
+
+		# This is not good enough. We should consider all information
+		# provided in the requirement.
+		self.request_specifier = req.cooked_requirement.specifier
 
 	def release_match(self, release):
 		assert(release.parsed_version)
@@ -1121,13 +1130,7 @@ class PythonEngine(brcoti_core.Engine):
 		return bd
 
 	def resolve_build_requires(self, req):
-		req_string = req.req_string
-		if not req_string:
-			req_string = req.name
-			if req.version:
-				req_string += "==" + req.version
-		assert(req_string)
-		finder = PythonBinaryDownloadFinder(req_string)
+		finder = PythonBinaryDownloadFinder(req)
 		return finder.get_best_match(self.index)
 
 def engine_factory(config, engine_config):

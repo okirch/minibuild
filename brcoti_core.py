@@ -103,8 +103,12 @@ class ArtefactAttrs(Object):
 class BuildRequirement(ArtefactAttrs):
 	def __init__(self, name, req_string = None, cooked_requirement = None):
 		super(BuildRequirement, self).__init__(name)
-		self.req_string = req_string
-		self.cooked_requirement = cooked_requirement
+
+		if req_string and not cooked_requirement:
+			self.parse_requirement(req_string)
+		else:
+			self.req_string = req_string
+			self.cooked_requirement = cooked_requirement
 
 	def parse_requirement(self, req_string):
 		self.mni()
@@ -516,8 +520,6 @@ class BuildState(Object):
 		for req in req_list:
 			if self.build_changed(req):
 				return True
-
-			print("Build requirement %s did not change" % req.id())
 
 		return False
 
