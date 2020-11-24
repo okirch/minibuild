@@ -240,6 +240,71 @@ class Uploader(Object):
 	def upload(self, build):
 		self.mni()
 
+class BuildInfo(Object):
+	def __init__(self):
+		self.requires = []
+
+	def add_requirement(self, req):
+		self.requires.append(req)
+
+	#
+	# Parse the build-requires file
+	#
+	@staticmethod
+	def from_file(path, config, default_engine = None):
+		result = BuildInfo()
+
+		engine = default_engine
+		with open(path, 'r') as f:
+			req = None
+			for l in f.readlines():
+				if not l:
+					continue
+
+				if l.startswith("engine"):
+					name = l[7:].strip()
+					if engine:
+						raise ValueError("%s: duplicate engine specification" % path)
+
+					if default_engine:
+						if name != default_engine.name:
+							raise ValueError("Beware, %s specifies engine \"%s\" which conflicts with engine %s" % (
+								path, name, default_engine.name))
+						engine = default_engine
+					else:
+
+						engine = Engine.factory(name, config, {})
+					continue
+
+				if engine == None:
+					engine = default_engine
+
+				if l.startswith("require"):
+					name = l[7:].strip()
+					req = engine.create_empty_requirement(name)
+					result.add_requirement(req)
+					continue
+
+				if req is None:
+					raise ValueError("%s: no build info in this context" % (path, ))
+
+				if l.startswith(' '):
+					words = l.strip().split()
+					if not words:
+						continue
+					if words[0] == 'specifier':
+						req.parse_requirement(" ".join(words[1:]))
+						continue
+
+					if words[0] == 'hash':
+						req.add_hash(words[1], words[2])
+						continue
+
+				raise ValueError("%s: unparseable line <%s>" % (path, l))
+
+		return result
+
+
 class BuildDirectory(Object):
 	def __init__(self, compute, build_base):
 		self.compute = compute
@@ -505,19 +570,22 @@ class BuildState(Object):
 			print("Previous build did not create build-artefacts file")
 			return True
 
-		path = self.get_old_path("build-requires")
+		path = self.get_old_path("build-info")
 		if not os.path.exists(path):
-			print("Previous build did not create build-requires file")
+			path = self.get_old_path("build-requires")
+		if not os.path.exists(path):
+			print("Previous build created neither a build-info nor a build-requires file")
 			return True
 
 		try:
-			req_list = self.engine.parse_build_requires(path)
+			engine = self.engine
+			build_info = BuildInfo.from_file(path, engine.config, default_engine = engine)
 		except Exception as e:
-			print("Cannot parse build-requires file at %s" % path)
+			print("Cannot parse build-info file at %s" % path)
 			print(e)
 			return True
 
-		for req in req_list:
+		for req in build_info.requires:
 			if self.build_changed(req):
 				return True
 
@@ -1122,43 +1190,6 @@ class Engine(Object):
 	def resolve_build_requirement(self, req, verbose = False):
 		finder = self.create_binary_download_finder(req, verbose)
 		return finder.get_best_match(self.index)
-
-	#
-	# Parse the build-requires file
-	#
-	def parse_build_requires(self, path):
-		result = []
-
-		with open(path, 'r') as f:
-			req = None
-			for l in f.readlines():
-				if not l:
-					continue
-
-				if l.startswith("require"):
-					name = l[7:].strip()
-					req = self.create_empty_requirement(name)
-					result.append(req)
-					continue
-
-				if req is None:
-					raise ValueError("%s: no build info in this context" % (path, ))
-
-				if l.startswith(' '):
-					words = l.strip().split()
-					if not words:
-						continue
-					if words[0] == 'specifier':
-						req.parse_requirement(" ".join(words[1:]))
-						continue
-
-					if words[0] == 'hash':
-						req.add_hash(words[1], words[2])
-						continue
-
-				raise ValueError("%s: unparseable line <%s>" % (path, l))
-
-		return result
 
 	@staticmethod
 	def factory(name, config, opts):
