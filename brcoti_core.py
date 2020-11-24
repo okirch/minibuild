@@ -100,6 +100,22 @@ class ArtefactAttrs(Object):
 
 		self.add_hash(algo, m.hexdigest())
 
+class BuildRequirement(ArtefactAttrs):
+	def __init__(self, name, req_string = None, cooked_requirement = None):
+		super(BuildRequirement, self).__init__(name)
+		self.req_string = req_string
+		self.cooked_requirement = cooked_requirement
+
+	def parse_requirement(self, req_string):
+		self.mni()
+
+	def __repr__(self):
+		if self.cooked_requirement:
+			return repr(self.cooked_requirement)
+		if self.req_string:
+			return self.req_string
+		return self.name
+
 class Artefact(ArtefactAttrs):
 	def __init__(self, name, version = None):
 		super(Artefact, self).__init__(name, version)
@@ -506,7 +522,7 @@ class BuildState(Object):
 		return False
 
 	def build_changed(self, req):
-		print("Build requires %s" % (req.fullreq or req.name))
+		print("Build requires %s" % req)
 
 		p = self.engine.resolve_build_requires(req)
 
@@ -1073,19 +1089,14 @@ class Engine(Object):
 
 				tempdir = tempfile.TemporaryDirectory(prefix = "build-deps-")
 
-			if req.url is not None:
-				self.downloader.download(req, tempdir.name)
-				for algo in missing:
-					req.update_hash(algo)
-			else:
-				resolved_req = self.resolve_build_requires(req)
-				if not resolved_req:
-					raise ValueError("Unable to resolve build dependency %s" % req.name)
-				self.downloader.download(resolved_req, tempdir.name)
+			resolved_req = self.resolve_build_requires(req)
+			if not resolved_req:
+				raise ValueError("Unable to resolve build dependency %s" % req.name)
+			self.downloader.download(resolved_req, tempdir.name)
 
-				for algo in missing:
-					resolved_req.update_hash(algo)
-					req.add_hash(algo, resolved_req.hash[algo])
+			for algo in missing:
+				resolved_req.update_hash(algo)
+				req.add_hash(algo, resolved_req.hash[algo])
 
 		if tempdir:
 			tempdir.cleanup()
@@ -1120,7 +1131,7 @@ class Engine(Object):
 					if not words:
 						continue
 					if words[0] == 'specifier':
-						req.fullreq = " ".join(words[1:])
+						req.parse_requirement(" ".join(words[1:]))
 						continue
 
 					if words[0] == 'hash':

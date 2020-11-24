@@ -37,7 +37,23 @@ def get_rubygems_version():
 def canonical_package_name(name):
 	return name
 
-# FIXME: split Artefact and BuildRequirement
+class RubyBuildRequirement(brcoti_core.BuildRequirement):
+	def __init__(self, name, req_string = None, cooked_requirement = None):
+		super(RubyBuildRequirement, self).__init__(canonical_package_name(name), req_string, cooked_requirement)
+
+	def parse_requirement(self, req_string):
+		import ruby_utils
+
+		self.cooked_requirement = ruby_utils.Ruby.parse_dependency(req_string)
+		self.req_string = req_string
+
+	def __repr__(self):
+		if self.cooked_requirement:
+			return repr(self.cooked_requirement)
+		if self.req_string:
+			return self.req_string
+		return self.name
+
 class RubyArtefact(brcoti_core.Artefact):
 	def __init__(self, name, version = None, type = None):
 		super(RubyArtefact, self).__init__(canonical_package_name(name), version)
@@ -45,9 +61,6 @@ class RubyArtefact(brcoti_core.Artefact):
 		self.type = type
 		self.required_ruby_version = None
 		self.required_rubygems_version = None
-
-		self.fullreq = None
-		self.cooked_requirement = None
 
 		self.filename = None
 
@@ -659,9 +672,9 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		for dep in gemspec.dependencies:
 			if dep.type != 'development':
 				continue
-			req = RubyArtefact(dep.name, type = "gem")
-			req.fullreq = req.name + ",".join([str(x) for x in dep.requirement])
-			req.cooked_requirement = dep
+
+			req_string = dep.name + ",".join([str(x) for x in dep.requirement])
+			req = RubyBuildRequirement(dep.name, req_string = req_string, cooked_requirement = dep.requirement) # type = "gem"
 
 			self.build_requires.append(req)
 		return
@@ -689,13 +702,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		for req in self.build_requires:
 			b.write("require %s\n" % req.name)
 
-			req_string = None
-			if req.cooked_requirement:
-				req_string = req.cooked_requirement.format()
-			elif req.fullreq:
-				req_string = req.fullreq
-			if req_string:
-				b.write("  specifier %s\n" % req_string)
+			b.write("  specifier %s\n" % req)
 			if req.hash:
 				for (algo, md) in req.hash.items():
 					b.write("  hash %s %s\n" % (algo, md))
@@ -751,11 +758,11 @@ class RubyEngine(brcoti_core.Engine):
 
 	# Used by the build-requires parsing
 	def create_empty_requires(self, name):
-		return RubyArtefact(name)
+		return RubyBuildRequirement(name)
 
 	# Given a build requirement, find the best match in the package index
 	def resolve_build_requires(self, req):
-		req_string = req.fullreq
+		req_string = req.req_string
 		if req_string is None:
 			req_string = req.name
 

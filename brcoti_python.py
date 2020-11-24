@@ -205,6 +205,22 @@ def get_python_version():
 def canonical_package_name(name):
 	return name.replace('_', '-')
 
+class PythonBuildRequirement(brcoti_core.BuildRequirement):
+	def __init__(self, name, req_string = None, cooked_requirement = None):
+		super(PythonBuildRequirement, self).__init__(canonical_package_name(name), req_string, cooked_requirement)
+
+	def parse_requirement(self, req_string):
+		from packaging.requirements import Requirement
+
+		self.cooked_requirement = Requirement(req_string)
+		self.req_string = req_string
+
+	def __repr__(self):
+		if self.cooked_requirement:
+			return str(self.cooked_requirement)
+
+		return super(PythonBuildRequirement, self).__repr__()
+
 class PythonArtefact(brcoti_core.Artefact):
 	def __init__(self, name, version = None, type = None):
 		super(PythonArtefact, self).__init__(canonical_package_name(name), version)
@@ -212,7 +228,6 @@ class PythonArtefact(brcoti_core.Artefact):
 		self.type = type
 		self.requires_python = None
 
-		self.fullreq = None
 		self.filename = None
 
 		# package info
@@ -823,7 +838,8 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 					if req.name != r.name:
 						r.name = canonical_package_name(r.name)
 						assert(req.name == r.name)
-					req.fullreq = str(r)
+					req.cooked_requirement = r
+					req.req_string = str(r)
 
 					url, frag = urldefrag(url)
 					if frag:
@@ -849,13 +865,13 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 					req = None
 					continue
 
-				req = PythonArtefact(name)
+				req = PythonBuildRequirement(name)
 				self.build_requires.append(req)
 				if not self.quiet:
 					print("Found requirement %s" % req.name)
 
 		for req in self.build_requires:
-			if not req.fullreq:
+			if not req.req_string:
 				raise ValueError("pip log parser failed - unable to determine req string for build requirement %s" % req.name)
 
 	def prepare_results(self, build_state):
@@ -896,8 +912,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		b = io.StringIO()
 		for req in self.build_requires:
 			b.write("require %s\n" % req.name)
-			if req.fullreq:
-				b.write("  specifier %s\n" % req.fullreq);
+			b.write("  specifier %s\n" % req);
 			if req.hash:
 				for (algo, md) in req.hash.items():
 					b.write("  hash %s %s\n" % (algo, md))
@@ -1077,7 +1092,7 @@ class PythonEngine(brcoti_core.Engine):
 
 	# Used by build-requires parsing
 	def create_empty_requires(self, name):
-		return PythonArtefact(name)
+		return PythonBuildRequirement(name)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
@@ -1106,7 +1121,7 @@ class PythonEngine(brcoti_core.Engine):
 		return bd
 
 	def resolve_build_requires(self, req):
-		req_string = req.fullreq
+		req_string = req.req_string
 		if not req_string:
 			req_string = req.name
 			if req.version:
