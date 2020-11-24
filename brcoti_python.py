@@ -621,7 +621,7 @@ class SimplePackageIndex(brcoti_core.HTTPPackageIndex):
 		from urllib.parse import urljoin, urldefrag
 
 		rel = anchor.attrib.get('rel')
-		if rel != "internal":
+		if rel != "internal" and rel is not None:
 			print("IGNORING anchor with rel=%s" % rel)
 			return None
 
