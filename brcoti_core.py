@@ -1022,6 +1022,9 @@ class Engine(Object):
 		print("%s: upload repo is %s; user=%s" % (engine_config.name, repo_config.url, repo_config.user))
 		return self.create_uploader_from_repo(repo_config)
 
+	def create_binary_download_finder(self, req, verbose = True):
+		self.mni()
+
 	def create_source_download_finder(self, req, verbose = True):
 		self.mni()
 
@@ -1109,8 +1112,10 @@ class Engine(Object):
 			tempdir.cleanup()
 
 
-	def resolve_build_requires(self, req):
-		self.mni()
+	# Given a build requirement, find the best match in the package index
+	def resolve_build_requires(self, req, verbose = False):
+		finder = self.create_binary_download_finder(req, verbose)
+		return finder.get_best_match(self.index)
 
 	#
 	# Parse the build-requires file

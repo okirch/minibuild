@@ -760,17 +760,15 @@ class RubyEngine(brcoti_core.Engine):
 	def create_publisher_from_repo(self, repo_config):
 		return RubyPublisher(repo_config)
 
+	def create_binary_download_finder(self, req, verbose = False):
+		return RubyBinaryDownloadFinder(req, verbose)
+
 	def create_source_download_finder(self, req, verbose = False):
 		return RubySourceDownloadFinder(req, verbose)
 
 	# Used by the build-requires parsing
 	def create_empty_requires(self, name):
 		return RubyBuildRequirement(name)
-
-	# Given a build requirement, find the best match in the package index
-	def resolve_build_requires(self, req):
-		finder = RubyBinaryDownloadFinder(req)
-		return finder.get_best_match(self.index)
 
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)

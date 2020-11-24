@@ -1099,6 +1099,9 @@ class PythonEngine(brcoti_core.Engine):
 	def create_publisher_from_repo(self, repo_config):
 		return PythonPublisher(repo_config)
 
+	def create_binary_download_finder(self, req, verbose = True):
+		return PythonBinaryDownloadFinder(req, verbose)
+
 	def create_source_download_finder(self, req, verbose = True):
 		return PythonSourceDownloadFinder(req, verbose)
 
