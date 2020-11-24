@@ -131,11 +131,11 @@ class Artefact(ArtefactAttrs):
 		return "%s(%s)" % (self.__class__.__name__, self.id())
 
 	def git_url(self):
-		self.nmi()
+		self.mni()
 
 	@property
 	def is_source(self):
-		self.nmi()
+		self.mni()
 
 class PackageReleaseInfo(Object):
 	def __init__(self, name, version):
@@ -145,10 +145,10 @@ class PackageReleaseInfo(Object):
 		self.builds = []
 
 	def id(self):
-		self.nmi()
+		self.mni()
 
 	def more_recent_than(self, other):
-		self.nmi()
+		self.mni()
 
 	def add_build(self, build):
 		self.builds.append(build)
