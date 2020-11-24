@@ -13,13 +13,7 @@
 		{
 			"type" :  "python",
 			"name" :  "rebuilds",
-			"url" :  "http://localhost:8081/repository/pypi-rebuilds/",
-			"repotype" : "simple",
-			"credentials" :  "nexus"
-		}, {
-			"type" :  "python",
-			"name" :  "all",
-			"url" :  "http://localhost:8081/repository/pypi-group/",
+			"url" :  "http://pypi.minibuild",
 			"repotype" : "simple"
 		}, {
 			"type" :  "python",
@@ -33,12 +27,7 @@
 		}, {
 			"type" :  "ruby",
 			"name" :  "rebuilds",
-			"url" :  "http://rubygems.minibuild",
-			"credentials" :  "nexus"
-		}, {
-			"type" :  "ruby",
-			"name" :  "all",
-			"url" :  "http://localhost:8081/repository/ruby-group/"
+			"url" :  "http://rubygems.minibuild"
 		}, {
 			"type" :  "ruby",
 			"name" :  "upstream",
