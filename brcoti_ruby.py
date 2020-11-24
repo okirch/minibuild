@@ -728,12 +728,6 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		write_func(buffer)
 		return build_state.write_file(name, buffer.getvalue())
 
-class RubyBuildState(brcoti_core.BuildState):
-	def __init__(self, engine, savedir, index):
-		super(RubyBuildState, self).__init__(engine, savedir)
-
-		self.index = index
-
 class RubyPublisher(brcoti_core.Publisher):
 	def __init__(self, repoconfig):
 		super(RubyPublisher, self).__init__("ruby", repoconfig)
@@ -817,10 +811,6 @@ class RubyEngine(brcoti_core.Engine):
 	def build_source_locate_upstream(self, req_string, verbose = True):
 		finder = RubySourceDownloadFinder(req_string, verbose)
 		return finder.get_best_match(self.upstream_index)
-
-	def build_state_factory(self, sdist):
-		savedir = self.build_state_path(sdist.id())
-		return RubyBuildState(self, savedir, self.index)
 
 	def build_unpack(self, compute, sdist):
 		bd = RubyBuildDirectory(compute, self.engine_config)

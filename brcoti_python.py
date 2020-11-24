@@ -921,12 +921,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		write_func(buffer)
 		return build_state.write_file(name, buffer.getvalue())
 
-class PythonBuildState(brcoti_core.BuildState):
-	def __init__(self, engine, savedir, index):
-		super(PythonBuildState, self).__init__(engine, savedir)
-
-		self.index = index
-
 # Publish a collection of python binary artefacts to a http tree (using a simple index).
 # This is not very efficient, as we rebuild the entire tree whenever we do this.
 # At least for the binary files themselves, it's probably better to just touch up an
@@ -1105,10 +1099,6 @@ class PythonEngine(brcoti_core.Engine):
 	def build_source_locate_upstream(self, req_string, verbose = True):
 		finder = PythonSourceDownloadFinder(req_string, verbose)
 		return finder.get_best_match(self.upstream_index)
-
-	def build_state_factory(self, sdist):
-		savedir = self.build_state_path(sdist.id())
-		return PythonBuildState(self, savedir, self.index)
 
 	def build_unpack(self, compute, sdist):
 		bd = PythonBuildDirectory(compute, self.engine_config)

@@ -1005,7 +1005,8 @@ class Engine(Object):
 		self.mni()
 
 	def build_state_factory(self, sdist):
-		self.mni()
+		savedir = self.build_state_path(sdist.id())
+		return BuildState(self, savedir)
 
 	def build_state_path(self, artefact_name):
 		return os.path.join(self.state_dir, artefact_name)
