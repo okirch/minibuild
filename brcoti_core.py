@@ -68,31 +68,50 @@ class Object(object):
 		# Fall back to a more bland error message
 		raise NotImplementedError("%s: method not implemented" % (self.__class__.__name__))
 
-class Artefact(Object):
+class ArtefactAttrs(Object):
 	def __init__(self, name, version = None):
 		self.name = name
 		self.version = version
+		self.hash = {}
+
+	def __repr__(self):
+		return self.id()
+
+	def id(self):
+		if not self.version:
+			return self.name
+		return "%s-%s" % (self.name, self.version)
+
+	def get_hash(self, algo):
+		return self.hash.get(algo)
+
+	def add_hash(self, algo, md):
+		self.hash[algo] = md
+
+	# Subclasses that implement different fingerprinting methods
+	# should override this
+	# (Or we should remove it here and create a mixin class instead)
+	def update_hash(self, algo):
+		import hashlib
+
+		m = hashlib.new(algo)
+		with open(self.local_path, "rb") as f:
+			m.update(f.read())
+
+		self.add_hash(algo, m.hexdigest())
+
+class Artefact(ArtefactAttrs):
+	def __init__(self, name, version = None):
+		super(Artefact, self).__init__(name, version)
 
 		self.url = None
 		self.local_path = None
-
-		self.hash = {}
-
-	def id(self):
-		self.nmi()
 
 	def __repr__(self):
 		return "%s(%s)" % (self.__class__.__name__, self.id())
 
 	def git_url(self):
 		self.nmi()
-
-	def get_hash(self, algo):
-		return self.hash.get(algo)
-
-	def add_hash(self, algo, md):
-		# print("%s %s=%s" % (self.filename, algo, md))
-		self.hash[algo] = md
 
 	@property
 	def is_source(self):

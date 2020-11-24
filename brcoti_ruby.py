@@ -55,20 +55,6 @@ class RubyArtefact(brcoti_core.Artefact):
 		self.home_page = None
 		self.author = None
 
-	def id(self):
-		if not self.version:
-			return self.name
-		return "%s-%s" % (self.name, self.version)
-
-	def update_hash(self, algo):
-		import hashlib
-
-		m = hashlib.new(algo)
-		with open(self.local_path, "rb") as f:
-			m.update(f.read())
-
-		self.add_hash(algo, m.hexdigest())
-
 	def git_url(self):
 		url = self.home_page
 		if not url:

@@ -219,11 +219,6 @@ class PythonArtefact(brcoti_core.Artefact):
 		self.home_page = None
 		self.author = None
 
-	def id(self):
-		if not self.version:
-			return self.name
-		return "%s-%s" % (self.name, self.version)
-
 	def update_hash(self, algo):
 		import hashlib
 
