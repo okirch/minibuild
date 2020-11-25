@@ -243,11 +243,42 @@ class Uploader(Object):
 		self.mni()
 
 class BuildInfo(Object):
-	def __init__(self):
+	def __init__(self, engine):
+		self.engine = engine
 		self.requires = []
+		self.artefacts = []
 
 	def add_requirement(self, req):
 		self.requires.append(req)
+
+	def add_artefact(self, build):
+		self.artefacts.append(build)
+
+	def save(self, path):
+		with open(path, "w") as f:
+			f.write("engine %s\n" % self.engine)
+			self.write_build_requires(f)
+			self.write_artefacts(f)
+
+	#
+	# Write out the build-requires information
+	#
+	def write_build_requires(self, f):
+		for req in self.requires:
+			f.write("require %s %s\n" % (req.engine, req.name))
+
+			f.write("  specifier %s\n" % req)
+			if req.hash:
+				for (algo, md) in req.hash.items():
+					f.write("  hash %s %s\n" % (algo, md))
+
+	def write_artefacts(self, f):
+		for build in self.artefacts:
+			f.write("artefact %s %s %s %s\n" % (build.engine, build.name, build.version, build.type))
+			f.write("  filename %s\n" % build.filename)
+
+			for (algo, md) in build.hash.items():
+				f.write("  hash %s %s\n" % (algo, md))
 
 	#
 	# Parse the build-requires file
