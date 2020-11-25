@@ -755,8 +755,11 @@ class RubyEngine(brcoti_core.Engine):
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
 
-		compute.putenv('http_proxy', 'localhost:8899')
-		compute.putenv('https_proxy', 'localhost:8899')
+		if self.config.globals.http_proxy:
+			proxy = self.config.globals.http_proxy
+			compute.putenv('http_proxy', proxy)
+			compute.putenv('https_proxy', proxy)
+
 		return compute
 
 		index_url = compute.translate_url(self.index.url)

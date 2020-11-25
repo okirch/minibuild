@@ -858,7 +858,7 @@ class Config(object):
 			return ", ".join(["%s=%s" % (f, getattr(self, f)) for f in self._fields])
 
 	class Globals(ConfigItem):
-		_fields = ('output_dir', 'certificates')
+		_fields = ('output_dir', 'certificates', 'http_proxy')
 
 		def __init__(self, config, d):
 			super(Config.Globals, self).__init__(config, d)

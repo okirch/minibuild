@@ -1097,6 +1097,12 @@ class PythonEngine(brcoti_core.Engine):
 	def prepare_environment(self, compute_backend):
 		compute = compute_backend.spawn(self.engine_config.name)
 		compute.putenv("PIP_INDEX_URL", compute.translate_url(self.index.url))
+
+		if self.config.globals.http_proxy:
+			proxy = self.config.globals.http_proxy
+			compute.putenv('http_proxy', proxy)
+			compute.putenv('https_proxy', proxy)
+
 		return compute
 
 	def build_info_from_local_file(self, path):
