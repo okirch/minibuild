@@ -1,6 +1,9 @@
 {
 	"globals" : {
-		"output_dir" : "/srv/minibuild/binaries"
+		"output_dir" : "/srv/minibuild/binaries",
+		"certificates" : [
+			"/srv/minibuild/proxy/ca-cert.pem"
+		]
 	},
 	"credentials" : [
 		{
