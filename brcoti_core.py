@@ -550,9 +550,6 @@ class BuildState(Object):
 	def exists(self):
 		return os.path.exists(self.savedir)
 
-	def rebuild_required(self):
-		self.mni()
-
 	def build_log_file(self):
 		return os.path.join(self.tmpdir.name, "build.log")
 
@@ -615,16 +612,9 @@ class BuildState(Object):
 			f.write(data)
 
 	def rebuild_required(self):
-		path = self.get_old_path("build-artefacts")
-		if not os.path.exists(path):
-			print("Previous build did not create build-artefacts file")
-			return True
-
 		path = self.get_old_path("build-info")
 		if not os.path.exists(path):
-			path = self.get_old_path("build-requires")
-		if not os.path.exists(path):
-			print("Previous build created neither a build-info nor a build-requires file")
+			print("Previous build did not create a build-info file")
 			return True
 
 		try:
