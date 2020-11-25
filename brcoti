@@ -104,7 +104,7 @@ class BuildJob(object):
 			self.engine.downloader.download(sdist)
 
 		# spawn a container/VM or whatever compute node we need
-		compute_node = self.engine.prepare_environment(self.compute_backend)
+		compute_node = self.engine.prepare_environment(self.compute_backend, None)
 
 		self.build = self.engine.build_unpack(compute_node, sdist)
 

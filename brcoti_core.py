@@ -1138,8 +1138,15 @@ class Engine(Object):
 		self.mni()
 
 	# Returns a ComputeNode instance
-	def prepare_environment(self):
-		self.mni()
+	def prepare_environment(self, compute_backend, build_info):
+		compute = compute_backend.spawn(self.engine_config.name)
+
+		if self.config.globals.http_proxy:
+			proxy = self.config.globals.http_proxy
+			compute.putenv('http_proxy', proxy)
+			compute.putenv('https_proxy', proxy)
+
+		return compute
 
 	def downloader(self):
 		return Downloader()

@@ -749,33 +749,8 @@ class RubyEngine(brcoti_core.Engine):
 	def parse_build_requirement(self, req_string):
 		return RubyBuildRequirement.from_string(req_string)
 
-	def prepare_environment(self, compute_backend):
-		compute = compute_backend.spawn(self.engine_config.name)
-
-		if self.config.globals.http_proxy:
-			proxy = self.config.globals.http_proxy
-			compute.putenv('http_proxy', proxy)
-			compute.putenv('https_proxy', proxy)
-
-		return compute
-
-		index_url = compute.translate_url(self.index.url)
-		urls = []
-		need_to_add = True
-
-		with compute.popen("gem sources --list") as f:
-			for l in f.readlines():
-				l = l.strip()
-				if l == index_url:
-					need_to_add = False
-				elif l.startswith("http"):
-					urls.append(l)
-		for url in urls:
-			compute.run_command("gem sources --remove %s" % url)
-		if need_to_add:
-			compute.run_command("gem sources --add %s" % index_url)
-
-		return compute
+	def prepare_environment(self, compute_backend, build_info):
+		return super(RubyEngine, self).prepare_environment(compute_backend, build_info)
 
 	def create_artefact_from_local_file(self, path):
 		return RubyArtefact.from_local_file(path)

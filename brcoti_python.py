@@ -1097,15 +1097,9 @@ class PythonEngine(brcoti_core.Engine):
 	def parse_build_requirement(self, req_string):
 		return PythonBuildRequirement.from_string(req_string)
 
-	def prepare_environment(self, compute_backend):
-		compute = compute_backend.spawn(self.engine_config.name)
+	def prepare_environment(self, compute_backend, build_info):
+		compute = super(PythonEngine, self).prepare_environment(compute_backend, build_info)
 		compute.putenv("PIP_INDEX_URL", compute.translate_url(self.index.url))
-
-		if self.config.globals.http_proxy:
-			proxy = self.config.globals.http_proxy
-			compute.putenv('http_proxy', proxy)
-			compute.putenv('https_proxy', proxy)
-
 		return compute
 
 	def create_artefact_from_local_file(self, path):
