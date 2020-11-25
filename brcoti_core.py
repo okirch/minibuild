@@ -1181,6 +1181,7 @@ class Engine(Object):
 		if tempdir:
 			tempdir.cleanup()
 
+		return build.build_requires
 
 	def create_empty_requirement(self, name):
 		self.mni()

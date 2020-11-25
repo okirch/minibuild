@@ -128,11 +128,12 @@ class BuildJob(object):
 
 		build.guess_build_dependencies()
 
-		self.engine.finalize_build_depdendencies(build)
+		requires = self.engine.finalize_build_depdendencies(build)
 
-		if build.build_requires:
+		if requires:
 			print("Build requirements:")
-			sys.stdout.write(build.build_requires_as_string())
+			for req in requires:
+				print("  %-50s via %s" % (req.filename, req))
 
 	def prepare_results(self):
 		print("=== Collecting build results ===")
