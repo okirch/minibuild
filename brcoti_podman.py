@@ -235,7 +235,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def putenv(self, name, value):
 		self.env[name] = value
 
-	def _make_command(self, cmd, working_dir):
+	def _make_command(self, cmd, working_dir, user_group = "build:build"):
 		args = []
 		if working_dir:
 			if isinstance(working_dir, brcoti_core.ComputeResourceFS):
@@ -245,8 +245,8 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		for name, value in self.env.items():
 			args.append(" --env %s='%s'" % (name, value))
 
-		# FIXME: make this configurable
-		args.append(" --user build:build")
+		if user_group is not None:
+			args.append(" --user %s" % user_group)
 		args.append(self.container_id)
 
 		return PodmanCmd("exec", *args, cmd)
