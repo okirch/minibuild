@@ -1240,8 +1240,14 @@ class Engine(Object):
 		finder = self.create_binary_download_finder(req, verbose)
 		return finder.get_best_match(self.index)
 
+	engine_cache = {}
+
 	@staticmethod
 	def factory(name, config, opts):
+		engine = Engine.engine_cache.get(name)
+		if engine is not None:
+			return engine
+
 		print("Create %s builder" % name)
 		engine_config = config.get_engine(name)
 
@@ -1249,11 +1255,13 @@ class Engine(Object):
 		if engine_config.type == 'python':
 			import brcoti_python
 
-			return brcoti_python.engine_factory(config, engine_config)
-
-		if engine_config.type == 'ruby':
+			engine = brcoti_python.engine_factory(config, engine_config)
+		elif engine_config.type == 'ruby':
 			import brcoti_ruby
 
-			return brcoti_ruby.engine_factory(config, engine_config)
+			engine = brcoti_ruby.engine_factory(config, engine_config)
+		else:
+			raise NotImplementedError("No build engine for \"%s\"" % name)
 
-		raise NotImplementedError("No build engine for \"%s\"" % name)
+		Engine.engine_cache[name] = engine
+		return engine
