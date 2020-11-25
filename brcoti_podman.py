@@ -23,6 +23,7 @@
 #
 
 import os
+import os.path
 import sys
 import brcoti_core
 import glob
@@ -157,6 +158,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 
 		self.container_id = None
 		self.container_root = None
+		self.env = {}
 
 		# For now, only root can do this. Sorry.
 		if os.getuid() != 0:
@@ -166,8 +168,6 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		self._mapped_hostname = None
 
 		self.start(img_config, backend.network_name, backend.pod_name)
-
-		self.env = {}
 
 		print("Created container %s; root=%s" % (self.container_id, self.container_root))
 
@@ -202,6 +202,38 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		f = PodmanCmd("mount", self.container_id).popen()
 		self.container_root = f.read().strip()
 		assert(self.container_root)
+
+		ca_certificates = self.backend.global_config.globals.certificates
+		self.publish_system_certificates(ca_certificates)
+		self.publish_python_certificates(ca_certificates)
+
+	def publish_system_certificates(self, ca_certificates):
+		import shutil
+
+		for ca_path in ca_certificates:
+			shutil.copy(ca_path, self.container_root + "/usr/share/pki/trust/anchors")
+
+		cmd = self._make_command("/usr/sbin/update-ca-certificates", working_dir = None, user_group = None)
+		cmd.run()
+
+	def publish_python_certificates(self, ca_certificates):
+		cert_string = ""
+		for ca_path in ca_certificates:
+			print("Reading certificate from %s" % ca_path)
+			with open(ca_path) as f:
+				cert_string += "\n"
+				cert_string += f.read()
+
+		if not cert_string:
+			return
+
+		path_list = glob.glob(self.container_root + "/usr/lib/python*/site-packages/pip/_vendor/certifi/cacert.pem")
+		for bundle_path in path_list:
+			print("Updating %s" % path_list)
+			with open(bundle_path, "a") as f:
+				f.write(cert_string)
+
+		return cert_string
 
 	def translate_url(self, url):
 		import urllib.parse
