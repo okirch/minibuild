@@ -1114,6 +1114,9 @@ class PythonEngine(brcoti_core.Engine):
 	def create_artefact_from_local_file(self, path):
 		return PythonArtefact.from_local_file(path)
 
+	def create_artefact_from_NVT(self, name, version, type):
+		return PythonArtefact(name, version, type)
+
 	def build_unpack(self, compute, sdist):
 		bd = PythonBuildDirectory(compute, self.engine_config)
 		if self.prefer_git:
