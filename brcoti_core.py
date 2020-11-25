@@ -1080,7 +1080,7 @@ class Config(object):
 
 class Engine(Object):
 	def __init__(self, name, config, engine_config):
-		self.name = name
+		self.name = engine_config.name
 
 		self.config = config
 		self.engine_config = engine_config
