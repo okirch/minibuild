@@ -1152,7 +1152,7 @@ class Engine(Object):
 	def uploader(self):
 		self.mni()
 
-	def build_info_from_local_file(self, path):
+	def create_artefact_from_local_file(self, path):
 		self.mni()
 
 	def build_source_locate(self, req, verbose = True):

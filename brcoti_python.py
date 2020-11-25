@@ -1111,7 +1111,7 @@ class PythonEngine(brcoti_core.Engine):
 
 		return compute
 
-	def build_info_from_local_file(self, path):
+	def create_artefact_from_local_file(self, path):
 		return PythonArtefact.from_local_file(path)
 
 	def build_unpack(self, compute, sdist):

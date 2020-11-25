@@ -38,7 +38,7 @@ def create_compute_backend(config, default_backend):
 
 def source_from_path(engine, name):
 	print("=== Using file %s ===" % name)
-	sdist = engine.build_info_from_local_file(name)
+	sdist = engine.create_artefact_from_local_file(name)
 
 	if not sdist.is_source:
 		print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
