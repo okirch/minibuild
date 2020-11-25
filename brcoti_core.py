@@ -292,7 +292,8 @@ class BuildInfo(Object):
 	#
 	@staticmethod
 	def from_file(path, config, default_engine = None):
-		result = BuildInfo()
+		print("Loading build info from %s" % path)
+		result = BuildInfo(None)
 
 		engine = default_engine
 		with open(path, 'r') as f:
@@ -301,47 +302,53 @@ class BuildInfo(Object):
 				if not l:
 					continue
 
-				if l.startswith("engine"):
-					name = l[7:].strip()
-					if engine:
-						raise ValueError("%s: duplicate engine specification" % path)
+				if not l.startswith(' '):
+					# reset the engine
+					engine = None
+					obj = None
 
-					if default_engine:
-						if name != default_engine.name:
+					(kwd, l) = l.split(maxsplit = 1)
+
+					if kwd == 'engine':
+						if result.engine:
+							raise ValueError("%s: duplicate engine specification" % path)
+						result.engine = l.strip()
+						if default_engine and result.engine != default_engine.name:
 							raise ValueError("Beware, %s specifies engine \"%s\" which conflicts with engine %s" % (
-								path, name, default_engine.name))
-						engine = default_engine
-					else:
+								path, result.engine, default_engine.name))
+						continue
 
+					if kwd in ('require', 'artefact'):
+						(name, l) = l.split(maxsplit = 1)
 						engine = Engine.factory(name, config, {})
-					continue
 
-				if engine == None:
-					engine = default_engine
-
-				if l.startswith("require"):
-					name = l[7:].strip()
-					req = engine.create_empty_requirement(name)
-					result.add_requirement(req)
-					continue
-
-				if req is None:
-					raise ValueError("%s: no build info in this context" % (path, ))
-
-				if l.startswith(' '):
-					words = l.strip().split()
-					if not words:
+						if kwd == 'require':
+							obj = engine.parse_build_requirement(l.strip())
+							result.add_requirement(obj)
+						elif kwd == 'artefact':
+							args = l.split()
+							obj = engine.create_artefact_from_NVT(*args)
+							result.add_artefact(obj)
 						continue
-					if words[0] == 'specifier':
-						req.parse_requirement(" ".join(words[1:]))
-						continue
+					else:
+						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
+				else:
+					words = l.split()
+					kwd = words.pop(0)
 
-					if words[0] == 'hash':
-						req.add_hash(words[1], words[2])
-						continue
+					if kwd == 'hash':
+						obj.add_hash(words[0], words[1])
+					elif kwd == 'filename':
+						# This is not quite right for Requirements objects
+						obj.filename = words[0]
+					elif kwd == 'url':
+						# This is not quite right for Requirements objects
+						obj.url = words[0]
+					else:
+						raise ValueError("%s: unparseable line <%s>" % (path, l))
 
-				raise ValueError("%s: unparseable line <%s>" % (path, l))
-
+		if result.engine is None:
+			raise ValueError("%s: missing engine specification" % path)
 		return result
 
 
