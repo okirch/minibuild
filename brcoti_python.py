@@ -743,6 +743,8 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine_config):
 		super(PythonBuildDirectory, self).__init__(compute, compute.default_build_dir())
 
+		self.build_info = brcoti_core.BuildInfo(ENGINE_NAME)
+
 		self.pip_command = engine_config.get_value("pip")
 		if self.pip_command is None:
 			self.pip_command = "pip"
@@ -785,9 +787,9 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 			for algo in PythonEngine.REQUIRED_HASHES:
 				build.update_hash(algo)
 
-			self.artefacts.append(build)
+			self.build_info.add_artefact(build)
 
-		return self.artefacts
+		return self.build_info.artefacts
 
 	def compare_build_artefacts(self, old_path, new_path):
 		return WheelArchive(old_path).compare(WheelArchive(new_path))
@@ -821,7 +823,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		print("Parsing pip.log")
 		req = None
 
-		self.build_requires = []
 		with logfile.open() as f:
 			for l in f.readlines():
 				# Parse lines like:
@@ -881,28 +882,24 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 					continue
 
 				req = PythonBuildRequirement(name)
-				self.build_requires.append(req)
+				self.build_info.add_requirement(req)
 				if not self.quiet:
 					print("Found requirement %s" % req.name)
 
-		for req in self.build_requires:
+		for req in self.build_info.requires:
 			if not req.req_string:
 				raise ValueError("pip log parser failed - unable to determine req string for build requirement %s" % req.name)
 
 	def prepare_results(self, build_state):
+		# Always upload the source tarball with the build artefacts
+		if self.sdist not in self.build_info.artefacts:
+			self.build_info.add_artefact(self.sdist)
+
+		super(PythonBuildDirectory, self).prepare_results(build_state)
+
 		self.maybe_save_file(build_state, "pip.log")
 
-		build_state.write_file("build-requires", self.build_requires_as_string())
-		build_state.write_file("build-artefacts", self.build_artefacts_as_string())
-
-		# Always upload the source tarball with the build artefacts
-		if self.sdist not in self.artefacts:
-			self.artefacts.append(self.sdist)
-
-		for artefact in self.artefacts:
-			# Copy the wheel/sdist itself
-			artefact.local_path = build_state.save_file(artefact.local_path)
-
+		for artefact in self.build_info.artefacts:
 			if artefact.is_source:
 				continue
 
@@ -911,27 +908,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 			build_state.write_file(name,
 				pkginfo_as_metadata(pi),
 				"%s metadata" % artefact.id())
-
-	def build_artefacts_as_string(self):
-		b = io.StringIO()
-		for wheel in self.artefacts:
-			b.write("wheel %s\n" % wheel.name)
-			b.write("  version %s\n" % wheel.version)
-			b.write("  filename %s\n" % wheel.filename)
-
-			for algo in PythonEngine.REQUIRED_HASHES:
-				b.write("  hash %s %s\n" % (algo, wheel.hash.get(algo)))
-		return b.getvalue()
-
-	def build_requires_as_string(self):
-		b = io.StringIO()
-		for req in self.build_requires:
-			b.write("require %s\n" % req.name)
-			b.write("  specifier %s\n" % req);
-			if req.hash:
-				for (algo, md) in req.hash.items():
-					b.write("  hash %s %s\n" % (algo, md))
-		return b.getvalue()
 
 	def maybe_save_file(self, build_state, name):
 		fh = self.directory.lookup(name)

@@ -347,7 +347,7 @@ class BuildDirectory(Object):
 		self.quiet = False
 		self.build_log = None
 
-		self.artefacts = []
+		self.build_info = None
 
 	def cleanup(self):
 		if self.directory:
@@ -446,7 +446,10 @@ class BuildDirectory(Object):
 		self.mni()
 
 	def prepare_results(self, build_state):
-		self.mni()
+		self.build_info.save(build_state.get_new_path("build-info"))
+
+		for build in self.build_info.artefacts:
+			build.local_path = build_state.save_file(build.local_path)
 
 	def build_requires_as_string(self):
 		self.mni()
@@ -457,7 +460,7 @@ class BuildDirectory(Object):
 			return False
 
 		samesame = True
-		for build in self.artefacts:
+		for build in self.build_info.artefacts:
 			artefact_name = os.path.basename(build.local_path)
 
 			if build.is_source:
@@ -477,17 +480,17 @@ class BuildDirectory(Object):
 				samesame = False
 				continue
 
-		path = build_state.get_old_path("build-requires")
+		path = build_state.get_old_path("build-info")
 		if not os.path.exists(path):
-			print("Previous build of %s did not write a build-requires file" % self.sdist.id())
+			print("Previous build of %s did not write a build-info file" % self.sdist.id())
 			samesame = False
 		else:
-			new_path = build_state.get_new_path("build-requires")
+			new_path = build_state.get_new_path("build-info")
 
 			with open(path, "r") as old_f:
 				with open(new_path, "r") as new_f:
 					if old_f.read() != new_f.read():
-						print("Build requirements changed")
+						print("Build info changed")
 						run_command("diff -u %s %s" % (path, new_path), ignore_exitcode = True)
 						samesame = False
 
@@ -588,7 +591,7 @@ class BuildState(Object):
 		return dst
 
 	def write_file(self, name, data, desc = None):
-		path = os.path.join(self.tmpdir.name, name)
+		path = self.get_new_path(name)
 
 		if desc:
 			print("Writing %s to %s" % (desc, path))
@@ -1182,7 +1185,7 @@ class Engine(Object):
 
 	def finalize_build_depdendencies(self, build):
 		tempdir = None
-		for req in build.build_requires:
+		for req in build.build_info.requires:
 			missing = []
 			for algo in self.REQUIRED_HASHES:
 				if req.get_hash(algo) is None:
@@ -1212,7 +1215,7 @@ class Engine(Object):
 		if tempdir:
 			tempdir.cleanup()
 
-		return build.build_requires
+		return build.build_info.requires
 
 	def create_empty_requirement(self, name):
 		self.mni()

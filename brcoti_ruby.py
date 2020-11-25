@@ -624,6 +624,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine_config):
 		super(RubyBuildDirectory, self).__init__(compute, compute.default_build_dir())
 
+		self.build_info = brcoti_core.BuildInfo(ENGINE_NAME)
+
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
 	def archive_get_unpack_directory(self, sdist):
@@ -660,9 +662,9 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			for algo in RubyEngine.REQUIRED_HASHES:
 				build.update_hash(algo)
 
-			self.artefacts.append(build)
+			self.build_info.add_artefact(build)
 
-		return self.artefacts
+		return self.build_info.artefacts
 
 	# Compare old build of a gem vs the current build. This method
 	# is expected to return three set objects:
@@ -688,35 +690,6 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 			self.build_requires.append(req)
 		return
-
-	def prepare_results(self, build_state):
-		build_state.write_file("build-requires", self.build_requires_as_string())
-		build_state.write_file("build-artefacts", self.build_artefacts_as_string())
-
-		for build in self.artefacts:
-			build.local_path = build_state.save_file(build.local_path)
-
-	def build_artefacts_as_string(self):
-		b = io.StringIO()
-		for build in self.artefacts:
-			b.write("gem %s\n" % build.name)
-			b.write("  version %s\n" % build.version)
-			b.write("  filename %s\n" % build.filename)
-
-			for algo in RubyEngine.REQUIRED_HASHES:
-				b.write("  hash %s %s\n" % (algo, build.get_hash(algo)))
-		return b.getvalue()
-
-	def build_requires_as_string(self):
-		b = io.StringIO()
-		for req in self.build_requires:
-			b.write("require %s\n" % req.name)
-
-			b.write("  specifier %s\n" % req)
-			if req.hash:
-				for (algo, md) in req.hash.items():
-					b.write("  hash %s %s\n" % (algo, md))
-		return b.getvalue()
 
 	def maybe_save_file(self, build_state, name):
 		fh = self.directory.lookup(name)
