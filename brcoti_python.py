@@ -862,8 +862,14 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 						algo, md = frag.split('=')
 						req.add_hash(algo, md)
 
-					req.url = url
 					req.filename = os.path.basename(urlparse(url).path)
+
+					(name, version, type) = PythonArtefact.parse_filename(req.filename)
+					artefact = PythonArtefact(name, version, type)
+					artefact.filename = os.path.basename(req.filename)
+					artefact.url = url
+
+					req.resolution = artefact
 					continue
 
 				if "to search for versions of" not in l:

@@ -686,7 +686,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 				continue
 
 			req_string = dep.name + ",".join([str(x) for x in dep.requirement])
-			req = RubyBuildRequirement(dep.name, req_string = req_string, cooked_requirement = dep.requirement) # type = "gem"
+			req = RubyBuildRequirement(dep.name, req_string = req_string, cooked_requirement = dep.requirement)
 
 			self.build_requires.append(req)
 		return

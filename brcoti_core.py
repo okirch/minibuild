@@ -112,6 +112,8 @@ class BuildRequirement(ArtefactAttrs):
 			self.req_string = req_string
 			self.cooked_requirement = cooked_requirement
 
+		self.resolution = None
+
 	def parse_requirement(self, req_string):
 		self.mni()
 
@@ -271,6 +273,13 @@ class BuildInfo(Object):
 			if req.hash:
 				for (algo, md) in req.hash.items():
 					f.write("  hash %s %s\n" % (algo, md))
+
+			artefact = req.resolution
+			if artefact:
+				if artefact.filename:
+					print("  filename %s" % artefact.filename, file = f)
+				if artefact.url:
+					print("  url %s" % artefact.url, file = f)
 
 	def write_artefacts(self, f):
 		for build in self.artefacts:
@@ -1204,7 +1213,9 @@ class Engine(Object):
 
 				tempdir = tempfile.TemporaryDirectory(prefix = "build-deps-")
 
-			resolved_req = self.resolve_build_requirement(req)
+			resolved_req = req.resolution
+			if not resolved_req:
+				resolved_req = self.resolve_build_requirement(req)
 			if not resolved_req:
 				raise ValueError("Unable to resolve build dependency %s" % req.name)
 			self.downloader.download(resolved_req, tempdir.name)
