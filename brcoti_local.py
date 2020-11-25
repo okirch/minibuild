@@ -28,8 +28,8 @@ import brcoti_core
 import glob
 
 class LocalCompute(brcoti_core.Compute):
-	def __init__(self, config):
-		self.config = config
+	def __init__(self, global_config, config):
+		super(LocalCompute, self).__init__(global_config, config)
 
 	def spawn(self, flavor):
 		return LocalComputeNode(self)
@@ -118,6 +118,6 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 	def shutdown(self):
 		pass
 
-def compute_factory(config):
-        return LocalCompute(config)
+def compute_factory(global_config, config):
+        return LocalCompute(global_config, config)
 

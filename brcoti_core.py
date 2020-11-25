@@ -809,7 +809,8 @@ class ComputeNode(Object):
 
 
 class Compute(Object):
-	def __init__(self, config):
+	def __init__(self, global_config, config):
+		self.global_config = global_config
 		self.config = config
 
 	def default_build_dir(self):
@@ -828,12 +829,12 @@ class Compute(Object):
 		if env.type == 'local':
 			import brcoti_local
 
-			return brcoti_local.compute_factory(env)
+			return brcoti_local.compute_factory(config, env)
 
 		if env.type == 'podman':
 			import brcoti_podman
 
-			return brcoti_podman.compute_factory(env)
+			return brcoti_podman.compute_factory(config, env)
 
 		raise NotImplementedError("Compute environment \"%s\" uses type \"%s\" - not implemented" % (name, env.type))
 

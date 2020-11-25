@@ -52,8 +52,8 @@ class PodmanCmd(object):
 		return os.popen(cmd)
 
 class PodmanCompute(brcoti_core.Compute):
-	def __init__(self, config):
-		self.config = config
+	def __init__(self, global_config, config):
+		super(PodmanCompute, self).__init__(global_config, config)
 		self.network_up = False
 
 	def spawn(self, flavor):
@@ -267,7 +267,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def shutdown(self):
 		pass
 
-def compute_factory(config):
-        return PodmanCompute(config)
+def compute_factory(global_config, config):
+        return PodmanCompute(global_config, config)
 
 
