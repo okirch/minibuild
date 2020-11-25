@@ -156,11 +156,8 @@ class BuildJob(object):
 			for p in build.artefacts:
 				uploader.upload(p)
 
-			build_state.commit()
-			build.cleanup()
-		else:
-			print("=== Leaving build results in %s ===" % build.location)
-			sys.stdout.write(build.build_artefacts_as_string())
+		build_state.commit()
+		build.cleanup()
 
 		build_state.cleanup()
 		self.build_state = None
