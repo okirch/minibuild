@@ -399,9 +399,6 @@ class PythonReleaseInfo(brcoti_core.PackageReleaseInfo):
 		assert(isinstance(other, PythonReleaseInfo))
 		return other.parsed_version < this.parsed_version
 
-	def build_types(self):
-		return [b.type for b in self.builds]
-
 class PythonPackageInfo(brcoti_core.PackageInfo):
 	def __init__(self, name):
 		super(PythonPackageInfo, self).__init__(canonical_package_name(name))
