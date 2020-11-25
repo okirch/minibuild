@@ -16,7 +16,7 @@
 		{
 			"type" :  "python",
 			"name" :  "rebuilds",
-			"url" :  "http://pypi.minibuild",
+			"url" :  "https://pypi.minibuild",
 			"repotype" : "simple"
 		}, {
 			"type" :  "python",
