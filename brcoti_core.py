@@ -1265,6 +1265,10 @@ class Engine(Object):
 			import brcoti_ruby
 
 			engine = brcoti_ruby.engine_factory(config, engine_config)
+		elif engine_config.type == 'rpm':
+			import brcoti_rpm
+
+			engine = brcoti_rpm.engine_factory(config, engine_config)
 		else:
 			raise NotImplementedError("No build engine for \"%s\"" % name)
 

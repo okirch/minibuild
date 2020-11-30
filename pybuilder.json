@@ -60,6 +60,12 @@
 				"upstream-repo" :  "upstream",
 				"publish-repo"	:  "publish"
 			}
+		}, {
+			"name" :  "rpm",
+			"type" :  "rpm",
+			"config" : {
+				"package-manager" : "zypper"
+			}
 		}
 	],
 	"environments" : [
