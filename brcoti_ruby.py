@@ -258,7 +258,7 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 				continue
 
 			for build in release.builds:
-				print("%s: inspecting build %s (type %s)" % (release.id(), build.filename, build.type))
+				# print("%s: inspecting build %s (type %s)" % (release.id(), build.filename, build.type))
 				if self.build_match(build):
 					if not build.verify_required_ruby_version():
 						if self.verbose:
@@ -666,11 +666,13 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		assert(self.directory)
 		sdist = self.sdist
 
-		self.compute.run_command("gem sources --list")
+		# self.compute.run_command("gem sources --list")
 
-		cmd = "gem build " + sdist.name
+		for spec in self.directory.glob_files("*.gemspec"):
+			spec = os.path.basename(spec.path)
+			cmd = "gem build " + spec
 
-		self.build_command_helper(cmd)
+			self.build_command_helper(cmd)
 
 		gems = self.directory.glob_files("*.gem")
 
