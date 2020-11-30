@@ -149,6 +149,46 @@ class BuildJob(object):
 
 		build.prepare_results(self.build_state)
 
+	def compare_upstream(self, artefact):
+		print("=== Comparing our build to upstream artefact(s) ===")
+		engine = self.engine
+		build = self.build
+
+		import tempfile
+
+		tmpdir = tempfile.TemporaryDirectory(prefix = "brcoti-")
+
+		retval = True
+		for mine in build.build_info.artefacts:
+			req_string = "%s == %s" % (mine.name, mine.version)
+			print("Trying to find upstream build for %s" % req_string)
+			req = engine.parse_build_requirement(req_string)
+
+			finder = engine.create_binary_download_finder(req, verbose = False)
+			upstream = finder.get_best_match(engine.upstream_index)
+			if not upstream:
+				raise ValueError("No upstream build for %s" % req_string)
+
+			engine.downloader.download(upstream, destdir = tmpdir.name)
+
+			# This returns a tuple of sets: (added, removed, changed)
+			result = build.compare_build_artefacts(upstream.local_path, mine.local_path)
+
+			identical = True
+			for name, set in zip(("added", "missing", "changed"), result):
+				if not set:
+					continue
+
+				if identical:
+					print("%s differs from upstream build" % mine.id())
+					identical = False
+
+				print("  %s: %s" % (name, ", ".join(set)))
+
+			retval = identical
+
+		return retval
+
 	def maybe_commit(self):
 		print("=== Checking whether artefacts changed from previous build ===")
 		build_state = self.build_state
@@ -197,6 +237,26 @@ def prep_action(config, opts):
 			job.build_package()
 			job.process_build_dependencies()
 			job.prepare_results()
+			if opts.no_upstream_check:
+				print("*** Skipping upstream check. ***")
+			elif not job.compare_upstream(None):
+				warnmsg = '''
+
+        W   W    A    RRR  N   N II N   N  GGG   !!
+        W   W   A A   R  R NN  N II NN  N G      !!
+        W W W  AAAAA  RRR  N N N II N N N G  GG  !!
+         W W  A     A R  R N  NN II N  NN  GGG   **
+
+Our build seems to differ from the upstream build, which most likely means we did not
+build it correctly.
+If our build *IS* correct, and this warning is due to a bug, please fix the mis-detection.
+If you're in a hurry, re-run this command with --no-upstream-check
+'''
+				print("=== WARNING: DIFFERS FROM UPSTREAM ===")
+				print(warnmsg)
+				print("=== WARNING: DIFFERS FROM UPSTREAM ===")
+				exit_code = 1
+
 			# job.maybe_commit()
 
 		except Exception as e:
@@ -306,6 +366,8 @@ def build_option_parser():
 		help = "List of packages")
 	prep_parser.add_argument('--git', default = False, action = 'store_true',
                 help = "Build from git repo rather than sdist")
+	prep_parser.add_argument('--no-upstream-check', default = False, action = 'store_true',
+                help = "Do not compare our build results to upstream build (use with caution)")
 
 	build_parser = subparsers.add_parser('build',
 		help = "Build package(s)")

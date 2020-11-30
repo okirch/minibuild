@@ -575,9 +575,9 @@ class GemFile(object):
 		added_set, removed_set, changed_set = GemFile.compare_data(old, new)
 
 		if old.get_metadata() != new.get_metadata():
-			changed_set.add("metadata.gz")
+			changed_set.add("metadata")
 
-		# Ignore checksums.yaml
+		# Ignore checksums
 
 		return added_set, removed_set, changed_set
 
