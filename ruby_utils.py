@@ -71,8 +71,11 @@ class Ruby:
 		# Needed for marshaling
 		ruby_classname = 'Gem::Version'
 
-		def __init__(self):
+		def __init__(self, yaml_data = None):
 			self.versions = []
+
+			if yaml_data:
+				self.versions.append(yaml_data['version'])
 
 		@property
 		def version(self):
@@ -127,8 +130,12 @@ class Ruby:
 		# Needed for marshaling
 		ruby_classname = 'Gem::Requirement'
 
-		def __init__(self):
+		def __init__(self, yaml_data = None):
 			self.req = []
+
+			if yaml_data is not None:
+				for op, version in yaml_data['requirements']:
+					self.req.append(Ruby.Clause(op, version))
 
 		def add_clause(self, c):
 			self.req.append(c)
@@ -180,11 +187,18 @@ class Ruby:
 		# Needed for marshaling
 		ruby_classname = 'Gem::Dependency'
 
-		def __init__(self):
+		def __init__(self, yaml_data = None):
 			self.name = None
 			self.requirement = Ruby.GemRequirement()
 			self.type = 'any'
 			self.prerelease = False
+
+			if yaml_data:
+				self.name = yaml_data['name']
+				self.requirement = yaml_data['requirement']
+				self.type = yaml_data['type']
+				self.prerelease = yaml_data['prerelease']
+				# ignoring version_requirements
 
 		def __repr__(self):
 			return "GemDependency(%s %s%s%s)" % (
@@ -273,7 +287,7 @@ class Ruby:
 		# Needed for marshaling
 		ruby_classname = 'Gem::Specification'
 
-		def __init__(self):
+		def __init__(self, yaml_data = None):
 			self.name = None
 			self.version = None
 			self.summary = None
@@ -283,6 +297,11 @@ class Ruby:
 			self.metadata = None
 			self._emails = []
 			self._authors = []
+			self.dependencies = []
+
+			if yaml_data is not None:
+				for key, value in yaml_data.items():
+					setattr(self, key, value)
 
 		@property
 		def email(self):
@@ -316,7 +335,7 @@ class Ruby:
 
 		@required_rubygems_version.setter
 		def required_rubygems_version(self, value):
-			if not isinstance(value, Ruby.GemRequirement):
+			if value is not None and not isinstance(value, Ruby.GemRequirement):
 				raise ValueError("marshalled gemspec for %s-%s specifies invalid required_rubygems_version=\"%s\"" % (
 					self.name, self.version, value
 				))
@@ -373,14 +392,79 @@ class Ruby:
 	def find_class(name):
 		return Ruby.classes.get(name)
 
+	@staticmethod
 	def factory(name, *args):
 		cls = Ruby.find_class(name)
 		if not cls:
 			raise NotImplementedError("Ruby.factory: unknown class %s" % name)
-			print("Ruby.factory: unknown class %s" % name)
-			return None
 
 		return cls(*args)
+
+	class YAML:
+		initialized = False
+
+		class PartiallyConstructedObject:
+			def __init__(self, name, value):
+				self.name = name
+				self.value = value
+
+			def __repr__(self):
+				return "Interim::%s(%s)" % (self.name, self.value)
+
+			def finalize(self):
+				# print("Finalizing", self)
+				value = self.finalize_one(self.value)
+
+				return Ruby.factory(self.name, value)
+
+			def finalize_one(self, value):
+				t = type(value)
+				if t == list:
+					return [self.finalize_one(item) for item in value]
+				if t == dict:
+					return {k: self.finalize_one(v) for k, v in value.items()}
+				if t == type(self):
+					return value.finalize()
+				return value
+
+
+		# Constructing objects from the yaml stream is a bit more convoluted than
+		# seems adequate. That's because the loader will /not/ convert the value
+		# completely in loader.construct_mapping(). For example, the value of a
+		# Gem::Requirement will be a mapping with
+		#	'requirements' : []
+		# The actual data that should be _in_ this list will only be converted
+		# at a later point. Maybe because the constructor() code in yaml is not
+		# able to deal with recursive calls or some such problem...
+		@staticmethod
+		def multi_constructor(loader, tag_suffix, node):
+			mapping = loader.construct_mapping(node)
+
+			if False:
+				print("%s to be created with mapping:" % tag_suffix)
+				for k, v in mapping.items():
+					print("  %s=%s" % (k, v))
+
+			return Ruby.YAML.PartiallyConstructedObject(tag_suffix, mapping)
+
+		@staticmethod
+		def initonce():
+			import yaml
+
+			if not Ruby.YAML.initialized:
+				yaml.add_multi_constructor('!ruby/object:',
+						Ruby.YAML.multi_constructor,
+						Loader = yaml.Loader)
+				Ruby.YAML.initialized = True
+
+		@staticmethod
+		def load(io):
+			import yaml
+
+			Ruby.YAML.initonce()
+
+			ret = yaml.load(io, Loader = yaml.Loader)
+			return ret.finalize()
 
 class DecompressNone:
 	@staticmethod
