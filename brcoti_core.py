@@ -1140,6 +1140,7 @@ class Engine(Object):
 	def create_index(self, engine_config):
 		repo_config = engine_config.resolve_repository("download-repo")
 		if repo_config is None:
+			return None
 			raise ValueError("No download-repo configured for engine \"%s\"" % engine_config.name)
 
 		print("%s: download repo is %s" % (engine_config.name, repo_config.url))
@@ -1149,6 +1150,7 @@ class Engine(Object):
 	def create_upstream_index(self, engine_config):
 		repo_config = engine_config.resolve_repository("upstream-repo")
 		if repo_config is None:
+			return None
 			raise ValueError("No upstream-repo configured for engine \"%s\"" % engine_config.name)
 
 		print("%s: upstream repo is %s" % (engine_config.name, repo_config.url))
@@ -1158,6 +1160,7 @@ class Engine(Object):
 	def create_publisher(self, engine_config):
 		repo_config = engine_config.resolve_repository("publish-repo")
 		if repo_config is None:
+			return None
 			raise ValueError("No publish-repo configured for engine \"%s\"" % engine_config.name)
 
 		print("%s: publish repo is %s" % (engine_config.name, repo_config.url))

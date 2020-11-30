@@ -32,17 +32,23 @@ import brcoti_core
 
 DEFAULT_BUILD_COMPUTE = "podman"
 
+def create_build_engine(config):
+	opts = config.command_line_options
+	return brcoti_core.Engine.factory(opts.engine, config)
+
 def create_compute_backend(config, default_backend):
 	backend_name = config.command_line_options.compute or default_backend
 	return brcoti_core.Compute.factory(backend_name, config)
 
-def source_from_path(engine, name):
-	print("=== Using file %s ===" % name)
-	sdist = engine.create_artefact_from_local_file(name)
+def source_from_path(name, config):
+	if os.path.isdir(name):
+		print("=== Using source directory %s ===" % name)
+		return brcoti_core.Engine.create_source_from_local_directory(name, config)
 
-	if not sdist.is_source:
-		print("ERROR: cannot build %s - not a source distribution" % sdist.filename)
-		return None
+	engine = create_build_engine(config)
+
+	print("=== Using file %s (build engine %s) ===" % (name, engine.name))
+	source = engine.create_source_from_local_file(name, config)
 
 	# DownloadFinder will never return an sdist that
 	# requires a python version incompatible with ours.
@@ -52,7 +58,7 @@ def source_from_path(engine, name):
 	# do not contain structured build information, but provide
 	# a more or less messy setup.py
 
-	return sdist
+	return source
 
 def find_source(engine, req_string, use_upstream = False):
 	print("=== Locating %s in %s repository ===" % (req_string, use_upstream and "upstream" or "rebuild"))
@@ -67,7 +73,7 @@ def find_source(engine, req_string, use_upstream = False):
 		print("FAILED to locate source for %s" % req)
 		return None
 
-	return sdist
+	return brcoti_core.SourceFile(sdist, engine)
 
 class BuildJob(object):
 	def __init__(self, config, engine, compute_backend, source):
@@ -98,16 +104,17 @@ class BuildJob(object):
 
 	def unpack_source(self):
 		print("=== Unpacking %s ===" % self.id())
-		sdist = self.source
+		build_info = self.source.info
 
 		# Download the source archive if we don't have it yet
-		if not sdist.local_path:
+		for sdist in build_info.sources:
+			# FIXME: how do we make sure we use the right downloader here? 
 			self.engine.downloader.download(sdist)
 
 		# spawn a container/VM or whatever compute node we need
-		compute_node = self.engine.prepare_environment(self.compute_backend, None)
+		compute_node = self.engine.prepare_environment(self.compute_backend, build_info)
 
-		self.build = self.engine.build_unpack(compute_node, sdist)
+		self.build = self.engine.build_unpack(compute_node, build_info)
 
 		self.build.set_logging(self.quiet, self.build_state.build_log_file())
 		return self.build
@@ -164,19 +171,20 @@ class BuildJob(object):
 		self.build_state = None
 
 def prep_action(config, opts):
-	engine = brcoti_core.Engine.factory(opts.engine, config)
+	engine = create_build_engine(config)
 	compute_backend = create_compute_backend(config, "local")
 
 	exit_code = 0
 	for name in opts.packages:
 		if os.path.isfile(name):
-			source = source_from_path(engine, name)
+			source = source_from_path(name, config)
 		else:
 			source = find_source(engine, name, use_upstream = True)
 		if source is None:
 			exit_code = 1
 			continue
 
+		sdist = source.info.sources[0]
 		if sdist.url:
 			print("Using %s" % (sdist.url))
 
@@ -199,24 +207,38 @@ def prep_action(config, opts):
 			traceback.format_exc()
 			exit_code = 1
 
+		write_source_dir(name, source.info, job.build.build_info)
+
 	print("=== Done ===")
 	return exit_code
 
+def write_source_dir(name, source_info, build_info):
+	src_dir = name
+	if os.path.isdir(src_dir):
+		shutil.rmtree(src_dir)
+	os.makedirs(src_dir, mode = 0o755)
+	for sdist in source_info.sources:
+		shutil.copy(sdist.local_path, src_dir)
+
+	info = source_info
+	info.requires += build_info.requires
+
+	info_path = os.path.join(src_dir, "build-info")
+	info.save(info_path)
+
 def build_action(config, opts):
-	engine = brcoti_core.Engine.factory(opts.engine, config)
 	compute_backend = create_compute_backend(config, DEFAULT_BUILD_COMPUTE)
 
 	exit_code = 0
 	for name in opts.packages:
 		print("Examining %s" % name)
 
-		if os.path.isfile(name):
-			source = source_from_path(engine, name)
-		else:
-			source = find_source(engine, name)
+		source = source_from_path(name, config)
 		if source is None:
 			exit_code = 1
 			continue
+
+		engine = brcoti_core.Engine.factory(source.info.engine, config)
 
 		print("=== Package %s ===" %(source.id()))
 		job = BuildJob(config, engine, compute_backend, source)

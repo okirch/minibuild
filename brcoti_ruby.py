@@ -798,7 +798,11 @@ class RubyEngine(brcoti_core.Engine):
 	def create_artefact_from_NVT(self, name, version, type):
 		return RubyArtefact(name, version, type)
 
-	def build_unpack(self, compute, sdist):
+	def build_unpack(self, compute, build_info):
+		if len(build_info.sources) != 1:
+			raise ValueError("Currently unable to handle builds with more than one source")
+		sdist = build_info.sources[0]
+
 		bd = RubyBuildDirectory(compute, self.engine_config)
 		if self.prefer_git:
 			bd.unpack_git(sdist, sdist.id())
