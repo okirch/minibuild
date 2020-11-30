@@ -1,5 +1,5 @@
 FROM opensuse/leap:latest
-RUN zypper in -y ruby-2.5
+RUN zypper in -y ruby-2.5 ruby2.5-rubygem-bundler
 RUN gem install nexus
 RUN groupadd -g 666 build
 RUN useradd -u 666 -g build -m build

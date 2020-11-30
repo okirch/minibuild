@@ -245,39 +245,52 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 		if self.verbose:
 			print("%s versions: %s" % (self.name, ", ".join(info.versions())))
 
-		best_ver = None
 		best_match = None
+		best_release = None
 
-		for release in info.releases:
-			if not self.release_match(release):
+		releases = sorted(info.releases, key = lambda r: r.parsed_version)
+		while releases and not best_match:
+			best_release = releases.pop()
+
+			if not self.release_match(best_release):
 				if self.verbose:
-					print("ignoring release %s" % release.id())
+					print("ignoring release %s" % best_release.id())
 				continue
 
-			if best_ver and release.parsed_version <= best_ver:
-				continue
+			# Create an artefact for the binary gem (by downloading the gemspec
+			# from the index).
+			# If possible, also create a source artefact by guessing the source
+			# URL.
+			index.get_gemspec(best_release)
 
-			for build in release.builds:
+			for build in best_release.builds:
 				# print("%s: inspecting build %s (type %s)" % (release.id(), build.filename, build.type))
-				if self.build_match(build):
-					if not build.verify_required_ruby_version():
-						if self.verbose:
-							print("ignoring build %s (requires ruby %s)" % (build.filename, build.required_ruby_version))
-						continue
+				if not build.verify_required_ruby_version():
+					if self.verbose:
+						print("ignoring build %s (requires ruby %s)" % (build.filename, build.required_ruby_version))
+					continue
 
-					if not build.verify_required_rubygems_version():
-						if self.verbose:
-							print("ignoring build %s (requires ruby gems %s)" % (build.filename, build.required_rubygems_version))
-						continue
+				if not build.verify_required_rubygems_version():
+					if self.verbose:
+						print("ignoring build %s (requires ruby gems %s)" % (build.filename, build.required_rubygems_version))
+					continue
 
-					best_match = build
-					best_ver = release.parsed_version
+				good_match = build
+
+				if not self.build_match(build):
+					continue
+
+				best_match = build
+				break
+
+			if good_match and not best_match:
+				raise ValueError("%s: found release %s, but not the matching artefact type" % (self.name, best_release.version))
 
 		if not best_match:
 			raise ValueError("%s: unable to find a matching release" % self.name)
 
 		if self.verbose:
-			print("Using %s" % best_match.id())
+			print("Best match for %s is %s %s" % (self.name, best_match.type, best_match.id()))
 
 		return best_match
 
@@ -312,9 +325,6 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 
 	def get_package_info(self, name):
 		pi = self.locate_gem(name)
-
-		for ri in pi.releases:
-			self.get_gemspec(ri)
 
 		return pi
 
