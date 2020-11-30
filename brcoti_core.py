@@ -1146,6 +1146,13 @@ class Engine(Object):
 			compute.putenv('http_proxy', proxy)
 			compute.putenv('https_proxy', proxy)
 
+		# install additional packages as requested by build-info
+		if build_info:
+			for req in build_info.requires:
+				if req.engine != self.name:
+					engine = Engine.factory(req.engine, self.config, {})
+					engine.install_requirement(compute, req)
+
 		return compute
 
 	def downloader(self):
