@@ -305,6 +305,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		self._pkg_url_template = "{index_url}/quick/Marshal.4.8/{pkg_name}-{pkg_version}.gemspec.rz"
 
 		self._cached_latest_specs = None
+		self._cached_specs = None
 
 	def get_package_info(self, name):
 		pi = self.locate_gem(name)
@@ -314,38 +315,37 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 
 		return pi
 
-	def locate_gem(self, name):
+	def locate_gem(self, name, latest_only = False):
 		# latest_specs.4.8 and specs.4.8 contain an array of info tuples.
 		# Each tuple represents the (latest known) version of a gem, and consists of 3 elements:
 		#  [name, Gem::Version(...), platform]
 		# platform is usually "ruby", but can also be "java-something"
-		gem_list = self._latest_specs()
+		if latest_only:
+			gem_list = self._latest_specs()
+		else:
+			gem_list = self._specs()
 
-		print("Locating %s in %s/latest_specs" % (name, self.url))
-		version = None
+		print("Locating %s in %s" % (name, self.url))
+		pi = RubyPackageInfo(name)
 		for gem in gem_list:
 			if gem[0] == name:
 				version_list = gem[1]
 				# weird. rubygems.org always gives us an array of versions,
 				# but nexus seems to give us a single version object
 				if isinstance(version_list, ruby_utils.Ruby.GemVersion):
-					v = str(version_list)
+					version = str(version_list)
 				else:
-					v = version_list[0]
+					version = version_list[0]
 
 				if gem[2] != 'ruby':
-					print("Warning: Cannot use %s-%s: platform is \"%s\"" % (name, v, gem[2]))
+					print("Warning: Cannot use %s-%s: platform is \"%s\"" % (name, version, gem[2]))
 					continue
 
-				version = v
-				break
+				release = RubyReleaseInfo(name, version)
+				pi.add_release(release)
 
-		if not version:
+		if not pi.releases:
 			raise ValueError("Gem \"%s\" not found in index" % name)
-
-		pi = RubyPackageInfo(name)
-		release = RubyReleaseInfo(name, version)
-		pi.add_release(release)
 
 		return pi
 
@@ -353,6 +353,11 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		if self._cached_latest_specs is None:
 			self._cached_latest_specs = self._download_and_parse_specs("latest_specs.4.8.gz")
 		return self._cached_latest_specs
+
+	def _specs(self):
+		if self._cached_specs is None:
+			self._cached_specs = self._download_and_parse_specs("specs.4.8.gz")
+		return self._cached_specs
 
 	def _download_and_parse_specs(self, filename):
 		import urllib.request
