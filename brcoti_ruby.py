@@ -698,18 +698,30 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def guess_build_dependencies(self):
 		from packaging.requirements import Requirement
 
-		self.build_requires = []
+		seen = dict()
+		for build in self.build_info.artefacts + [self.sdist, ]:
+			if not build.gemspec:
+				if not build.is_source:
+					print("Warning: no gemspec info for %s" % build.filename)
+				continue
 
-		gemspec = self.sdist.gemspec
+			self.add_build_dependencies_from_gemspec(build.gemspec, seen)
+
+		return self.build_info.requires
+
+	def add_build_dependencies_from_gemspec(self, gemspec, seen):
+		# print("add_build_dependencies_from_gemspec(%s-%s)" % (gemspec.name, gemspec.version))
 		for dep in gemspec.dependencies:
+			req_string = dep.name + ",".join([str(x) for x in dep.requirement])
+			# print("  %s %s" % (req_string, dep.type))
 			if dep.type != 'development':
 				continue
 
 			req_string = dep.name + ",".join([str(x) for x in dep.requirement])
-			req = RubyBuildRequirement(dep.name, req_string = req_string, cooked_requirement = dep.requirement)
-
-			self.build_requires.append(req)
-		return
+			if seen.get(req_string) is None:
+				req = RubyBuildRequirement(dep.name, req_string = req_string, cooked_requirement = dep.requirement)
+				self.build_info.add_requirement(req)
+				seen[req_string] = req
 
 	def maybe_save_file(self, build_state, name):
 		fh = self.directory.lookup(name)
