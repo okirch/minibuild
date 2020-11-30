@@ -483,6 +483,9 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		return build
 
 	def uri_exists(self, url):
+		# Don't be a nuisance, avoid lots of HEAD requests against github.
+		return True
+
 		import urllib.request
 
 		req = urllib.request.Request(url=url, method='HEAD')
