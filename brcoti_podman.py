@@ -160,6 +160,9 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		self.container_root = None
 		self.env = {}
 
+		# FIXME: make this configurable
+		self.build_user = "build:build"
+
 		# For now, only root can do this. Sorry.
 		if os.getuid() != 0:
 			raise ValueError("podman backend: you need to be root to use this backend")
@@ -213,7 +216,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		for ca_path in ca_certificates:
 			shutil.copy(ca_path, self.container_root + "/usr/share/pki/trust/anchors")
 
-		cmd = self._make_command("/usr/sbin/update-ca-certificates", working_dir = None, user_group = None)
+		cmd = self._make_command("/usr/sbin/update-ca-certificates", working_dir = None, privileged_user = True)
 		cmd.run()
 
 	def publish_python_certificates(self, ca_certificates):
@@ -267,7 +270,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def putenv(self, name, value):
 		self.env[name] = value
 
-	def _make_command(self, cmd, working_dir, user_group = "build:build"):
+	def _make_command(self, cmd, working_dir, privileged_user = False):
 		args = []
 		if working_dir:
 			if isinstance(working_dir, brcoti_core.ComputeResourceFS):
@@ -277,14 +280,14 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		for name, value in self.env.items():
 			args.append(" --env %s='%s'" % (name, value))
 
-		if user_group is not None:
-			args.append(" --user %s" % user_group)
+		if not privileged_user:
+			args.append(" --user %s" % self.build_user)
 		args.append(self.container_id)
 
 		return PodmanCmd("exec", *args, cmd)
 
-	def _run_command(self, cmd, working_dir = None):
-		return self._make_command(cmd, working_dir).run()
+	def _run_command(self, cmd, working_dir = None, privileged_user = False):
+		return self._make_command(cmd, working_dir, privileged_user).run()
 
 	def _popen(self, cmd, mode = 'r', working_dir = None):
 		return self._make_command(cmd, working_dir).popen()

@@ -768,7 +768,7 @@ class ComputeNode(Object):
 	def putenv(self, name, value):
 		self.mni()
 
-	def run_command(self, cmd, working_dir = None, ignore_exitcode = False):
+	def run_command(self, cmd, working_dir = None, ignore_exitcode = False, privileged_user = False):
 		if not working_dir:
 			print("Running %s" % cmd)
 		else:
@@ -779,7 +779,7 @@ class ComputeNode(Object):
 		sys.stdout.flush()
 		sys.stderr.flush()
 
-		exit_code = self._run_command(cmd, working_dir)
+		exit_code = self._run_command(cmd, working_dir, privileged_user)
 
 		if exit_code != 0 and not ignore_exitcode:
 			raise ValueError("Command `%s' returned non-zero exit status" % cmd)

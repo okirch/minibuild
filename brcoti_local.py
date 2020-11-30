@@ -104,7 +104,9 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 
 		return exit_code
 
-	def _run_command(self, cmd, working_dir = None):
+	def _run_command(self, cmd, working_dir = None, privileged_user = False):
+		# ignore privileged_user argument; for now we just run everything
+		# as the invoking user anyway
 		return self._perform_command(os.system, cmd, working_dir)
 
 	def _popen(self, cmd, mode = 'r', working_dir = None):
