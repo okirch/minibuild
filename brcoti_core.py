@@ -249,6 +249,10 @@ class BuildInfo(Object):
 		self.engine = engine
 		self.requires = []
 		self.artefacts = []
+		self.sources = []
+
+	def add_source(self, sdist):
+		self.sources.append(sdist)
 
 	def add_requirement(self, req):
 		self.requires.append(req)
@@ -261,6 +265,7 @@ class BuildInfo(Object):
 			f.write("engine %s\n" % self.engine)
 			self.write_build_requires(f)
 			self.write_artefacts(f)
+			self.write_sources(f)
 
 	#
 	# Write out the build-requires information
@@ -287,6 +292,12 @@ class BuildInfo(Object):
 			for (algo, md) in build.hash.items():
 				f.write("  hash %s %s\n" % (algo, md))
 
+	def write_sources(self, f):
+		for sdist in self.sources:
+			print("source %s" % sdist.filename, file = f)
+			for (algo, md) in sdist.hash.items():
+				f.write("  hash %s %s\n" % (algo, md))
+
 	#
 	# Parse the build-requires file
 	#
@@ -296,6 +307,7 @@ class BuildInfo(Object):
 		result = BuildInfo(None)
 
 		engine = default_engine
+		build_engine = default_engine
 		with open(path, 'r') as f:
 			req = None
 			for l in f.readlines():
@@ -316,9 +328,9 @@ class BuildInfo(Object):
 						if default_engine and result.engine != default_engine.name:
 							raise ValueError("Beware, %s specifies engine \"%s\" which conflicts with engine %s" % (
 								path, result.engine, default_engine.name))
-						continue
 
-					if kwd in ('require', 'artefact'):
+						build_engine = Engine.factory(result.engine, config, {})
+					elif kwd in ('require', 'artefact'):
 						(name, l) = l.split(maxsplit = 1)
 						engine = Engine.factory(name, config, {})
 
@@ -329,7 +341,11 @@ class BuildInfo(Object):
 							args = l.split()
 							obj = engine.create_artefact_from_NVT(*args)
 							result.add_artefact(obj)
-						continue
+					elif kwd == 'source':
+						filename = os.path.join(os.path.dirname(path), l.strip())
+						filename = os.path.realpath(filename)
+						obj = build_engine.create_artefact_from_local_file(filename)
+						result.add_source(obj)
 					else:
 						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
 				else:
