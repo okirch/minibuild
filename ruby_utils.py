@@ -260,7 +260,7 @@ class Ruby:
 	def parse_dependency(string):
 		return Ruby.GemDependency.parse(string)
 
-	class GemSpec_2_x:
+	class GemSpec_1_x:
 		signature = (
 				# 'specification_version',
 				'unknown1',		# int, usually 4
@@ -347,9 +347,11 @@ class Ruby:
 			data = unmarshal_byteseq(data)
 
 			gemspec_version = data.pop(0)
-			if gemspec_version.startswith("2.") or \
+			if gemspec_version.startswith("0.") or \
+			   gemspec_version.startswith("1.") or \
+			   gemspec_version.startswith("2.") or \
 			   gemspec_version.startswith("3."):
-				sig = Ruby.GemSpec_2_x.signature
+				sig = Ruby.GemSpec_1_x.signature
 			else:
 				if True:
 					print("Unknown gemspec version %s" % gemspec_version)
@@ -359,8 +361,8 @@ class Ruby:
 
 				raise ValueError("Don't know how to deal with gemspec version %s data" % gemspec_version)
 
-			if len(data) != len(sig):
-				print("WARNING: GemSpecification.load: gemspec ver %s has %u elements (expected %u)" % (
+			if len(data) > len(sig):
+				print("WARNING: GemSpecification.load: gemspec ver %s has %u elements (expected at most %u)" % (
 					gemspec_version, len(data), len(sig)))
 
 			for attr_name, value in zip(sig, data):
