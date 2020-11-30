@@ -291,6 +291,9 @@ class PythonArtefact(brcoti_core.Artefact):
 	@staticmethod
 	def parse_filename(filename):
 		def split_suffix(name):
+			# better safe than sorry
+			name = os.path.basename(name)
+
 			if name.endswith(".tar.gz"):
 				k = -7
 			elif name.endswith(".tar.bz2"):
@@ -749,7 +752,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
 	def archive_get_unpack_directory(self, sdist):
-		name, version, type = PythonArtefact.parse_filename(sdist.local_path)
+		name, version, type = PythonArtefact.parse_filename(sdist.filename)
 		return name + "-" + version
 
 	def build(self):
