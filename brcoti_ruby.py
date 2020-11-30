@@ -394,25 +394,22 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		return build
 
 	def gemspec_to_source(self, gemspec):
+		try_urls = []
 		if gemspec.metadata:
 			source_code_uri = gemspec.metadata.get('source_code_uri')
 			if source_code_uri is not None:
-				build = self.uri_to_source(gemspec, source_code_uri)
-				if build is not None:
-					return build
+				try_urls.append(source_code_uri)
 
-		for url in (gemspec.homepage, gemspec.unknown3):
-			# source tarballs for eg sprockets-rails can be found at
-			# https://github.com/rails/sprockets-rails/archive/v${version}.tar.gz
-			if type(url) != str:
-				continue
-			if url.startswith('https://github.com/'):
-				url = "%s/archive/v%s.tar.gz" % (url, gemspec.version)
-				if self.uri_exists(url):
-					build = self.gemspec_to_build_common(gemspec, 'source')
-					build.filename = "%s-%s.tar.gz" % (gemspec.name, gemspec.version)
-					build.url = url
-					return build
+		if gemspec.homepage:
+			try_urls.append(gemspec.homepage)
+		if gemspec.unknown3:
+			try_urls.append(gemspec.unknown3)
+
+		for url in try_urls:
+			build = self.uri_to_source(gemspec, url)
+			if build is not None:
+				print("  found %s" % build.url)
+				return build
 
 		return None
 
@@ -421,15 +418,18 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 			return None
 
 		def try_archive_url(uri):
+			uri = uri.rstrip('/')
+			project_name = os.path.basename(uri) or gemspec.name
 			uri = "%s/archive/v%s.tar.gz" % (uri, gemspec.version)
 			if self.uri_exists(uri):
 				build = self.gemspec_to_build_common(gemspec, 'source')
-				build.filename = "%s-%s.tar.gz" % (gemspec.name, gemspec.version)
+				build.filename = "%s-%s.tar.gz" % (project_name, gemspec.version)
 				build.url = uri
 				return build
 
-		print("Check if we can get source from URI %s" % uri)
-		if uri.startswith('https://github.com/'):
+		print("Check if we can get source for %s from URI %s" % (gemspec.version, uri))
+		if uri.startswith('https://github.com/') or \
+		   uri.startswith('http://github.com/'):
 			# railties metadata specifies a source_code_url of
 			# https://github.com/rails/rails/tree/v6.0.3.4/railties
 			needle = "/tree/v%s" % (gemspec.version,)
