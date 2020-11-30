@@ -70,20 +70,20 @@ def find_source(engine, req_string, use_upstream = False):
 	return sdist
 
 class BuildJob(object):
-	def __init__(self, config, engine, compute_backend, sdist):
+	def __init__(self, config, engine, compute_backend, source):
 		self.config = config
 		self.engine = engine
 		self.compute_backend = compute_backend
-		self.sdist = sdist
+		self.source = source
 		self.build = None
-		self.build_state = self.engine.build_state_factory(sdist)
+		self.build_state = self.engine.build_state_factory(source)
 
 		self.always_commit = False
 		self.quiet = False
 		self.rebuild_if_needed = False
 
 	def id(self):
-		return self.sdist.id()
+		return self.source.id()
 
 	def rebuild_required(self):
 		if not self.rebuild_if_needed:
@@ -96,8 +96,9 @@ class BuildJob(object):
 
 		return True
 
-	def unpack_source(self, sdist):
+	def unpack_source(self):
 		print("=== Unpacking %s ===" % self.id())
+		sdist = self.source
 
 		# Download the source archive if we don't have it yet
 		if not sdist.local_path:
@@ -169,22 +170,22 @@ def prep_action(config, opts):
 	exit_code = 0
 	for name in opts.packages:
 		if os.path.isfile(name):
-			sdist = source_from_path(engine, name)
+			source = source_from_path(engine, name)
 		else:
-			sdist = find_source(engine, name, use_upstream = True)
-		if sdist is None:
+			source = find_source(engine, name, use_upstream = True)
+		if source is None:
 			exit_code = 1
 			continue
 
 		if sdist.url:
 			print("Using %s" % (sdist.url))
 
-		print("=== Package %s ===" %(sdist.id()))
-		job = BuildJob(config, engine, compute_backend, sdist)
+		print("=== Package %s ===" %(source.id()))
+		job = BuildJob(config, engine, compute_backend, source)
 		job.quiet = opts.quiet
 
 		try:
-			job.unpack_source(sdist)
+			job.unpack_source()
 			job.build_package()
 			job.process_build_dependencies()
 			job.prepare_results()
@@ -210,15 +211,15 @@ def build_action(config, opts):
 		print("Examining %s" % name)
 
 		if os.path.isfile(name):
-			sdist = source_from_path(engine, name)
+			source = source_from_path(engine, name)
 		else:
-			sdist = find_source(engine, name)
-		if sdist is None:
+			source = find_source(engine, name)
+		if source is None:
 			exit_code = 1
 			continue
 
-		print("=== Package %s ===" %(sdist.id()))
-		job = BuildJob(config, engine, compute_backend, sdist)
+		print("=== Package %s ===" %(source.id()))
+		job = BuildJob(config, engine, compute_backend, source)
 		job.always_commit = opts.force
 		job.quiet = opts.quiet
 		job.rebuild_if_needed = opts.rebuild_if_needed
@@ -227,14 +228,14 @@ def build_action(config, opts):
 			if not job.rebuild_required():
 				continue
 
-			job.unpack_source(sdist)
+			job.unpack_source()
 			job.build_package()
 			job.process_build_dependencies()
 			job.prepare_results()
 			job.maybe_commit()
 
 		except Exception as e:
-			print("FAILED to build %s" % sdist.id())
+			print("FAILED to build %s" % source.id())
 			import traceback
 			print(e)
 			traceback.print_tb(sys.exc_info()[2])
