@@ -197,6 +197,8 @@ class Ruby:
 				self.name = yaml_data['name']
 				self.requirement = yaml_data['requirement']
 				self.type = yaml_data['type']
+				if self.type.startswith(':'):
+					self.type = self.type.lstrip(':')
 				self.prerelease = yaml_data['prerelease']
 				# ignoring version_requirements
 
