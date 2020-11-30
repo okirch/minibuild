@@ -77,6 +77,8 @@ class RubyArtefact(brcoti_core.Artefact):
 
 		self.filename = None
 
+		self.gemspec = None
+
 		# package info
 		self.home_page = None
 		self.author = None
@@ -182,6 +184,11 @@ class RubyArtefact(brcoti_core.Artefact):
 			build.update_hash(algo)
 
 		return build
+
+	def read_gemspec_from_gem(self):
+		assert(self.local_path)
+
+		self.gemspec = GemFile(self.local_path).parse_metadata()
 
 class RubyReleaseInfo(brcoti_core.PackageReleaseInfo):
 	def __init__(self, name, version, parsed_version = None):
@@ -604,7 +611,7 @@ class GemFile(object):
 	def get_member_data(tar_file, name):
 		return tar_file.extractfile(name).read()
 
-	def get_metadata(self):
+	def open_metadata(self):
 		import gzip
 
 		try:
@@ -614,8 +621,14 @@ class GemFile(object):
 			# Forces a mis-compare in the caller
 			return self.path
 
-		f = gzip.GzipFile(fileobj = f, mode = 'r')
-		return f.read()
+		return gzip.GzipFile(fileobj = f, mode = 'r')
+
+	def get_metadata(self):
+		return self.open_metadata().read()
+
+	def parse_metadata(self):
+		io = self.open_metadata()
+		return ruby_utils.Ruby.YAML.load(io)
 
 class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine_config):
@@ -655,6 +668,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			w = w.hostpath()
 
 			build = RubyArtefact.from_local_file(w)
+
+			build.read_gemspec_from_gem()
 
 			for algo in RubyEngine.REQUIRED_HASHES:
 				build.update_hash(algo)
