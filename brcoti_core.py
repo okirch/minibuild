@@ -367,6 +367,36 @@ class BuildInfo(Object):
 			raise ValueError("%s: missing engine specification" % path)
 		return result
 
+class Source(Object):
+	def __init__(self):
+		pass
+
+class SourceFile(Source):
+	def __init__(self, sdist, engine):
+		self.info = BuildInfo(engine.name)
+		self.info.add_source(sdist)
+
+	def id(self):
+		return self.info.sources[0].id()
+
+class SourceDirectory(Source):
+	def __init__(self, path, config):
+		self.path = path
+
+		if not os.path.isdir(path):
+			raise ValueError("%s: not a directory" % path)
+
+		info_path = os.path.join(path, "build-info")
+		if not os.path.exists(info_path):
+			raise ValueError("%s: no build-info file" % path)
+
+		self.info = BuildInfo.from_file(info_path, config)
+
+		if not self.info.sources:
+			raise ValueError("%s: does not specify any sources" % path)
+
+	def id(self):
+		return self.info.sources[0].id()
 
 class BuildDirectory(Object):
 	def __init__(self, compute, build_base):
@@ -1176,6 +1206,20 @@ class Engine(Object):
 
 	def uploader(self):
 		self.mni()
+
+	@staticmethod
+	def create_source_from_local_directory(path, config):
+		return SourceDirectory(path, config)
+
+	# This is NOT a static method; the caller must first instantiate the engine that
+	# is adequate for the source artefact they want to build.
+	#
+	# FUTURE: try to guess the language by peering inside the archive
+	def create_source_from_local_file(self, path):
+		sdist = self.create_artefact_from_local_file(path)
+		if not sdist.is_source:
+			raise ValueError("cannot build %s: not a source distribution" % path)
+		return SourceFile(sdist)
 
 	def create_artefact_from_local_file(self, path):
 		self.mni()
