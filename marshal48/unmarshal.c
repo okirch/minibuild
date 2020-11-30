@@ -88,7 +88,7 @@ bool
 ruby_unmarshal_next_fixnum(ruby_marshal_t *s, long *fixnump)
 {
 	ruby_io_t *reader = s->ioctx;
-	int cc;
+	int cc, nbytes;
 
 	if (!ruby_io_nextc(reader, &cc))
 		return false;
@@ -106,20 +106,15 @@ ruby_unmarshal_next_fixnum(ruby_marshal_t *s, long *fixnump)
 		return ruby_io_nextw(reader, cc, fixnump);
 
 	case 0xff:
-		if (!ruby_io_nextc(reader, &cc))
-			return false;
-		*fixnump = 1 - cc;
-		return true;
-
 	case 0xfe:
 	case 0xfd:
 	case 0xfc:
-		PyErr_Format(PyExc_NotImplementedError, "%s: fixnum format 0x%x not yet implemented", __func__, cc);
-		return false;
+		nbytes = 0x100 - cc;
 
-		if (!ruby_io_nextw(reader, cc ^ 0xff, fixnump))
+		if (!ruby_io_nextw(reader, nbytes, fixnump))
 			return false;
-		*fixnump = -(*fixnump);
+		/* extend sign */
+		*fixnump |= (~0UL) << (8 * nbytes);
 		return true;
 
 	default:
