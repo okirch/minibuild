@@ -163,7 +163,7 @@ class BuildJob(object):
 		self.build_state = None
 
 def prep_action(config, opts):
-	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
+	engine = brcoti_core.Engine.factory(opts.engine, config)
 	compute_backend = create_compute_backend(config, "local")
 
 	exit_code = 0
@@ -202,7 +202,7 @@ def prep_action(config, opts):
 	return exit_code
 
 def build_action(config, opts):
-	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
+	engine = brcoti_core.Engine.factory(opts.engine, config)
 	compute_backend = create_compute_backend(config, DEFAULT_BUILD_COMPUTE)
 
 	exit_code = 0
@@ -245,7 +245,7 @@ def build_action(config, opts):
 	return exit_code
 
 def mkindex_action(config, opts):
-	engine = brcoti_core.Engine.factory(opts.engine, config, opts)
+	engine = brcoti_core.Engine.factory(opts.engine, config)
 
 	print("=== Publishing %s build results ===" % engine.name)
 	engine.publish_build_results()

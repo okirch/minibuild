@@ -329,10 +329,10 @@ class BuildInfo(Object):
 							raise ValueError("Beware, %s specifies engine \"%s\" which conflicts with engine %s" % (
 								path, result.engine, default_engine.name))
 
-						build_engine = Engine.factory(result.engine, config, {})
+						build_engine = Engine.factory(result.engine, config)
 					elif kwd in ('require', 'artefact'):
 						(name, l) = l.split(maxsplit = 1)
-						engine = Engine.factory(name, config, {})
+						engine = Engine.factory(name, config)
 
 						if kwd == 'require':
 							obj = engine.parse_build_requirement(l.strip())
@@ -1166,7 +1166,7 @@ class Engine(Object):
 		if build_info:
 			for req in build_info.requires:
 				if req.engine != self.name:
-					engine = Engine.factory(req.engine, self.config, {})
+					engine = Engine.factory(req.engine, self.config)
 					engine.install_requirement(compute, req)
 
 		return compute
@@ -1271,7 +1271,7 @@ class Engine(Object):
 	engine_cache = {}
 
 	@staticmethod
-	def factory(name, config, opts):
+	def factory(name, config):
 		engine = Engine.engine_cache.get(name)
 		if engine is not None:
 			return engine
