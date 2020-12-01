@@ -573,7 +573,7 @@ class GemFile(object):
 
 		# Ignore checksums and signatures
 
-		return added_set, removed_set, changed_set
+		return brcoti_core.ArtefactComparison(new.path, added_set, removed_set, changed_set)
 
 	@staticmethod
 	def compare_data(old, new):
@@ -687,8 +687,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		return self.build_info.artefacts
 
 	# Compare old build of a gem vs the current build. This method
-	# is expected to return three set objects:
-	# added_set, removed_set, changed_set
+	# is expected to return an ArtefactComparison object
 	def compare_build_artefacts(self, old_path, new_path):
 		return GemFile(old_path).compare(GemFile(new_path))
 

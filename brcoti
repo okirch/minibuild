@@ -177,21 +177,17 @@ class BuildJob(object):
 
 			engine.downloader.download(upstream, destdir = tmpdir.name)
 
-			# This returns a tuple of sets: (added, removed, changed)
+			# This returns an ArtefactComparison object
 			result = build.compare_build_artefacts(upstream.local_path, mine.local_path)
 
-			identical = True
-			for name, set in zip(("added", "missing", "changed"), result):
-				if not set:
-					continue
+			if result:
+				# Our build is identical with upstream
+				continue
 
-				if identical:
-					print("%s differs from upstream build" % mine.id())
-					identical = False
+			print("%s differs from upstream build" % mine.id())
+			result.print()
 
-				print("  %s: %s" % (name, ", ".join(set)))
-
-			retval = identical
+			retval = False
 
 		return retval
 

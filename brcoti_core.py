@@ -142,6 +142,30 @@ class Artefact(ArtefactAttrs):
 	def is_source(self):
 		self.mni()
 
+class ArtefactComparison(Object):
+	def __init__(self, name, added = set(), removed = set(), changed = set()):
+		self.name = name
+		self.added = added
+		self.removed = removed
+		self.changed = changed
+
+	def __bool__(self):
+		return not(self.added or self.removed or self.changed)
+
+	def print(self):
+		def print_delta(how, name_set):
+			if not name_set:
+				print("  none %s" % how)
+			else:
+				print("  %d file(s) %s:" % (len(name_set), how))
+				for name in name_set:
+					print("    %s" % name)
+
+		print("%s comparison results:" % self.name)
+		print_delta("added", self.added)
+		print_delta("removed", self.removed)
+		print_delta("changed", self.changed)
+
 class PackageReleaseInfo(Object):
 	def __init__(self, name, version):
 		self.name = name
@@ -589,25 +613,17 @@ class BuildDirectory(Object):
 			for name in name_set:
 				print("  %s" % name)
 
-		added_set, removed_set, changed_set = self.compare_build_artefacts(old_path, new_path)
+		result = self.compare_build_artefacts(old_path, new_path)
 
-		samesame = True
-		if added_set:
-			print_delta(new_path, "added", added_set)
-			samesame = False
-
-		if removed_set:
-			print_delta(new_path, "removed", removed_set)
-			samesame = False
-
-		if changed_set:
-			print_delta(new_path, "changed", changed_set)
-			samesame = False
-
-		if samesame:
+		if result:
 			print("%s: unchanged" % new_path)
+			return True
 
-		return samesame
+		result.print()
+		return False
+
+	def compare_build_artefacts(self, old_path, new_path):
+		self.mni()
 
 class BuildState(Object):
 	def __init__(self, engine, savedir):

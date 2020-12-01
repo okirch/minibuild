@@ -737,7 +737,7 @@ class WheelArchive(object):
 			print("removed=" + ", ".join(removed_set))
 			print("changed=" + ", ".join(changed_set))
 
-		return added_set, removed_set, changed_set
+		return brcoti_core.ArtefactComparison(other.path, added_set, removed_set, changed_set)
 
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine_config):
