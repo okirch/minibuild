@@ -998,7 +998,7 @@ class Config(object):
 			return ", ".join(["%s=%s" % (f, getattr(self, f)) for f in self._fields])
 
 	class Globals(ConfigItem):
-		_fields = ('output_dir', 'certificates', 'http_proxy')
+		_fields = ('binary_root_dir', 'certificates', 'http_proxy')
 
 		def __init__(self, config, d):
 			super(Config.Globals, self).__init__(config, d)
@@ -1216,7 +1216,7 @@ class Engine(Object):
 		self.config = config
 		self.engine_config = engine_config
 
-		self.state_dir = os.path.join(config.globals.output_dir, engine_config.name)
+		self.state_dir = os.path.join(config.globals.binary_root_dir, engine_config.name)
 
 		self.index = self.create_index(engine_config)
 		self.upstream_index = self.create_upstream_index(engine_config)
