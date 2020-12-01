@@ -663,15 +663,6 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		name, version, type = RubyArtefact.parse_filename(sdist.filename)
 		return name + "-" + version
 
-	def unpack_git(self, sdist, destdir):
-		repo_url = sdist.git_url()
-		if not repo_url:
-			raise ValueError("Unable to build from git - cannot determine git url")
-
-		self.unpack_git_helper(repo_url, tag = sdist.version, destdir = sdist.id())
-
-		self.sdist = sdist
-
 	def build(self):
 		assert(self.directory)
 		sdist = self.sdist
