@@ -1138,9 +1138,6 @@ class Engine(Object):
 
 		self.state_dir = os.path.join(config.globals.output_dir, engine_config.name)
 
-		opts = config.command_line_options
-		self.prefer_git = getattr(opts, "git", False)
-
 		self.index = self.create_index(engine_config)
 		self.upstream_index = self.create_upstream_index(engine_config)
 		self.downloader = self.create_downloader(engine_config)

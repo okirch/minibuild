@@ -793,7 +793,7 @@ class RubyEngine(brcoti_core.Engine):
 		sdist = build_info.sources[0]
 
 		bd = RubyBuildDirectory(compute, self.engine_config)
-		if self.prefer_git:
+		if sdist.git_url():
 			bd.unpack_git(sdist, sdist.id())
 		else:
 			bd.unpack_archive(sdist)
