@@ -48,7 +48,7 @@ def source_from_path(name, config):
 	engine = create_build_engine(config)
 
 	print("=== Using file %s (build engine %s) ===" % (name, engine.name))
-	source = engine.create_source_from_local_file(name, config)
+	source = engine.create_source_from_local_file(name)
 
 	# DownloadFinder will never return an sdist that
 	# requires a python version incompatible with ours.
