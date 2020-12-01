@@ -566,14 +566,17 @@ class GemFile(object):
 		# First, compare the contents of data.tar.gz.
 		# We only look at regular files contained in the tarfile, even though
 		# we should probably also look at symlinks and hardlinks
-		added_set, removed_set, changed_set = GemFile.compare_data(old, new)
+		result = GemFile.compare_data(old, new)
 
 		if old.get_metadata() != new.get_metadata():
-			changed_set.add("metadata")
+			result.changed.add("metadata")
+			result.add_raw_data_differ("metadata",
+				old.get_metadata(),
+				new.get_metadata())
 
 		# Ignore checksums and signatures
 
-		return brcoti_core.ArtefactComparison(new.path, added_set, removed_set, changed_set)
+		return result
 
 	@staticmethod
 	def compare_data(old, new):
@@ -583,23 +586,20 @@ class GemFile(object):
 		old_name_set = GemFile.tar_member_names(old_data_tar)
 		new_name_set = GemFile.tar_member_names(new_data_tar)
 
-		added_set = new_name_set - old_name_set
-		removed_set = old_name_set - new_name_set
+		result = brcoti_core.ArtefactComparison(new.path)
 
-		changed_set = set()
+		result.added = new_name_set - old_name_set
+		result.removed = old_name_set - new_name_set
+
 		for member_name in old_name_set.intersection(new_name_set):
 			old_data = GemFile.get_member_data(old_data_tar, member_name)
 			new_data = GemFile.get_member_data(new_data_tar, member_name)
 
 			if new_data != old_data:
-				changed_set.add(member_name)
+				result.changed.add(member_name)
+				result.add_raw_data_differ(member_name, old_data, new_data)
 
-		if False:
-			print("added=" + ", ".join(added_set))
-			print("removed=" + ", ".join(removed_set))
-			print("changed=" + ", ".join(changed_set))
-
-		return added_set, removed_set, changed_set
+		return result
 
 	def get_data(self):
 		import tarfile

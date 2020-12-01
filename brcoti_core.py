@@ -149,6 +149,8 @@ class ArtefactComparison(Object):
 		self.removed = removed
 		self.changed = changed
 
+		self.differs = dict()
+
 	def __bool__(self):
 		return not(self.added or self.removed or self.changed)
 
@@ -165,6 +167,51 @@ class ArtefactComparison(Object):
 		print_delta("added", self.added)
 		print_delta("removed", self.removed)
 		print_delta("changed", self.changed)
+
+	def show_diff(self):
+		for name in self.changed:
+			d = self.get_differ(name)
+			if not d:
+				print("%s: no diff available" % name)
+				continue
+
+			d.show()
+
+	def get_differ(self, name):
+		return self.differs.get(name)
+
+	def add_differ(self, differ):
+		self.differs[differ.name] = differ
+
+	def add_raw_data_differ(self, name, old_data, new_data):
+		self.add_differ(self.RawDataDiffer(name, old_data, new_data))
+
+	class RawDataDiffer:
+		def __init__(self, name, old, new):
+			self.name = name
+			self.old_data = old
+			self.new_data = new
+
+		def show(self):
+			import tempfile
+
+			self.tmpdir = tempfile.TemporaryDirectory(prefix = "brcoti-")
+
+			old_path = self.write_data("old", self.old_data)
+			new_path = self.write_data("new", self.new_data)
+
+			run_command("diff -wau %s %s" % (old_path, new_path), ignore_exitcode = True)
+
+			self.tmpdir = None
+
+		def write_data(self, tag, data):
+			dirname = os.path.join(self.tmpdir.name, tag)
+			os.makedirs(dirname)
+			path = os.path.join(dirname, self.name)
+			with open(path, "wb") as f:
+				f.write(data)
+
+			return path
 
 class PackageReleaseInfo(Object):
 	def __init__(self, name, version):

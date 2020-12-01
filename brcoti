@@ -187,6 +187,11 @@ class BuildJob(object):
 			print("%s differs from upstream build" % mine.id())
 			result.print()
 
+			print("--- showing diff ---")
+			result.show_diff()
+			print("--- end diff ---")
+			print("")
+
 			retval = False
 
 		return retval
