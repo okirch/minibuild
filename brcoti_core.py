@@ -130,12 +130,13 @@ class Artefact(ArtefactAttrs):
 
 		self.url = None
 		self.local_path = None
+		self.git_repo_url = None
 
 	def __repr__(self):
 		return "%s(%s)" % (self.__class__.__name__, self.id())
 
 	def git_url(self):
-		self.mni()
+		return self.git_repo_url
 
 	@property
 	def is_source(self):
@@ -294,9 +295,12 @@ class BuildInfo(Object):
 
 	def write_sources(self, f):
 		for sdist in self.sources:
-			print("source %s" % sdist.filename, file = f)
-			for (algo, md) in sdist.hash.items():
-				f.write("  hash %s %s\n" % (algo, md))
+			if sdist.git_repo_url:
+				print("source %s#version=%s" % (sdist.git_repo_url, sdist.version), file = f)
+			else:
+				print("source %s" % sdist.filename, file = f)
+				for (algo, md) in sdist.hash.items():
+					f.write("  hash %s %s\n" % (algo, md))
 
 	#
 	# Parse the build-requires file
@@ -311,6 +315,7 @@ class BuildInfo(Object):
 		with open(path, 'r') as f:
 			req = None
 			for l in f.readlines():
+				l = l.rstrip()
 				if not l:
 					continue
 
@@ -342,9 +347,14 @@ class BuildInfo(Object):
 							obj = engine.create_artefact_from_NVT(*args)
 							result.add_artefact(obj)
 					elif kwd == 'source':
-						filename = os.path.join(os.path.dirname(path), l.strip())
-						filename = os.path.realpath(filename)
-						obj = build_engine.create_artefact_from_local_file(filename)
+						arg = l.strip()
+						if arg.startswith("git:") or arg.startswith("http:") or arg.startswith("https:"):
+							obj = build_engine.create_artefact_from_url(arg)
+							print("%s: repo at %s" % (obj.id(), obj.git_url()))
+						else:
+							filename = os.path.join(os.path.dirname(path), arg)
+							filename = os.path.realpath(filename)
+							obj = build_engine.create_artefact_from_local_file(filename)
 						result.add_source(obj)
 					else:
 						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
@@ -1226,6 +1236,32 @@ class Engine(Object):
 
 	def create_artefact_from_local_file(self, path):
 		self.mni()
+
+	# This is currently somewhat limited and there are lots of assertions.
+	# This code needs cleanup up and unification with the git url handling
+	# code of eg the Ruby engine.
+	def create_artefact_from_url(self, url):
+		import urllib.parse
+
+		url, frag = urllib.parse.urldefrag(url)
+
+		parsed_url = urllib.parse.urlparse(url)
+
+		# For now, we only deal with github
+		assert(parsed_url.hostname == 'github.com')
+
+		assert(frag.startswith('version='))
+		version = frag[8:]
+
+		# github URLs are scheme:github.com/user_or_group/reponame/gobbledigook
+		path = parsed_url.path.strip('/').split('/')
+		assert(len(path) == 2)
+		name = path[1]
+
+		sdist = self.create_artefact_from_NVT(name, version, 'source')
+		sdist.git_repo_url = url
+
+		return sdist
 
 	def create_artefact_from_NVT(self, name, version, type):
 		self.mni()

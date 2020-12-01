@@ -1109,6 +1109,8 @@ class PythonEngine(brcoti_core.Engine):
 		return PythonArtefact.from_local_file(path)
 
 	def create_artefact_from_NVT(self, name, version, type):
+		if type == 'source':
+			type = 'sdist'
 		return PythonArtefact(name, version, type)
 
 	def build_unpack(self, compute, build_info):

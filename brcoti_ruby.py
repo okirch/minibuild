@@ -83,18 +83,6 @@ class RubyArtefact(brcoti_core.Artefact):
 		self.home_page = None
 		self.author = None
 
-	def git_url(self):
-		url = self.home_page
-		if not url:
-			return None
-
-		url = url.replace('_', '-')
-		if not url or not "github.com" in url:
-			print("WARNING: Package homepage \"%s\" doesn't look like a git repo" % url)
-			return None
-
-		return url
-
 	@property
 	def is_source(self):
 		return self.type == 'source'
