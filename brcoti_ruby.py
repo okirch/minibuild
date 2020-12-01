@@ -430,14 +430,15 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		if type(uri) != str:
 			return None
 
-		def try_archive_url(uri):
-			uri = uri.rstrip('/')
+		def try_archive_url(repo_uri):
+			uri = repo_uri.rstrip('/')
 			project_name = os.path.basename(uri) or gemspec.name
 			uri = "%s/archive/v%s.tar.gz" % (uri, gemspec.version)
 			if self.uri_exists(uri):
 				build = self.gemspec_to_build_common(gemspec, 'source')
 				build.filename = "%s-%s.tar.gz" % (project_name, gemspec.version)
 				build.url = uri
+				build.git_repo_url = repo_uri
 				return build
 
 		print("Check if we can get source for %s from URI %s" % (gemspec.version, uri))
