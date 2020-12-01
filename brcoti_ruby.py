@@ -278,7 +278,10 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 			raise ValueError("%s: unable to find a matching release" % self.name)
 
 		if self.verbose:
-			print("Best match for %s is %s %s" % (self.name, best_match.type, best_match.id()))
+			extra = ""
+			if best_match.git_repo_url:
+				extra += "; source repo at %s" % best_match.git_repo_url
+			print("Best match for %s is %s %s%s" % (self.name, best_match.type, best_match.id(), extra))
 
 		return best_match
 
@@ -289,6 +292,8 @@ class RubySourceDownloadFinder(RubyDownloadFinder):
 	def build_match(self, build):
 		if self.verbose:
 			print("inspecting %s which is of type %s" % (build.filename, build.type))
+			print("  git repo %s" % build.git_repo_url)
+
 		return build.type == 'source'
 
 class RubyBinaryDownloadFinder(RubyDownloadFinder):
@@ -566,7 +571,7 @@ class GemFile(object):
 		if old.get_metadata() != new.get_metadata():
 			changed_set.add("metadata")
 
-		# Ignore checksums
+		# Ignore checksums and signatures
 
 		return added_set, removed_set, changed_set
 
