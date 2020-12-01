@@ -463,7 +463,24 @@ class BuildDirectory(Object):
 		if not repo_url:
 			raise ValueError("Unable to build from git - cannot determine git url")
 
-		self.unpack_git_helper(repo_url, tag = sdist.version, destdir = sdist.id())
+		relative_unpack_dir = sdist.id()
+
+		d = self.build_base.lookup(relative_unpack_dir)
+		if d is not None:
+			d.rmtree()
+
+		destdir = os.path.join(self.build_base.path, relative_unpack_dir)
+
+		# We should make this configurable
+		tag = "v%s" % sdist.version
+
+		print("unpack_git: relative_unpack_dir=%s destdir=%s" % (relative_unpack_dir, destdir))
+		self.unpack_git_helper(repo_url, tag, destdir = destdir)
+
+		self.directory = self.compute.get_directory(destdir)
+		if not self.directory or not self.directory.isdir():
+			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
+
 		self.sdist = sdist
 
 	# General helper function: clone a git repo to the given destdir, and
@@ -477,7 +494,7 @@ class BuildDirectory(Object):
 			self.compute.run_command("git clone %s" % (git_repo))
 
 		if tag:
-			self.compute.run_command("git checkout %s" % tag, working_dir = destdir)
+			self.compute.run_command("git checkout --detach %s" % tag, working_dir = destdir)
 
 	def build(self):
 		self.mni()
