@@ -1,6 +1,5 @@
 FROM opensuse/leap:latest
-RUN zypper in -y ruby-2.5 ruby2.5-rubygem-bundler
-RUN gem install nexus
+RUN zypper in -y ruby-2.5 ruby2.5-rubygem-bundler git-core
 RUN groupadd -g 666 build
 RUN useradd -u 666 -g build -m build
 ENTRYPOINT [ "/usr/bin/sleep", "infinity" ]
