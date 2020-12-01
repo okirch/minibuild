@@ -60,7 +60,7 @@ def source_from_path(name, config):
 
 	return source
 
-def find_source(engine, req_string, use_upstream = False):
+def find_source(engine, req_string, use_upstream = False, use_git = False):
 	print("=== Locating %s in %s repository ===" % (req_string, use_upstream and "upstream" or "rebuild"))
 	req = engine.parse_build_requirement(req_string)
 
@@ -72,6 +72,11 @@ def find_source(engine, req_string, use_upstream = False):
 	if sdist is None:
 		print("FAILED to locate source for %s" % req)
 		return None
+
+	# By default, if the engine finds that a source artefact comes
+	# with a git url, it will try to build directly from git.
+	if not use_git:
+		sdist.git_repo_url = None
 
 	return brcoti_core.SourceFile(sdist, engine)
 
@@ -109,7 +114,8 @@ class BuildJob(object):
 		# Download the source archive if we don't have it yet
 		for sdist in build_info.sources:
 			# FIXME: how do we make sure we use the right downloader here? 
-			self.engine.downloader.download(sdist)
+			if sdist.url:
+				self.engine.downloader.download(sdist)
 
 		# spawn a container/VM or whatever compute node we need
 		compute_node = self.engine.prepare_environment(self.compute_backend, build_info)
@@ -219,7 +225,7 @@ def prep_action(config, opts):
 		if os.path.isfile(name):
 			source = source_from_path(name, config)
 		else:
-			source = find_source(engine, name, use_upstream = True)
+			source = find_source(engine, name, use_upstream = True, use_git = opts.git)
 		if source is None:
 			exit_code = 1
 			continue
