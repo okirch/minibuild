@@ -2,12 +2,21 @@
 
 import marshal48
 import io
+import copy
 
 class Ruby:
 	class ParsedVersion(object):
 		def __init__(self, s):
 			self._version = []
 			self.is_prerelease = False
+
+			if type(s) == list or type(s) == tuple:
+				self._version = s
+				return
+
+			if type(s) != str:
+				raise ValueError("Cannot build ParsedVersion from %s object (%s)" % (
+						type(s), s))
 
 			word = None
 			isnumber = False
@@ -37,6 +46,37 @@ class Ruby:
 					self._version[i] = int(self._version[i])
 				except:
 					pass
+
+			assert(self._version[-1] != '.')
+
+		def next_bigger(self):
+			# This is here to support ~> comparison.
+			# ~> 3.0.3 means ">= 3.0.3, <3.1"
+			# ~> 2 means '>= 2.0, < 3.0'
+			next_version = self._next_bigger()
+			# print("next_bigger(%s) => %s" % (self._version, next_version))
+			return Ruby.ParsedVersion(next_version)
+
+		def _next_bigger(self):
+			version = copy.copy(self._version)
+
+			if len(version) == 1:
+				return [version[0] + 1]
+
+			while version[-1] != '.':
+				version.pop()
+
+			while version:
+				last = version.pop()
+				if last == '.':
+					break
+
+			last = version.pop()
+			if type(last) != int:
+				last = version.pop()
+
+			version.append(last + 1)
+			return version
 
 		def __repr__(self):
 			return "".join([str(x) for x in self._version])
@@ -123,6 +163,8 @@ class Ruby:
 				return item > self.version
 			if op == '<':
 				return item < self.version
+			if op == '~>':
+				return item >= self.version and item < self.version.next_bigger()
 
 			raise ValueError("Unknown version comparison operator \"%s\"" % self.op)
 
