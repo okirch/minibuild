@@ -285,7 +285,8 @@ def write_source_dir(name, source_info, build_info):
 		shutil.rmtree(src_dir)
 	os.makedirs(src_dir, mode = 0o755)
 	for sdist in source_info.sources:
-		shutil.copy(sdist.local_path, src_dir)
+		if sdist.local_path is not None:
+			shutil.copy(sdist.local_path, src_dir)
 
 	info = source_info
 	info.requires += build_info.requires
