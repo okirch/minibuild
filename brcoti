@@ -155,7 +155,7 @@ class BuildJob(object):
 
 		build.prepare_results(self.build_state)
 
-	def compare_upstream(self, artefact):
+	def compare_upstream(self):
 		print("=== Comparing our build to upstream artefact(s) ===")
 		engine = self.engine
 		build = self.build
@@ -246,7 +246,7 @@ def prep_action(config, opts):
 			job.prepare_results()
 			if opts.no_upstream_check:
 				print("*** Skipping upstream check. ***")
-			elif not job.compare_upstream(None):
+			elif not job.compare_upstream():
 				warnmsg = '''
 
         W   W    A    RRR  N   N II N   N  GGG   !!
@@ -345,6 +345,24 @@ def build_action(config, opts):
 			job.build_package()
 			job.process_build_dependencies()
 			job.prepare_results()
+
+			if opts.upstream_check and not job.compare_upstream():
+				warnmsg = '''
+
+        W   W    A    RRR  N   N II N   N  GGG   !!
+        W   W   A A   R  R NN  N II NN  N G      !!
+        W W W  AAAAA  RRR  N N N II N N N G  GG  !!
+         W W  A     A R  R N  NN II N  NN  GGG   **
+
+Our build seems to differ from the upstream build, which most likely means we did not
+build it correctly.
+If our build *IS* correct, and this warning is due to a bug, please fix the mis-detection.
+'''
+				print("=== WARNING: DIFFERS FROM UPSTREAM ===")
+				print(warnmsg)
+				print("=== WARNING: DIFFERS FROM UPSTREAM ===")
+				exit_code = 1
+
 			job.maybe_commit()
 
 		except Exception as e:
@@ -415,6 +433,8 @@ def build_option_parser():
                 help = "Only rebuild package if needed")
 	build_parser.add_argument('--force', default = False, action = 'store_true',
                 help = "Always store build results, even if they did not change")
+	build_parser.add_argument('--upstream-check', default = False, action = 'store_true',
+                help = "Compare our build results to upstream build (use with caution)")
 
 	mkindex_parser = subparsers.add_parser('make-index',
 		help = "Rebuild package index")
