@@ -427,8 +427,6 @@ def build_option_parser():
 		help = "Build package(s)")
 	build_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
 		help = "List of packages")
-	build_parser.add_argument('--git', default = False, action = 'store_true',
-                help = "Build from git repo rather than sdist")
 	build_parser.add_argument('--rebuild-if-needed', default = False, action = 'store_true',
                 help = "Only rebuild package if needed")
 	build_parser.add_argument('--force', default = False, action = 'store_true',
