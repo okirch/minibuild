@@ -371,7 +371,10 @@ class BuildInfo(Object):
 	def write_sources(self, f):
 		for sdist in self.sources:
 			if sdist.git_repo_url:
-				print("source %s#version=%s" % (sdist.git_repo_url, sdist.version), file = f)
+				url = "%s?version=%s" % (sdist.git_url(), sdist.version)
+				if sdist.git_tag():
+					url += "&tag=" + sdist.git_tag()
+				print("source %s" % url, file = f)
 			else:
 				print("source %s" % sdist.filename, file = f)
 				for (algo, md) in sdist.hash.items():
@@ -1331,8 +1334,27 @@ class Engine(Object):
 		# For now, we only deal with github
 		assert(parsed_url.hostname == 'github.com')
 
-		assert(frag.startswith('version='))
-		version = frag[8:]
+		version = None
+		tag = None
+
+		if frag:
+			assert(frag.startswith('version='))
+			version = frag[8:]
+
+		if parsed_url.query:
+			for kvp in parsed_url.query.split('&'):
+				(key, value) = kvp.split('=')
+				if key == 'version':
+					version = value
+				elif key == 'tag':
+					tag = value
+				else:
+					raise ValueError("Invalid parameter %s in URL \"%s\"" % (kvp, url))
+
+			url = urllib.parse.urlunparse(parsed_url._replace(query=''))
+
+		if version is None:
+			raise ValueError("Error when parsing URL \"%s\": no version given" % (url))
 
 		# github URLs are scheme:github.com/user_or_group/reponame/gobbledigook
 		path = parsed_url.path.strip('/').split('/')
@@ -1341,6 +1363,7 @@ class Engine(Object):
 
 		sdist = self.create_artefact_from_NVT(name, version, 'source')
 		sdist.git_repo_url = url
+		sdist.git_repo_tag = tag
 
 		return sdist
 
