@@ -65,6 +65,13 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 			return self.req_string
 		return self.name
 
+	def format(self):
+		if self.cooked_requirement:
+			return self.cooked_requirement.format(include_attrs = False)
+		if self.req_string:
+			return self.req_string
+		return self.name
+
 class RubyArtefact(brcoti_core.Artefact):
 	engine = ENGINE_NAME
 
@@ -721,7 +728,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 			req_string = dep.name + ",".join([str(x) for x in dep.requirement])
 			if seen.get(req_string) is None:
-				req = RubyBuildRequirement(dep.name, req_string = req_string, cooked_requirement = dep.requirement)
+				req = RubyBuildRequirement(dep.name, req_string = req_string, cooked_requirement = dep)
 				self.build_info.add_requirement(req)
 				seen[req_string] = req
 

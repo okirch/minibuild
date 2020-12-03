@@ -362,7 +362,7 @@ class BuildInfo(Object):
 	#
 	def write_build_requires(self, f):
 		for req in self.requires:
-			f.write("require %s %s\n" % (req.engine, req))
+			f.write("require %s %s\n" % (req.engine, req.format()))
 			if req.hash:
 				for (algo, md) in req.hash.items():
 					f.write("  hash %s %s\n" % (algo, md))

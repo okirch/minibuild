@@ -261,13 +261,17 @@ class Ruby:
 
 			return version in self.requirement
 
-		def format(self):
-			result = self.name + " " + ", ".join([str(x) for x in self.requirement])
-			if self.prerelease:
-				result += "; prerelease"
-			if self.type != 'any':
-				result += "; " + self.type
+		def format(self, include_attrs = True):
+			result = self.name + " " + self.format_versions()
+			if include_attrs:
+				if self.prerelease:
+					result += "; prerelease"
+				if self.type != 'any':
+					result += "; " + self.type
 			return result
+
+		def format_versions(self):
+			return ", ".join([str(x) for x in self.requirement])
 
 		@staticmethod
 		def parse(string):
