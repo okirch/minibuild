@@ -681,6 +681,10 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 		gems = self.directory.glob_files("*.gem")
 
+		pkgdir = self.directory.lookup("pkg")
+		if pkgdir is not None:
+			gems += pkgdir.glob_files("*.gem")
+
 		print("Successfully built %s: %s" % (sdist.id(), ", ".join([w.basename() for w in gems])))
 		for w in gems:
 			w = w.hostpath()
