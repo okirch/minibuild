@@ -131,12 +131,16 @@ class Artefact(ArtefactAttrs):
 		self.url = None
 		self.local_path = None
 		self.git_repo_url = None
+		self.git_repo_tag = None
 
 	def __repr__(self):
 		return "%s(%s)" % (self.__class__.__name__, self.id())
 
 	def git_url(self):
 		return self.git_repo_url
+
+	def git_tag(self):
+		return self.git_repo_tag
 
 	@property
 	def is_source(self):
