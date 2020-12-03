@@ -1068,7 +1068,7 @@ class Config(object):
 			return ", ".join(["%s=%s" % (f, getattr(self, f)) for f in self._fields])
 
 	class Globals(ConfigItem):
-		_fields = ('binary_root_dir', 'certificates', 'http_proxy')
+		_fields = ('binary_root_dir', 'source_root_dir', 'certificates', 'http_proxy')
 
 		def __init__(self, config, d):
 			super(Config.Globals, self).__init__(config, d)
@@ -1287,6 +1287,7 @@ class Engine(Object):
 		self.engine_config = engine_config
 
 		self.state_dir = os.path.join(config.globals.binary_root_dir, engine_config.name)
+		self.source_dir = os.path.join(config.globals.source_root_dir, engine_config.name)
 
 		self.index = self.create_index(engine_config)
 		self.upstream_index = self.create_upstream_index(engine_config)
@@ -1519,6 +1520,22 @@ class Engine(Object):
 	def resolve_build_requirement(self, req, verbose = False):
 		finder = self.create_binary_download_finder(req, verbose)
 		return finder.get_best_match(self.index)
+
+	def submit_source(self, source):
+		name = os.path.basename(source.path)
+		assert(name and not name.startswith('.'))
+
+		dest_path = os.path.join(self.source_dir, name)
+		if os.path.exists(dest_path):
+			print("Remove %s" % dest_path)
+			shutil.rmtree(dest_path)
+
+		print("Copying %s to %s" % (source.path, dest_path))
+		os.makedirs(dest_path, 0o755)
+
+		for file in glob.glob(source.path + "/*"):
+			print("  %s -> %s" % (file, dest_path))
+			shutil.copy(file, dest_path)
 
 	engine_cache = {}
 

@@ -293,6 +293,30 @@ def write_source_dir(name, source_info, build_info):
 	info_path = os.path.join(src_dir, "build-info")
 	info.save(info_path)
 
+def submit_action(config, opts):
+	exit_code = 0
+	for name in opts.packages:
+		print("Examining %s" % name)
+
+		if not os.path.isdir(name):
+			print("Cannot submit %s: must be a local directory" % name)
+			exit_code = 1
+			continue
+
+		print("=== Using source directory %s ===" % name)
+		source = brcoti_core.Engine.create_source_from_local_directory(name, config)
+
+		engine = brcoti_core.Engine.factory(source.info.engine, config)
+		if not engine:
+			print("%s: build-info specifies invalid engine \"%s\"" % (name, source.info.engine))
+			exit_code = 1
+			break
+
+		engine.submit_source(source)
+
+	print("=== Done ===")
+	return exit_code
+
 def build_action(config, opts):
 	compute_backend = create_compute_backend(config, DEFAULT_BUILD_COMPUTE)
 
@@ -376,6 +400,11 @@ def build_option_parser():
 	prep_parser.add_argument('--no-upstream-check', default = False, action = 'store_true',
                 help = "Do not compare our build results to upstream build (use with caution)")
 
+	submit_parser = subparsers.add_parser('submit',
+		help = "Submit source package(s)")
+	submit_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
+		help = "List of packages")
+
 	build_parser = subparsers.add_parser('build',
 		help = "Build package(s)")
 	build_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
@@ -407,6 +436,12 @@ if opts.action == 'prep':
 		exit(0)
 
 	exit_code = prep_action(config, opts)
+elif opts.action == 'submit':
+	if not opts.packages:
+		print("Nothing to be done.")
+		exit(0)
+
+	exit_code = submit_action(config, opts)
 elif opts.action == 'build':
 	if not opts.packages:
 		print("Nothing to be done.")

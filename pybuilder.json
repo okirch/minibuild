@@ -1,6 +1,7 @@
 {
 	"globals" : {
 		"binary_root_dir" : "/srv/minibuild/binaries",
+		"source_root_dir" : "/srv/minibuild/sources",
 		"http_proxy" : "localhost:8899",
 		"certificates" : [
 			"/srv/minibuild/proxy/ca-cert.pem"
