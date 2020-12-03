@@ -549,21 +549,21 @@ class BuildDirectory(Object):
 
 		destdir = os.path.join(self.build_base.path, relative_unpack_dir)
 
-		# We should make this configurable
-		tag = "v%s" % sdist.version
+		tag = sdist.git_tag()
 
 		print("unpack_git: relative_unpack_dir=%s destdir=%s" % (relative_unpack_dir, destdir))
-		self.unpack_git_helper(repo_url, tag, destdir = destdir)
+		tag = self.unpack_git_helper(repo_url, tag, destdir = destdir, version_hint = str(sdist.version))
 
 		self.directory = self.compute.get_directory(destdir)
 		if not self.directory or not self.directory.isdir():
 			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
 
+		sdist.git_repo_tag = tag
 		self.sdist = sdist
 
 	# General helper function: clone a git repo to the given destdir, and
 	# optionally check out the tag requested (HEAD otherwise)
-	def unpack_git_helper(self, git_repo, tag = None, destdir = None):
+	def unpack_git_helper(self, git_repo, tag = None, destdir = None, version_hint = None):
 		assert(destdir) # for now
 
 		if destdir:
@@ -571,8 +571,40 @@ class BuildDirectory(Object):
 		else:
 			self.compute.run_command("git clone %s" % (git_repo))
 
+		if tag is None and version_hint:
+			tag = self.guess_git_tag(destdir, version_hint)
+			if tag is None:
+				raise ValueError("Unable to find a tag correcponding to version %s" % version_hint)
+
 		if tag:
 			self.compute.run_command("git checkout --detach %s" % tag, working_dir = destdir)
+
+		return tag
+
+	def guess_git_tag(self, destdir, version_hint):
+		tag_canditates = (
+			version_hint,
+			version_hint.replace('.', '_'),
+			)
+		f = self.compute.popen("git tag", working_dir = destdir)
+		for tag in f.readlines():
+			tag = tag.strip()
+			for tail in tag_canditates:
+				if not tag.endswith(tail):
+					continue
+
+				head = tag[:-len(tail)]
+				if head and head[-1].isdigit():
+					# 12.1 is not a valid tag for version 2.1
+					continue
+
+				# the tag equals the (possibly transformed) version number,
+				# possibly prefixed with a string that does not end with a
+				# digit.
+				print("Found tag %s for version %s" % (tag, version_hint))
+				return tag
+
+		return None
 
 	def build(self):
 		self.mni()
