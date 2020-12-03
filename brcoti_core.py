@@ -323,6 +323,7 @@ class Uploader(Object):
 class BuildInfo(Object):
 	def __init__(self, engine):
 		self.engine = engine
+		self.build_script = None
 		self.requires = []
 		self.artefacts = []
 		self.sources = []
@@ -342,6 +343,9 @@ class BuildInfo(Object):
 			self.write_build_requires(f)
 			self.write_artefacts(f)
 			self.write_sources(f)
+
+			if self.build_script:
+				print("build %s" % self.build_script, file = f)
 
 	#
 	# Write out the build-requires information
@@ -393,6 +397,8 @@ class BuildInfo(Object):
 		with open(path, 'r') as f:
 			req = None
 			for l in f.readlines():
+				if l.startswith('#'):
+					continue
 				l = l.rstrip()
 				if not l:
 					continue
@@ -434,6 +440,14 @@ class BuildInfo(Object):
 							filename = os.path.realpath(filename)
 							obj = build_engine.create_artefact_from_local_file(filename)
 						result.add_source(obj)
+					elif kwd == 'build':
+						arg = l.strip()
+						filename = os.path.join(os.path.dirname(path), arg)
+						filename = os.path.realpath(filename)
+
+						if not os.access(filename, os.X_OK):
+							raise ValueError("build script %s must be executable" % arg)
+						result.build_script = filename
 					else:
 						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
 				else:
@@ -606,8 +620,15 @@ class BuildDirectory(Object):
 
 		return None
 
-	def build(self):
+	def build(self, build_script):
 		self.mni()
+
+	def build_from_script(self, build_script):
+		print("build_from_script(%s)" % build_script)
+		shutil.copy(build_script, self.build_base.hostpath())
+
+		path = os.path.join(self.build_base.path, os.path.basename(build_script))
+		self.compute.run_command("/bin/sh -c %s" % path, working_dir = self.directory.path)
 
 	def build_command_helper(self, cmd):
 		assert(self.directory)

@@ -129,10 +129,10 @@ class BuildJob(object):
 		print("=== Building %s ===" % self.id())
 		build = self.build
 
-		artefacts = build.build()
+		artefacts = build.build(self.source.info.build_script)
 
 		if not artefacts:
-			raise ValueError("%s: nothing got built" % self.sdist.id())
+			raise ValueError("%s: nothing got built" % self.source.id())
 
 		return artefacts
 
