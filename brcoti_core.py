@@ -263,13 +263,22 @@ class HTTPPackageIndex(PackageIndex):
 
 	def get_package_info(self, name):
 		import urllib.request
+		from urllib.error import HTTPError
 
 		url = self._pkg_url_template.format(index_url = self.url, pkg_name = name)
 
-		resp = urllib.request.urlopen(url)
-		if resp.status != 200:
-			raise ValueError("Unable to get package info for %s: HTTP response %s (%s)" % (
-					name, resp.status, resp.reason))
+		try:
+			resp = urllib.request.urlopen(url)
+			status = resp.status
+			reason = resp.reason
+		except HTTPError as e:
+			print(e.strerror)
+			status = e.code
+			reason = e.reason
+
+		if status != 200:
+			raise ValueError("Unable to get package info for %s from %s: HTTP response %s (%s)" % (
+					name, url, status, reason))
 
 		return self.process_package_info(name, resp)
 
