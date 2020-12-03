@@ -209,9 +209,10 @@ class ArtefactComparison(Object):
 			self.tmpdir = None
 
 		def write_data(self, tag, data):
-			dirname = os.path.join(self.tmpdir.name, tag)
-			os.makedirs(dirname)
-			path = os.path.join(dirname, self.name)
+			path = os.path.join(self.tmpdir.name, tag, self.name)
+			dirname = os.path.dirname(path)
+			if not os.path.isdir(dirname):
+				os.makedirs(dirname)
 			with open(path, "wb") as f:
 				f.write(data)
 
