@@ -795,10 +795,24 @@ class RubyEngine(brcoti_core.Engine):
 	def create_artefact_from_NVT(self, name, version, type):
 		return RubyArtefact(name, version, type)
 
+	def install_requirement(self, compute, req):
+		assert(req.cooked_requirement)
+		gem_req = req.cooked_requirement
+		version_string = gem_req.format_versions()
+
+		cmd = ["gem", "install"]
+		if version_string:
+			cmd += ["--version", "'" + version_string + "'"]
+		cmd.append(gem_req.name)
+
+		cmd = " ".join(cmd)
+		compute.run_command(cmd, privileged_user = True)
+
 	def build_unpack(self, compute, build_info):
 		if len(build_info.sources) != 1:
 			raise ValueError("Currently unable to handle builds with more than one source")
 		sdist = build_info.sources[0]
+		assert(sdist.git_url())
 
 		bd = RubyBuildDirectory(compute, self.engine_config)
 		if sdist.git_url():

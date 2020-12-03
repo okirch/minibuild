@@ -1355,9 +1355,11 @@ class Engine(Object):
 		# install additional packages as requested by build-info
 		if build_info:
 			for req in build_info.requires:
-				if req.engine != self.name:
+				if req.engine == self.name:
+					engine = self
+				else:
 					engine = Engine.factory(req.engine, self.config)
-					engine.install_requirement(compute, req)
+				engine.install_requirement(compute, req)
 
 		return compute
 
