@@ -114,7 +114,7 @@ class BuildJob(object):
 		# Download the source archive if we don't have it yet
 		for sdist in build_info.sources:
 			# FIXME: how do we make sure we use the right downloader here? 
-			if sdist.url:
+			if sdist.url and not sdist.git_url():
 				self.engine.downloader.download(sdist)
 
 		# spawn a container/VM or whatever compute node we need
