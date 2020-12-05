@@ -832,6 +832,10 @@ class RubyEngine(brcoti_core.Engine):
 			bd.unpack_archive(sdist)
 
 		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
+
+		if build_info.patches:
+			bd.apply_patches(build_info)
+
 		return bd
 
 def engine_factory(config, engine_config):

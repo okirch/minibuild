@@ -337,6 +337,7 @@ class BuildInfo(Object):
 		self.requires = []
 		self.artefacts = []
 		self.sources = []
+		self.patches = []
 
 	def add_source(self, sdist):
 		self.sources.append(sdist)
@@ -356,6 +357,9 @@ class BuildInfo(Object):
 
 			if self.build_script:
 				print("build %s" % self.build_script, file = f)
+
+			for patch in self.patches:
+				print("patch %s" % patch, file = f)
 
 	#
 	# Write out the build-requires information
@@ -458,6 +462,14 @@ class BuildInfo(Object):
 						if not os.access(filename, os.X_OK):
 							raise ValueError("build script %s must be executable" % arg)
 						result.build_script = filename
+					elif kwd == 'patch':
+						arg = l.strip()
+						filename = os.path.join(os.path.dirname(path), arg)
+						filename = os.path.realpath(filename)
+
+						if not os.path.exists(filename):
+							raise ValueError("patch %s does not exist" % arg)
+						result.patches.append(filename)
 					else:
 						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
 				else:
@@ -629,6 +641,17 @@ class BuildDirectory(Object):
 				return tag
 
 		return None
+
+	def apply_patches(self, build_info):
+		for patch in build_info.patches:
+			print("Applying patch %s" % patch)
+			pipe = self.compute.popen("patch -p1", mode = 'w', working_dir = self.directory.path)
+			with open(patch, "r") as pf:
+				data = pf.read()
+				pipe.write(data)
+
+			if pipe.close():
+				raise ValueError("patch command failed (%s)" % patch)
 
 	def build(self, build_script):
 		self.mni()
