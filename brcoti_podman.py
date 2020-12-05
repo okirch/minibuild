@@ -42,7 +42,7 @@ class PodmanCmd(object):
 			cmd = "sudo -- " + cmd
 		return os.system(cmd)
 
-	def popen(self):
+	def popen(self, mode = 'r'):
 		cmd = self.cmd
 
 		print("podman: " + self.cmd)
@@ -50,7 +50,7 @@ class PodmanCmd(object):
 
 		if os.getuid() != 0:
 			cmd = "sudo -- " + cmd
-		return os.popen(cmd)
+		return os.popen(cmd, mode = mode)
 
 class PodmanCompute(brcoti_core.Compute):
 	def __init__(self, global_config, config):
@@ -270,7 +270,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def putenv(self, name, value):
 		self.env[name] = value
 
-	def _make_command(self, cmd, working_dir, privileged_user = False):
+	def _make_command(self, cmd, working_dir, privileged_user = False, interactive = False):
 		args = []
 		if working_dir:
 			if isinstance(working_dir, brcoti_core.ComputeResourceFS):
@@ -282,6 +282,8 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 
 		if not privileged_user:
 			args.append(" --user %s" % self.build_user)
+		if interactive:
+			args.append(" --interactive")
 		args.append(self.container_id)
 
 		return PodmanCmd("exec", *args, cmd)
@@ -290,7 +292,11 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		return self._make_command(cmd, working_dir, privileged_user).run()
 
 	def _popen(self, cmd, mode = 'r', working_dir = None):
-		return self._make_command(cmd, working_dir).popen()
+		i = False
+		if not mode.startswith('r'):
+			i = True
+
+		return self._make_command(cmd, working_dir, interactive = i).popen(mode)
 
 	def get_directory(self, path):
 		assert(path.startswith('/'))
