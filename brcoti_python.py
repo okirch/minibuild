@@ -782,28 +782,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		name, version, type = PythonArtefact.parse_filename(sdist.filename)
 		return name + "-" + version
 
-	def build(self, build_script):
-		assert(self.directory)
-		sdist = self.sdist
-
-		if build_script:
-			self.build_info.build_script = build_script
-			self.build_from_script(build_script)
-		else:
-			cmd = self.pip_command
-			cmd += " wheel --wheel-dir dist ."
-			cmd += " --log pip.log"
-			cmd += " --no-deps"
-
-			# KLUDGE ALERT
-			# If translate_url() was used to map https://localhost to a hostname
-			# that's working inside the container, we need to let pip know that
-			# it should trust this hostname
-			for hostname in self.compute.trusted_hosts():
-				cmd += " --trusted-host " + hostname
-
-			self.build_command_helper(cmd)
-
+	def collect_build_results(self):
 		# glob_files returns a list of ComputeResource* objects
 		wheels = self.directory.glob_files(os.path.join("dist", "*.whl"))
 

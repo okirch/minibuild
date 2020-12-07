@@ -27,6 +27,7 @@ import os.path
 import io
 import glob
 import shutil
+import re
 
 def __pre_command():
 	# Avoid messing up the order of our output and the output of subprocesses when
@@ -334,6 +335,7 @@ class BuildInfo(Object):
 	def __init__(self, engine):
 		self.engine = engine
 		self.build_script = None
+		self.build_strategy = None
 		self.requires = []
 		self.artefacts = []
 		self.sources = []
@@ -355,7 +357,9 @@ class BuildInfo(Object):
 			self.write_artefacts(f)
 			self.write_sources(f)
 
-			if self.build_script:
+			if self.build_strategy:
+				print("build-strategy %s" % self.build_strategy.describe(), file = f)
+			elif self.build_script:
 				print("build %s" % self.build_script, file = f)
 
 			for patch in self.patches:
@@ -461,7 +465,11 @@ class BuildInfo(Object):
 
 						if not os.access(filename, os.X_OK):
 							raise ValueError("build script %s must be executable" % arg)
-						result.build_script = filename
+
+						result.build_script = arg
+						result.build_strategy = engine.create_build_strategy_from_script(filename)
+					elif kwd == 'build-strategy':
+						result.build_strategy = BuildStrategy.parse(build_engine, l.strip())
 					elif kwd == 'patch':
 						arg = l.strip()
 						filename = os.path.join(os.path.dirname(path), arg)
@@ -490,6 +498,7 @@ class BuildInfo(Object):
 		if result.engine is None:
 			raise ValueError("%s: missing engine specification" % path)
 		return result
+
 
 class Source(Object):
 	def __init__(self):
@@ -734,8 +743,11 @@ class BuildDirectory(Object):
 			if pipe.close():
 				raise ValueError("patch command failed (%s)" % patch)
 
-	def build(self, build_script):
-		self.mni()
+	def build(self, build_strategy):
+		for cmd in build_strategy.next_command(self):
+			self.build_command_helper(cmd)
+
+		return self.collect_build_results()
 
 	def build_from_script(self, build_script):
 		print("build_from_script(%s)" % build_script)
@@ -743,6 +755,9 @@ class BuildDirectory(Object):
 
 		path = os.path.join(self.build_base.path, os.path.basename(build_script))
 		self.compute.run_command("/bin/sh -c %s" % path, working_dir = self.directory.path)
+
+		# Record the fact that we used a build script (for now)
+		self.build_info.build_script = build_script
 
 	def build_command_helper(self, cmd):
 		assert(self.directory)

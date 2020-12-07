@@ -780,21 +780,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		name, version, type = RubyArtefact.parse_filename(sdist.filename)
 		return name + "-" + version
 
-	def build_from_gemspec(self, spec_filename):
-		cmd = "gem build " + spec_filename
-		self.build_command_helper(cmd)
-
-	def build(self, build_script):
-		assert(self.directory)
+	def collect_build_results(self):
 		sdist = self.sdist
-
-		if build_script:
-			self.build_info.build_script = build_script
-			self.build_from_script(build_script)
-		else:
-			for spec in self.directory.glob_files("*.gemspec"):
-				build_from_gemspec(os.path.basename(spec.path))
-
 		gems = self.directory.glob_files("*.gem")
 
 		pkgdir = self.directory.lookup("pkg")
