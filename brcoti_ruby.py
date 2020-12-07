@@ -778,10 +778,12 @@ class RubyPublisher(brcoti_core.Publisher):
 		brcoti_core.run_command(cmd)
 
 class RubyEngine(brcoti_core.Engine):
-	REQUIRED_HASHES = ('md5', 'sha256')
+	type = 'ruby'
+
+	REQUIRED_HASHES = ()
 
 	def __init__(self, config, engine_config):
-		super(RubyEngine, self).__init__("ruby", config, engine_config)
+		super(RubyEngine, self).__init__(config, engine_config)
 
 	def create_index_from_repo(self, repo_config):
 		return RubySpecIndex(repo_config.url)

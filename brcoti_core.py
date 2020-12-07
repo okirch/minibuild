@@ -1300,7 +1300,9 @@ class Config(object):
 		return nt(*[d.get(name) for name in nt._fields])
 
 class Engine(Object):
-	def __init__(self, name, config, engine_config):
+	type = 'NOT SET'
+
+	def __init__(self, config, engine_config):
 		self.name = engine_config.name
 
 		self.config = config
