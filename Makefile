@@ -26,7 +26,7 @@ containers: $(addprefix $(IMGDIR)/,$(CONTAINERS))
 
 $(IMGDIR)/brcoti-%: Dockerfile.%
 	@mkdir -p $(IMGDIR)
-	podman build --tag $(@F):$(VERSION) -f $<
+	podman build --tag $(@F):$(VERSION) --tag $(@F):latest -f $<
 	podman push $(@F) oci-archive:$@
 
 
