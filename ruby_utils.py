@@ -427,9 +427,36 @@ class Ruby:
 		def __init__(self):
 			self.timedata = None
 
+			self.tzmode = 0
+			self.year = 0
+			self.month = 0
+			self.mday = 0
+
 		def load(self, data):
 			# print("Time.load(%s)" % data)
+			assert(len(data) == 8)
 			self.timedata = data
+
+			# Lovely encoding of Time objects. To round things out, they
+			# could have used a BCD format to represent integers...
+			value = 0
+			for i in range(4):
+				value += data[i] << (8 * i)
+
+			# The MSB is always 1
+			assert(value & 0x80000000)
+
+			self.tzmode = (0x0001 & (value >> 30))
+			self.year   = (0xFFFF & (value >> 14)) + 1900
+			self.month  = (0x000F & (value >> 10)) + 1
+			self.mday   = (0x001F & (value >>  5))
+			assert(self.tzmode == 1)
+
+			# The timestamps contained in gem metadata only provide a date,
+			# never seconds or subsecond values. So we ignore the rest.
+
+		def __repr__(self):
+			return "%d-%02d-%02d 00:00:00.000000000 Z" % (self.year, self.month, self.mday)
 
 	classes = {
 		'Gem::Version'		: GemVersion,
