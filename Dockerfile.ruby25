@@ -1,5 +1,12 @@
 FROM opensuse/leap:latest
-RUN zypper in -y ruby-2.5 ruby2.5-rubygem-bundler git-core
+RUN zypper in -y ruby-2.5 ruby2.5-rubygem-bundler ruby-devel
+RUN zypper in -y git-core patch
+#
+# This patch makes the hoe build fail
+COPY patches/ruby2.5-make-gem-build-reproducible.patch /tmp
+RUN patch -Rp2 -d /usr/lib64/ruby/2.5.0 < /tmp/ruby2.5-make-gem-build-reproducible.patch
+
+RUN zypper in -y make gcc
 RUN groupadd -g 666 build
 RUN useradd -u 666 -g build -m build
 ENTRYPOINT [ "/usr/bin/sleep", "infinity" ]
