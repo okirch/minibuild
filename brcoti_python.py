@@ -739,6 +739,33 @@ class WheelArchive(object):
 
 		return brcoti_core.ArtefactComparison(other.path, added_set, removed_set, changed_set)
 
+class PythonBuildStrategy(brcoti_core.BuildStrategy):
+        pass
+
+class BuildStrategy_Wheel(PythonBuildStrategy):
+	_type = "wheel"
+
+	def __init__(self, *args):
+		pass
+
+	def describe(self):
+		return self._type
+
+	def next_command(self, build_directory):
+		cmd = build_directory.pip_command
+		cmd += " wheel --wheel-dir dist ."
+		cmd += " --log pip.log"
+		cmd += " --no-deps"
+
+		# KLUDGE ALERT
+		# If translate_url() was used to map https://localhost to a hostname
+		# that's working inside the container, we need to let pip know that
+		# it should trust this hostname
+		for hostname in build_directory.compute.trusted_hosts():
+			cmd += " --trusted-host " + hostname
+
+		yield cmd
+
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine_config):
 		super(PythonBuildDirectory, self).__init__(compute, compute.default_build_dir())
@@ -1118,6 +1145,15 @@ class PythonEngine(brcoti_core.Engine):
 		if type == 'source':
 			type = 'sdist'
 		return PythonArtefact(name, version, type)
+
+	def create_build_strategy_default(self):
+		return BuildStrategy_Wheel()
+
+	def create_build_strategy(self, name, *args):
+		if name == 'default' or name == 'auto' or name == 'wheel':
+                        return BuildStrategy_Wheel()
+
+		super(PythonEngine, self).create_build_strategy(name, *args)
 
 	def build_unpack(self, compute, build_info):
 		if len(build_info.sources) != 1:

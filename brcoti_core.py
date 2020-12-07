@@ -522,6 +522,87 @@ class SourceDirectory(Source):
 	def id(self):
 		return self.info.sources[0].id()
 
+class BuildStrategy(Object):
+	def __init__(self):
+		pass
+
+	def describe(self):
+		self.mni()
+
+	def next_command(self):
+		self.mni()
+
+	@staticmethod
+	def parse(engine, arg):
+		# print("BuildStrategy.parse(\"%s\")" % arg)
+		values = BuildStrategy.parse_expression_list(engine, arg)
+		if values is None:
+			raise ValueError("BuildStrategy.parse(%s) failed" % arg)
+
+		assert(len(values) == 1)
+
+		result = values[0]
+		if not isinstance(result, BuildStrategy):
+			result = engine.create_build_strategy(result)
+
+		if arg.replace(' ', '') != result.describe().replace(' ', ''):
+			raise ValueError("BuildStrategy.parse(\"%s\") failed: created \"%s\" instead" % (arg, result.describe()))
+
+		return result
+
+	@staticmethod
+	def parse_expression_list(engine, arg):
+		# print("parse_expression_list(\"%s\")" % arg)
+		rest = arg.strip()
+		result = []
+
+		while rest:
+			# print("  Partial: <%s>" % rest)
+			m = re.search("([-A-Za-z_]*)(.*)", rest)
+			if not m:
+				return None
+
+			id_or_string = m.group(1)
+			rest = m.group(2).strip()
+			if rest.startswith("("):
+				m = re.search("\((.*)\)(.*)", rest)
+				if not m:
+					return None
+
+				args = BuildStrategy.parse_expression_list(engine, m.group(1))
+
+				strategy = engine.create_build_strategy(id_or_string, *args)
+				# print("  created %s" % strategy.describe())
+				result.append(strategy)
+				rest = m.group(2).strip()
+
+			if rest and not rest.startswith(","):
+				return None
+
+			rest = rest[1:].strip()
+
+		return result
+
+class BuildStrategy_FromScript(BuildStrategy):
+	_type = "script"
+
+	def __init__(self, path):
+		self.path = path
+
+	def describe(self):
+		# For now, we assume that the script always lives inside the source directory
+		return "%s(%s)" % (self._type, os.path.basename(self.path))
+
+	def next_command(self, build_directory):
+		build_script = self.path
+
+		shutil.copy(build_script, self.build_base.hostpath())
+
+		yield os.path.join(self.build_base.path, os.path.basename(build_script))
+
+		# Record the fact that we used a build script (for now)
+		self.build_info.build_script = build_script
+
 class BuildDirectory(Object):
 	def __init__(self, compute, build_base):
 		self.compute = compute
@@ -1496,6 +1577,18 @@ class Engine(Object):
 
 	def build_unpack(self, compute, sdist):
 		self.mni()
+
+	def create_build_strategy_default(self):
+		self.mni()
+
+	def create_build_strategy_from_script(self, path):
+		return BuildStrategy_FromScript(path)
+
+	def create_build_strategy(self, name, *args):
+		if name == 'script':
+			return brcoti_core.BuildStrategy_FromScript(*args)
+
+		raise ValueError("%s: unknown build strategy \"%s\"" % (self.name, name))
 
 	def finalize_build_depdendencies(self, build):
 		tempdir = None

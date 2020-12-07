@@ -660,6 +660,114 @@ class GemFile(object):
 		io = self.open_metadata()
 		return ruby_utils.Ruby.YAML.load(io)
 
+class RubyBuildStrategy(brcoti_core.BuildStrategy):
+	pass
+
+class BuildStrategy_GemBuild(RubyBuildStrategy):
+	_type = "gem-build"
+
+	def __init__(self, name = None):
+		super(BuildStrategy_GemBuild, self).__init__()
+		self.name = name
+
+	def describe(self):
+		return '%s(%s)' % (self._type, self.name or "")
+
+	def next_command(self, build_directory):
+		if self.name:
+			yield "gem build '%s.gemspec'" % self.name
+		else:
+			for spec in build_directory.directory.glob_files("*.gemspec"):
+				yield "gem build '%s'" % os.path.basename(spec.path)
+
+class BuildStrategy_GemCompile(RubyBuildStrategy):
+	_type = "gem-compile"
+
+	def __init__(self, inner_job, name = None):
+		super(BuildStrategy_GemCompile, self).__init__()
+		self.inner_job = inner_job
+		self.name = name
+
+	def describe(self):
+		if self.name:
+			return '%s(%s, %s)' % (self._type, self.inner_job.describe(), self.name)
+		else:
+			return '%s(%s)' % (self._type, self.inner_job.describe())
+
+	def next_command(self, build_directory):
+		for cmd in self.inner_job.next_command(build_directory):
+			yield cmd
+
+		if self.name:
+			yield "gem compile '%s-*.gem'" % self.name
+		else:
+			for spec in build_directory.directory.glob_files("*.gem"):
+				yield "gem compile '%s'" % os.path.basename(spec.path)
+
+class BuildStrategy_Rake(RubyBuildStrategy):
+	_type = "rake"
+
+	def __init__(self, targets = ['build']):
+		super(BuildStrategy_Rake, self).__init__()
+		self.targets = targets
+
+	def describe(self):
+		return '%s(%s)' % (self._type, ", ".join(self.targets))
+
+	def next_command(self, build_directory):
+		# FIXME: should we try to detect supported rake tasks
+		# if none were given?
+		for tgt in self.targets:
+			yield "rake %s" % tgt
+
+class BuildStrategy_Bundler(RubyBuildStrategy):
+	_type = "bundler"
+
+	def __init__(self, inner_job):
+		super(BuildStrategy_Bundler, self).__init__()
+		self.inner_job = inner_job
+
+	def describe(self):
+		return '%s(%s)' % (self._type, self.inner_job.describe())
+
+	def next_command(self, build_directory):
+		yield 'bundler install'
+
+		for cmd in self.inner_job.next_command(build_directory):
+			yield "bundler exec " + cmd
+
+class BuildStrategy_Auto(RubyBuildStrategy):
+	_type = "auto"
+
+	def __init__(self):
+		self.actual = None
+
+	def describe(self):
+		if self.actual:
+			return self.actual.describe()
+		return "auto"
+
+	def next_command(self, build_directory):
+		where = build_directory.directory
+
+		strategy = None
+		if where.lookup("Rakefile"):
+			strategy = BuildStrategy_Rake()
+		else:
+			strategy = BuildStrategy_GemBuild()
+
+		if where.lookup("Gemfile"):
+			strategy = BuildStrategy_Bundler(strategy)
+
+		for cmd in strategy.next_command(build_directory):
+			yield cmd
+
+		# TODO: now look at the results and see if they contain
+		# a native extension. If so, compile than gem (and alter
+		# our strategy)
+
+		self.actual = strategy
+
 class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine_config):
 		super(RubyBuildDirectory, self).__init__(compute, compute.default_build_dir())
@@ -828,6 +936,23 @@ class RubyEngine(brcoti_core.Engine):
 
 		cmd = " ".join(cmd)
 		compute.run_command(cmd, privileged_user = True)
+
+	def create_build_strategy_default(self):
+		return BuildStrategy_GemBuild()
+
+	def create_build_strategy(self, name, *args):
+		if name == 'default':
+			return BuildStrategy_GemBuild()
+		if name == 'auto':
+			return BuildStrategy_Auto()
+		if name == 'rake':
+			return BuildStrategy_Rake(*args)
+		if name == 'bundler':
+			return BuildStrategy_Bundler(*args)
+		if name == 'gem-build':
+			return BuildStrategy_GemBuild(*args)
+
+		super(RubyEngine, self).create_build_strategy(name, *args)
 
 	def build_unpack(self, compute, build_info):
 		if len(build_info.sources) != 1:
