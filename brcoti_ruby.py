@@ -567,19 +567,29 @@ class GemFile(object):
 
 	def compare(self, other):
 		return GemFile.do_compare(self, other)
-	
+
+	# Tune how serious some divergence of metadata actually is
+	# We should make this configurable
+	metadata_badness = {
+		'date' : 0,
+		'rubygems_version' : 0,
+	}
+
 	@staticmethod
-	def do_compare(old, new):
+	def do_compare(old, new, max_badness = 0):
 		# First, compare the contents of data.tar.gz.
 		# We only look at regular files contained in the tarfile, even though
 		# we should probably also look at symlinks and hardlinks
 		result = GemFile.compare_data(old, new)
 
-		if old.get_metadata() != new.get_metadata():
+		old_meta = old.parse_metadata()
+		new_meta = new.parse_metadata()
+		d = old_meta.diff(new_meta, GemFile.metadata_badness)
+		if d.badness() > max_badness:
 			result.changed.add("metadata")
-			result.add_raw_data_differ("metadata",
-				old.get_metadata(),
-				new.get_metadata())
+
+			d.name = "metadata"
+			result.add_differ(d)
 
 		# Ignore checksums and signatures
 

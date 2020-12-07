@@ -138,6 +138,10 @@ class Ruby:
 				return self.versions[0]
 			return "[%s]" % ", ".join(self.versions)
 
+		def __eq__(self, other):
+			assert(isinstance(other, self.__class__))
+			return self.versions == other.versions
+
 	class Clause:
 		def __init__(self, op, version):
 			self.op = op
@@ -167,6 +171,10 @@ class Ruby:
 				return item >= self.version and item < self.version.next_bigger()
 
 			raise ValueError("Unknown version comparison operator \"%s\"" % self.op)
+
+		def __eq__(self, other):
+			assert(isinstance(other, self.__class__))
+			return self.op == other.op and self.version == other.version
 
 	class GemRequirement(object):
 		# Needed for marshaling
@@ -225,6 +233,10 @@ class Ruby:
 		def __iter__(self):
 			return iter(self.req)
 
+		def __eq__(self, other):
+			assert(isinstance(other, self.__class__))
+			return self.req == other.req
+
 	class GemDependency(object):
 		# Needed for marshaling
 		ruby_classname = 'Gem::Dependency'
@@ -272,6 +284,19 @@ class Ruby:
 
 		def format_versions(self):
 			return ", ".join([str(x) for x in self.requirement])
+
+		def __eq__(self, other):
+			assert(isinstance(other, self.__class__))
+
+			if self.name != other.name or \
+			   self.prerelease != other.prerelease or \
+			   self.type != other.type:
+				return False
+
+			if sorted(self.requirement) != sorted(other.requirement):
+				return False
+
+			return True
 
 		@staticmethod
 		def parse(string):
@@ -350,6 +375,7 @@ class Ruby:
 			if yaml_data is not None:
 				for key, value in yaml_data.items():
 					setattr(self, key, value)
+			self._yaml = yaml_data
 
 		@property
 		def email(self):
@@ -419,6 +445,110 @@ class Ruby:
 
 		def __repr__(self):
 			return "GemSpecification(%s-%s)" % (self.name, self.version)
+
+		class ObjectDiffer:
+			def __init__(self, name = "GemSpecification"):
+				self._changed = dict()
+				self.name = name
+
+			class Change:
+				def __init__(self, old, new):
+					self.badness = 1000
+					self.old = old
+					self.new = new
+
+				def display(self, key):
+					print("  %s (badness %d): \"%s\" -> \"%s\"" % (key, self.badness, self.old, self.new))
+
+				def diff_display(self, indent = ""):
+					if self.old:
+						print("%s- %s" % (indent, self.old))
+					if self.new:
+						print("%s+ %s" % (indent, self.new))
+
+			class ListChange:
+				def __init__(self, items):
+					self.badness = 1000
+					self.items = items
+
+				def display(self, key):
+					if not self.items:
+						print("  %s: no changes" % key)
+						return
+
+					print("  %s changes (badness %d):" % (key, self.badness))
+					for item in self.items:
+						item.diff_display("    ")
+
+			def add(self, key, our_value, her_value):
+				# print("Change %s: \"%s\"/%s -> \"%s\"/%s" % (key, our_value, type(our_value), her_value, type(her_value)))
+				change = self.__class__.Change(our_value, her_value)
+				self._changed[key] = change
+				return change
+
+			def add_list_diff(self, key, our_value, her_value):
+				our_value = set(our_value)
+				her_value = set(her_value)
+				not_common = our_value.symmetric_difference(her_value)
+
+				changes = []
+				# print("Change %s:" % key)
+				for item in not_common:
+					if item in our_value:
+						# print("- %s" % item)
+						changes.append(self.__class__.Change(item, None))
+					else:
+						# print("+ %s" % item)
+						changes.append(self.__class__.Change(None, item))
+
+				if not changes:
+					# print("NO CHANGE")
+					return None
+
+				change = self.__class__.ListChange(changes)
+				self._changed[key] = change
+				return change
+
+			def show(self):
+				if not self._changed:
+					print("%s - no changes" % self.name)
+					return
+
+				print("%s changes:" % self.name)
+				for key in sorted(self._changed.keys()):
+					d = self._changed[key]
+					d.display(key)
+
+			def __bool__(self):
+				return not not self._changed
+
+			def badness(self):
+				return max([change.badness for change in self._changed.values()])
+
+		def diff(self, other, badness_map = dict()):
+			assert(isinstance(other, self.__class__))
+
+			# For now, we will only compare a GemSpecification loaded from yaml
+			assert(self._yaml and other._yaml)
+
+			result = Ruby.GemSpecification.ObjectDiffer()
+			if self._yaml and other._yaml:
+				all_keys = set(self._yaml.keys()).union(set(other._yaml.keys()))
+				for key in sorted(all_keys):
+					our_value = self._yaml.get(key)
+					her_value = other._yaml.get(key)
+					if our_value == her_value:
+						continue
+
+					if type(our_value) == list and type(her_value) == list:
+						change = result.add_list_diff(key, our_value, her_value)
+					else:
+						change = result.add(key, our_value, her_value)
+
+					if change:
+						change.badness = badness_map.get(key, 100)
+
+			return result
 
 	class Time:
 		# Needed for marshaling
