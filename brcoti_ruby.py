@@ -831,7 +831,6 @@ class RubyEngine(brcoti_core.Engine):
 		if len(build_info.sources) != 1:
 			raise ValueError("Currently unable to handle builds with more than one source")
 		sdist = build_info.sources[0]
-		assert(sdist.git_url())
 
 		bd = RubyBuildDirectory(compute, self.engine_config)
 		if sdist.git_url():
