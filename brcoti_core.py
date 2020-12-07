@@ -1392,7 +1392,7 @@ class Engine(Object):
 
 	@staticmethod
 	def create_source_from_local_directory(path, config):
-		path = os.path.basename(path.rstrip('/'))
+		path = path.rstrip('/')
 		return SourceDirectory(path, config)
 
 	# This is NOT a static method; the caller must first instantiate the engine that
