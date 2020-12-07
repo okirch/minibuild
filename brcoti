@@ -147,7 +147,7 @@ class BuildJob(object):
 		if requires:
 			print("Build requirements:")
 			for req in requires:
-				print("  %-50s via %s" % (req.filename, req))
+				print("  %s" % (req, ))
 
 	def prepare_results(self):
 		print("=== Collecting build results ===")
@@ -232,8 +232,12 @@ def prep_action(config, opts):
 			continue
 
 		sdist = source.info.sources[0]
-		if sdist.url:
-			print("Using %s" % (sdist.url))
+
+		url = sdist.git_url()
+		if not url:
+			url = sdist.url
+		if url:
+			print("Using %s" % url)
 
 		print("=== Package %s ===" %(source.id()))
 		job = BuildJob(config, engine, compute_backend, source)
