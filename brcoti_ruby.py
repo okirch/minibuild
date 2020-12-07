@@ -427,8 +427,6 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 
 		if gemspec.homepage:
 			try_urls.append(gemspec.homepage)
-		if gemspec.unknown3:
-			try_urls.append(gemspec.unknown3)
 
 		for url in try_urls:
 			build = self.uri_to_source(gemspec, url)

@@ -333,30 +333,33 @@ class Ruby:
 	def parse_dependency(string):
 		return Ruby.GemDependency.parse(string)
 
-	class GemSpec_1_x:
-		signature = (
-				# 'specification_version',
-				'unknown1',		# int, usually 4
+	class GemSpecification(object):
+		signature_v4 = (
+				'rubygems_version',
+				'specification_version',# int, usually 4
 				'name',			# string
 				'version',		# Gem::Version
 				'date',			# Time() with instance vars
 				'summary',		# string
 				'required_ruby_version', # Gem::Dependency
 				'required_rubygems_version', # Gem::Dependency
-				'platform',		# string
+				'platform',		# string, aka "original_platform"
 				'dependencies',		# array of Gem::Dependencies
-				'unknown2',		# usually empty string
+				'rubyforge_project',	# string, usually empty
 				'email',		# string or array of strings
 				'author',		# string or array of strings
 				'description',		# string
 				'homepage',		# string
-				'unknown3',		# boolean
-				'unknown4',		# dup of platform (ie "ruby")
+				'has_rdoc',		# boolean
+				'new_platform',		# dup of platform
+
+				# Added in v3
 				'licenses',		# array of strings
+
+				# Added in v4
 				'metadata',		# hash
 		)
 
-	class GemSpecification(object):
 		# Needed for marshaling
 		ruby_classname = 'Gem::Specification'
 
@@ -365,6 +368,7 @@ class Ruby:
 			self.version = None
 			self.summary = None
 			self.dependencies = None
+			self.rubygems_version = None
 			self.required_ruby_version = None
 			self._required_rubygems_version = None
 			self.metadata = None
@@ -420,12 +424,9 @@ class Ruby:
 			# print("GemSpecification.load(%s)" % data)
 			data = unmarshal_byteseq(data)
 
-			gemspec_version = data.pop(0)
-			if gemspec_version.startswith("0.") or \
-			   gemspec_version.startswith("1.") or \
-			   gemspec_version.startswith("2.") or \
-			   gemspec_version.startswith("3."):
-				sig = Ruby.GemSpec_1_x.signature
+			gemspec_version = data[1]
+			if gemspec_version <= 4:
+				sig = self.signature_v4
 			else:
 				if True:
 					print("Unknown gemspec version %s" % gemspec_version)
@@ -433,7 +434,7 @@ class Ruby:
 					for i in range(len(data)):
 						print(i, data[i])
 
-				raise ValueError("Don't know how to deal with gemspec version %s data" % gemspec_version)
+				raise ValueError("Don't know how to deal with gemspec version %d data" % gemspec_version)
 
 			if len(data) > len(sig):
 				print("WARNING: GemSpecification.load: gemspec ver %s has %u elements (expected at most %u)" % (
