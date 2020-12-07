@@ -524,6 +524,8 @@ class Ruby:
 				return not not self._changed
 
 			def badness(self):
+				if not self._changed:
+					return 0
 				return max([change.badness for change in self._changed.values()])
 
 		def diff(self, other, badness_map = dict()):
