@@ -125,10 +125,11 @@ class RPMPackageInfo(brcoti_core.PackageInfo):
 		super(RPMPackageInfo, self).__init__(canonical_package_name(name))
 
 class RPMEngine(brcoti_core.Engine):
+	type = 'rpm'
 	REQUIRED_HASHES = ()
 
 	def __init__(self, config, engine_config):
-		super(RPMEngine, self).__init__("rpm", config, engine_config)
+		super(RPMEngine, self).__init__(config, engine_config)
 
 		# FIXME: get the name of the pkg manager from engine_config
 
