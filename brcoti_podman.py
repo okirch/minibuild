@@ -27,6 +27,7 @@ import os.path
 import sys
 import brcoti_core
 import glob
+import shutil
 
 class PodmanCmd(object):
 	def __init__(self, *args):
@@ -209,10 +210,9 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		ca_certificates = self.backend.global_config.globals.certificates
 		self.publish_system_certificates(ca_certificates)
 		self.publish_python_certificates(ca_certificates)
+		self.publish_ruby_certificates(ca_certificates)
 
 	def publish_system_certificates(self, ca_certificates):
-		import shutil
-
 		for ca_path in ca_certificates:
 			shutil.copy(ca_path, self.container_root + "/usr/share/pki/trust/anchors")
 
@@ -236,7 +236,13 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 			with open(bundle_path, "a") as f:
 				f.write(cert_string)
 
-		return cert_string
+	def publish_ruby_certificates(self, ca_certificates):
+		path_list = glob.glob(self.container_root + "/usr/lib64/ruby/*/rubygems/ssl_certs/rubygems.org")
+		for ca_path in ca_certificates:
+			for dst_path in path_list:
+				dst_path = os.path.join(dst_path, os.path.basename(ca_path))
+				print("Installing %s to container:%s" % (ca_path, dst_path))
+				shutil.copy(ca_path, dst_path)
 
 	def translate_url(self, url):
 		import urllib.parse
