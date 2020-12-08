@@ -745,14 +745,16 @@ class PythonBuildStrategy(brcoti_core.BuildStrategy):
 class BuildStrategy_Wheel(PythonBuildStrategy):
 	_type = "wheel"
 
-	def __init__(self, *args):
-		pass
+	def __init__(self, engine_config, *args):
+		self.pip_command = engine_config.get_value("pip")
+		if self.pip_command is None:
+			self.pip_command = "pip"
 
 	def describe(self):
 		return self._type
 
 	def next_command(self, build_directory):
-		cmd = build_directory.pip_command
+		cmd = self.pip_command
 		cmd += " wheel --wheel-dir dist ."
 		cmd += " --log pip.log"
 		cmd += " --no-deps"
@@ -771,10 +773,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		super(PythonBuildDirectory, self).__init__(compute, compute.default_build_dir())
 
 		self.build_info = brcoti_core.BuildInfo(ENGINE_NAME)
-
-		self.pip_command = engine_config.get_value("pip")
-		if self.pip_command is None:
-			self.pip_command = "pip"
 
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
@@ -1126,11 +1124,11 @@ class PythonEngine(brcoti_core.Engine):
 		return PythonArtefact(name, version, type)
 
 	def create_build_strategy_default(self):
-		return BuildStrategy_Wheel()
+		return BuildStrategy_Wheel(self.engine_config)
 
 	def create_build_strategy(self, name, *args):
 		if name == 'default' or name == 'auto' or name == 'wheel':
-                        return BuildStrategy_Wheel()
+                        return BuildStrategy_Wheel(self.engine_config)
 
 		super(PythonEngine, self).create_build_strategy(name, *args)
 
