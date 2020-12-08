@@ -1184,7 +1184,7 @@ class Config(object):
 			return ", ".join(["%s=%s" % (f, getattr(self, f)) for f in self._fields])
 
 	class Globals(ConfigItem):
-		_fields = ('binary_root_dir', 'source_root_dir', 'certificates', 'http_proxy')
+		_fields = ('binary_root_dir', 'source_root_dir', 'binary_extra_dir', 'certificates', 'http_proxy')
 
 		def __init__(self, config, d):
 			super(Config.Globals, self).__init__(config, d)
@@ -1405,6 +1405,7 @@ class Engine(Object):
 		self.engine_config = engine_config
 
 		self.state_dir = os.path.join(config.globals.binary_root_dir, engine_config.name)
+		self.binary_extra_dir = os.path.join(config.globals.binary_extra_dir, engine_config.name)
 		self.source_dir = os.path.join(config.globals.source_root_dir, engine_config.name)
 
 		self.index = self.create_index(engine_config)
@@ -1577,14 +1578,18 @@ class Engine(Object):
 
 		publisher.prepare()
 
-		self.rescan_state_dir(publisher)
+		self.rescan_state_dir(publisher, self.binary_extra_dir)
+		self.rescan_state_dir(publisher, self.state_dir)
 
 		publisher.finish()
 		publisher.commit()
 
-	def rescan_state_dir(self, publisher):
-		print("Scanning %s for artefacts" % self.state_dir);
-		for (dir_path, dirnames, filenames) in os.walk(self.state_dir):
+	def rescan_state_dir(self, publisher, path):
+		if not os.path.isdir(path):
+			return
+
+		print("Scanning %s for artefacts" % path);
+		for (dir_path, dirnames, filenames) in os.walk(path):
 			for f in filenames:
 				file_path = os.path.join(dir_path, f)
 				if publisher.is_artefact(file_path):
