@@ -33,7 +33,7 @@ class PodmanCmd(object):
 	def __init__(self, *args):
 		self.cmd = "podman " + " ".join(args)
 
-	def run(self):
+	def run(self, mode = None):
 		cmd = self.cmd
 
 		print("podman: " + self.cmd)
@@ -41,7 +41,10 @@ class PodmanCmd(object):
 
 		if os.getuid() != 0:
 			cmd = "sudo -- " + cmd
-		return os.system(cmd)
+
+		if mode is None:
+			return os.system(cmd)
+		return os.popen(cmd, mode = mode)
 
 	def popen(self, mode = 'r'):
 		cmd = self.cmd
@@ -216,8 +219,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		for ca_path in ca_certificates:
 			shutil.copy(ca_path, self.container_root + "/usr/share/pki/trust/anchors")
 
-		cmd = self._make_command("/usr/sbin/update-ca-certificates", working_dir = None, privileged_user = True)
-		cmd.run()
+		self.run_command("/usr/sbin/update-ca-certificates", working_dir = None, privileged_user = True)
 
 	def publish_python_certificates(self, ca_certificates):
 		cert_string = ""
@@ -276,33 +278,32 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def putenv(self, name, value):
 		self.env[name] = value
 
-	def _make_command(self, cmd, working_dir, privileged_user = False, interactive = False):
+	def _make_command(self, shellcmd, mode = None):
 		args = []
+
+		working_dir = shellcmd.working_dir
 		if working_dir:
 			if isinstance(working_dir, brcoti_core.ComputeResourceFS):
 				working_dir = working_dir.path
 			args.append("--workdir \'%s\'" % working_dir)
 
-		for name, value in self.env.items():
+		for name, value in shellcmd.environ.items():
 			args.append(" --env %s='%s'" % (name, value))
 
-		if not privileged_user:
+		if not shellcmd.no_default_env:
+			for name, value in self.env.items():
+				args.append(" --env %s='%s'" % (name, value))
+
+		if not shellcmd.privileged_user:
 			args.append(" --user %s" % self.build_user)
-		if interactive:
+		if mode is not None and mode.startswith('w'):
 			args.append(" --interactive")
 		args.append(self.container_id)
 
-		return PodmanCmd("exec", *args, cmd)
+		return PodmanCmd("exec", *args, shellcmd.cmd)
 
-	def _run_command(self, cmd, working_dir = None, privileged_user = False):
-		return self._make_command(cmd, working_dir, privileged_user).run()
-
-	def _popen(self, cmd, mode = 'r', working_dir = None):
-		i = False
-		if not mode.startswith('r'):
-			i = True
-
-		return self._make_command(cmd, working_dir, interactive = i).popen(mode)
+	def _exec(self, shellcmd, mode = None):
+		return self._make_command(shellcmd, mode).run(mode)
 
 	def get_directory(self, path):
 		assert(path.startswith('/'))

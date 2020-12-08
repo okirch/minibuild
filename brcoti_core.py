@@ -765,8 +765,18 @@ class BuildDirectory(Object):
 		assert(self.directory)
 
 		if self.build_log:
-			log = open(self.build_log, "w")
-			f = self.compute.popen(cmd, working_dir = self.directory)
+			log = open(self.build_log, "a")
+
+			if not isinstance(cmd, ShellCommand):
+				cmd = ShellCommand(cmd)
+
+			if cmd.working_dir is None:
+				cmd.working_dir = self.directory
+
+			# Set any other defaults, like the build user?
+
+			f = self.compute.exec(cmd, mode = 'r')
+
 			line = f.readline()
 			while line:
 				if not self.quiet:
@@ -1075,6 +1085,47 @@ class ComputeResourceDirectory(ComputeResourceFS):
 	def isdir(self):
 		return True
 
+class ShellCommand(object):
+	def __init__(self, cmd, working_dir = None, ignore_exitcode = False, privileged_user = False):
+		if type(cmd) == str:
+			self._cmd = [cmd]
+		elif type(cmd) == list:
+			self._cmd = cmd
+		else:
+			raise ValueError("ShellCommand: cmd must be str or list; never %s" % type(cmd))
+
+		self.working_dir = working_dir
+		self.ignore_exitcode = ignore_exitcode
+		self.privileged_user = privileged_user
+
+		# Hack for zypper
+		self.no_default_env = False
+
+		self.environ = {}
+
+	def __repr__(self):
+		s = self.cmd
+
+		extra = []
+		if self.working_dir:
+			extra.append("cwd=%s" % self.working_dir)
+		if self.privileged_user:
+			extra.append("as_root")
+		if extra:
+			s += " (%s)" % (", ".join(extra))
+
+		return s
+
+	def add_args(self, *args):
+		self._cmd += args
+
+	@property
+	def cmd(self):
+		return ' '.join(self._cmd)
+
+	def setenv(self, var_name, var_value):
+		self.environ[var_name] = var_value
+
 class ComputeNode(Object):
 	def __init__(self, backend):
 		self.backend = backend
@@ -1095,39 +1146,36 @@ class ComputeNode(Object):
 	def putenv(self, name, value):
 		self.mni()
 
-	def run_command(self, cmd, working_dir = None, ignore_exitcode = False, privileged_user = False):
-		if not working_dir:
-			print("Running %s" % cmd)
-		else:
-			print("Running %s [in directory %s]" % (cmd, working_dir))
+	def exec(self, shellcmd, mode = None):
+		print("Running %s" % shellcmd)
 
 		# Avoid messing up the order of our output and the output of subprocesses when
 		# stdout is redirected
 		sys.stdout.flush()
 		sys.stderr.flush()
 
-		exit_code = self._run_command(cmd, working_dir, privileged_user)
+		# popen() behavior: return an open file object that is connected to
+		# the commands stdout or stdin
+		if mode is not None:
+			return self._exec(shellcmd, mode)
 
-		if exit_code != 0 and not ignore_exitcode:
-			raise ValueError("Command `%s' returned non-zero exit status" % cmd)
+		exit_code = self._exec(shellcmd, mode)
+
+		if exit_code != 0 and not shellcmd.ignore_exitcode:
+			raise ValueError("Command `%s' returned non-zero exit status" % shellcmd)
 
 		return exit_code
 
-	def _run_commandx(self, cmd, working_dir = None):
+	def run_command(self, cmd, working_dir = None, ignore_exitcode = False, privileged_user = False):
+		shellcmd = ShellCommand(cmd, working_dir = working_dir, ignore_exitcode = ignore_exitcode, privileged_user = privileged_user)
+		return self.exec(shellcmd)
+
+	def _exec(self, shellcmd):
 		self.mni()
 
-	def popen(self, cmd, mode = 'r', working_dir = None):
-		print("Running %s" % cmd)
-
-		# Avoid messing up the order of our output and the output of subprocesses when
-		# stdout is redirected
-		sys.stdout.flush()
-		sys.stderr.flush()
-
-		return self._popen(cmd, mode = mode, working_dir = working_dir)
-
-	def _popen(self, cmd, mode):
-		self.mni()
+	def popen(self, cmd, mode = 'r', working_dir = None, privileged_user = False):
+		shellcmd = ShellCommand(cmd, working_dir = working_dir, privileged_user = privileged_user)
+		return self.exec(shellcmd, mode)
 
 	def get_directory(self, path):
 		self.mni()

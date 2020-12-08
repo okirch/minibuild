@@ -733,7 +733,7 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 		return '%s(%s)' % (self._type, self.inner_job.describe())
 
 	def next_command(self, build_directory):
-		yield 'bundler install'
+		yield brcoti_core.ShellCommand('bundler install --full-index', privileged_user = True)
 
 		for cmd in self.inner_job.next_command(build_directory):
 			yield "bundler exec " + cmd

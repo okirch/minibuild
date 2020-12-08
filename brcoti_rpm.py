@@ -25,6 +25,7 @@ import io
 import pkginfo
 import glob
 import shutil
+from brcoti_core import ShellCommand
 
 import brcoti_core
 
@@ -146,7 +147,9 @@ class RPMEngine(brcoti_core.Engine):
 		return RPMArtefact(name, version, type)
 
 	def install_requirement(self, compute, req):
-		compute.run_command("zypper --no-refresh install -y %s" % req, privileged_user = True)
+		cmd = ShellCommand("zypper --no-refresh install -y %s" % req, privileged_user = True)
+		cmd.no_default_env = True
+		compute.exec(cmd)
 
 def engine_factory(config, engine_config):
 	return RPMEngine(config, engine_config)

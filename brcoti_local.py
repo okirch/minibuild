@@ -104,12 +104,20 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 
 		return exit_code
 
-	def _run_command(self, cmd, working_dir = None, privileged_user = False):
+	def _exec(self, shellcmd, mode = None):
+		# stupid
+		if mode is None:
+			doit = os.system
+		else:
+			doit = lambda cmd: os.popen(cmd, mode)
+
 		# ignore privileged_user argument; for now we just run everything
 		# as the invoking user anyway
-		return self._perform_command(os.system, cmd, working_dir)
+		return self._perform_command(doit, shellcmd.cmd, shellcmd.working_dir)
 
-	def _popen(self, cmd, mode = 'r', working_dir = None):
+	def _popen(self, cmd, mode = 'r', working_dir = None, privileged_user = False):
+		# ignore privileged_user argument; for now we just run everything
+		# as the invoking user anyway
 		return self._perform_command(lambda cmd: os.popen(cmd, mode), cmd, working_dir)
 
 	def get_directory(self, path):
