@@ -709,6 +709,8 @@ class BuildStrategy_Rake(RubyBuildStrategy):
 
 	def __init__(self, targets = ['build']):
 		super(BuildStrategy_Rake, self).__init__()
+		if type(targets) == str:
+			targets = [targets]
 		self.targets = targets
 
 	def describe(self):

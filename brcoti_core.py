@@ -584,6 +584,8 @@ class BuildStrategy(Object):
 				# print("  created %s" % strategy.describe())
 				result.append(strategy)
 				rest = m.group(2).strip()
+			else:
+				result.append(id_or_string)
 
 			if rest and not rest.startswith(","):
 				return None
