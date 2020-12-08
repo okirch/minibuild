@@ -44,6 +44,10 @@ SERVER_CSR=$TEMPDIR/csr.pem
 SERVER_CERT="$CERTDIR/minibuild-cert.pem"
 SERVER_CERT_CHAIN="$CERTDIR/minibuild.crt"
 
+# Install paths
+SERVER_CERT_DIR=/srv/minibuild/nginx
+PROXY_CERT_DIR=/srv/minibuild/proxy
+
 function msg {
 
 	echo "=== $* ==="
@@ -184,12 +188,16 @@ function action_server {
 	cat $SERVER_CERT $CA_CERT > $SERVER_CERT_CHAIN
 }
 
-function publish {
-	sudo cp -v $SERVER_KEY $SERVER_CERT $SERVER_CERT_CHAIN /srv/minibuild/nginx
-	echo "Generated server key: $SERVER_KEY; cert: $SERVER_CERT; cert chain: $SERVER_CERT_CHAIN"
+function action_publish {
+	echo "Installing server key, cert and cert chain to $SERVER_CERT_DIR"
+	sudo cp -v $SERVER_KEY $SERVER_CERT $SERVER_CERT_CHAIN $SERVER_CERT_DIR
 
-	sudo mkdir -p /srv/minibuild/proxy
-	sudo cp certificates/ca*pem /srv/minibuild/proxy
+	bundle="$TEMPDIR/ca-bundle.pem"
+	cat /etc/ssl/ca-bundle.pem $SERVER_CERT_CHAIN > $bundle
+
+	echo "Installing proxy keys and certs $PROXY_CERT_DIR"
+	sudo mkdir -p $PROXY_CERT_DIR
+	sudo cp -v certificates/ca*pem $bundle $PROXY_CERT_DIR
 }
 
 if [ $# -eq 0 ]; then
@@ -204,14 +212,19 @@ for action; do
 		action_ca;;
 	server)
 		action_server;;
+	publish)
+		action_publish;;
 	all)
 		action_clean
 		action_ca
-		action_server;;
+		action_server
+		echo "Attention: target \"$action\" does not publish the new certs and keys. You need to run"
+		echo "  $0 publish"
+		echo "explicitly."
+
+		: ;;
 	*)
 		echo "Unknown action $action" >&2
 		exit 1;;
 	esac
 done
-
-publish
