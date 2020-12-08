@@ -858,6 +858,8 @@ class RubyPublisher(brcoti_core.Publisher):
 	def __init__(self, repoconfig):
 		super(RubyPublisher, self).__init__("ruby", repoconfig)
 
+		self.gems = set()
+
 	def prepare(self):
 		self.prepare_repo_dir()
 
@@ -870,9 +872,114 @@ class RubyPublisher(brcoti_core.Publisher):
 		print(" %s" % path)
 		shutil.copy(path, self.gems_dir)
 
+		path = os.path.join(self.gems_dir, os.path.basename(path))
+		self.gems.add(path)
+
 	def finish(self):
 		cmd = "gem generate_index --directory %s" % self.repo_dir
 		brcoti_core.run_command(cmd)
+
+		self.create_compact_index()
+
+	def create_compact_index(self):
+		packages = {}
+
+		for path in self.gems:
+			build = RubyArtefact.from_local_file(path)
+			build.read_gemspec_from_gem()
+			if build.gemspec is None:
+				raise ValueError("Unable to read gemspec for %s" % build.local_path)
+
+			name = build.name
+			version = repr(build.gemspec.version)
+			platform = build.gemspec.platform
+
+			id = self.gem_id(build)
+
+			pd = packages.get(name)
+			if pd is None:
+				pd = {}
+				packages[name] = pd
+
+			dupe = pd.get(version)
+			if dupe:
+				dupe_id = self.gem_id(dupe)
+				if id == dupe_id:
+					print("%s: two gems with the same platform - randomly picking %s over %s" % (id, dupe.local_path, build.local_path))
+					continue
+
+				if platform == 'ruby':
+					print("preferring %s over %s" % (dupe_id, id))
+					continue
+
+				print("preferring %s over %s" % (id, dupe_id))
+
+			pd[version] = build
+
+		info_path = os.path.join(self.repo_dir, "info")
+		if not os.path.isdir(info_path):
+			os.makedirs(info_path, mode = 0o755)
+
+		info_hash_algo = 'sha256'
+		index_hash_algo = 'md5'
+
+		index = []
+		for name in sorted(packages.keys()):
+			pd = packages[name]
+			versions = []
+			info = []
+
+			for version in sorted(pd.keys(), key = ruby_utils.Ruby.ParsedVersion):
+				build = pd[version]
+
+				info_line = "%s |" % build.version
+
+				info_line += "checksum:" + self.hash_file(info_hash_algo, build.local_path)
+
+				gemspec = build.gemspec
+				if gemspec.required_ruby_version:
+					info_line += ",ruby:%s" % gemspec.required_ruby_version
+				if gemspec.required_rubygems_version:
+					info_line += ",rubygems:%s" % gemspec.required_rubygems_version
+
+				info.append(info_line)
+
+				versions.append(build.version)
+
+			info_file = os.path.join(info_path, name)
+			with open(info_file, "w") as f:
+				for info_line in info:
+					print(info_line, file = f)
+
+			index_line = "%s %s %s" % (
+					name,
+					",".join(versions),
+					self.hash_file(index_hash_algo, info_file))
+			index.append(index_line)
+
+		index_path = os.path.join(self.repo_dir, "versions")
+		with open(index_path, "w") as f:
+			for line in index:
+				print(line, file = f)
+
+	def gem_id(self, build):
+		platform = build.gemspec.platform
+		if platform != 'ruby':
+			id = "%s-%s(%s)" % (build.name, build.version, platform)
+		else:
+			id = "%s-%s" % (build.name, build.version)
+
+		return id
+
+	def hash_file(self, algo, path):
+		import hashlib
+
+		m = hashlib.new(algo)
+		with open(path, "rb") as f:
+			m.update(f.read())
+
+		return m.hexdigest()
+
 
 class RubyEngine(brcoti_core.Engine):
 	type = 'ruby'
