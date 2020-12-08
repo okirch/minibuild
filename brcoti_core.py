@@ -1470,6 +1470,7 @@ class Engine(Object):
 		if self.config.globals.http_proxy:
 			proxy = self.config.globals.http_proxy
 			compute.putenv('http_proxy', proxy)
+			compute.putenv('HTTP_PROXY', proxy)
 			compute.putenv('https_proxy', proxy)
 
 		# install additional packages as requested by build-info

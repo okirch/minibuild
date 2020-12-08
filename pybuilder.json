@@ -3,7 +3,7 @@
 		"binary_root_dir" : "/srv/minibuild/binaries",
 		"binary_extra_dir" : "/srv/minibuild/extra-binaries",
 		"source_root_dir" : "/srv/minibuild/sources",
-		"http_proxy" : "localhost:8899",
+		"http_proxy" : "http://localhost:8899",
 		"certificates" : [
 			"/srv/minibuild/proxy/ca-cert.pem"
 		]
