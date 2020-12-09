@@ -1059,6 +1059,8 @@ class RubyEngine(brcoti_core.Engine):
 			return BuildStrategy_Bundler(*args)
 		if name == 'gem-build':
 			return BuildStrategy_GemBuild(*args)
+		if name == 'gem-compile':
+			return BuildStrategy_GemCompile(*args)
 
 		super(RubyEngine, self).create_build_strategy(name, *args)
 
