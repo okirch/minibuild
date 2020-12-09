@@ -337,7 +337,8 @@ If you're in a hurry, re-run this command with --no-upstream-check
 			traceback.format_exc()
 			exit_code = 1
 
-		write_source_dir(name, source.info, job.build.build_info)
+		if job.build:
+			write_source_dir(name, source.info, job.build.build_info)
 
 	print("=== Done ===")
 	return exit_code
