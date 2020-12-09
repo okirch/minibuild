@@ -160,7 +160,7 @@ class BuildJob(object):
 			artefacts = build.build(build_strategy)
 		except brcoti_core.BuildFailure as e:
 			if not self.shell_on_fail:
-				raise 3
+				raise e
 
 			print("*** BUILD FAILURE ***")
 			print(e)
