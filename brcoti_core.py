@@ -614,6 +614,14 @@ class BuildStrategy_FromScript(BuildStrategy):
 		# Record the fact that we used a build script (for now)
 		self.build_info.build_script = build_script
 
+class BuildFailure(Exception):
+	def __init__(self, msg, cmd):
+		super(BuildFailure, self).__init__(msg)
+		self.cmd = cmd
+
+class BuildAborted(Exception):
+	pass
+
 class BuildDirectory(Object):
 	def __init__(self, compute, build_base):
 		self.compute = compute
@@ -790,7 +798,7 @@ class BuildDirectory(Object):
 			print("Command output written to %s" % self.build_log)
 
 			if f.close():
-				raise ValueError("Command `%s' returned non-zero exit status" % cmd)
+				raise BuildFailure("Command `%s' returned non-zero exit status" % cmd, cmd)
 		else:
 			cmd += " >/dev/null 2>&1"
 			self.compute.run_command(cmd, working_dir = self.directory)

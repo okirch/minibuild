@@ -92,9 +92,16 @@ class BuildJob(object):
 		self.always_commit = False
 		self.quiet = False
 		self.rebuild_if_needed = False
+		self.shell_on_fail = False
 
 	def id(self):
 		return self.source.id()
+
+	def source_for(self, build):
+		spec = self.source.info
+
+		assert(len(spec.sources) == 1)
+		return spec.sources[0]
 
 	def rebuild_required(self):
 		if not self.rebuild_if_needed:
@@ -133,7 +140,17 @@ class BuildJob(object):
 		if build_strategy is None:
 			build_strategy = self.engine.create_build_strategy_default()
 
-		artefacts = build.build(build_strategy)
+		try:
+			artefacts = build.build(build_strategy)
+		except brcoti_core.BuildFailure as e:
+			if not self.shell_on_fail:
+				raise 3
+
+			print("*** BUILD FAILURE ***")
+			print(e)
+			print("Opening interactive shell for debugging")
+			self.build.compute.interactive_shell(working_dir = e.cmd.working_dir)
+			raise brcoti_core.BuildAborted()
 
 		if not artefacts:
 			raise ValueError("%s: nothing got built" % self.source.id())
@@ -248,6 +265,7 @@ def prep_action(config, opts):
 		print("=== Package %s ===" %(source.id()))
 		job = BuildJob(config, engine, compute_backend, source)
 		job.quiet = opts.quiet
+		job.shell_on_fail = opts.shell_on_fail
 
 		try:
 			job.unpack_source()
@@ -276,6 +294,9 @@ If you're in a hurry, re-run this command with --no-upstream-check
 
 			# job.maybe_commit()
 
+		except brcoti_core.BuildAborted:
+			print("Build of %s ABORTED" % sdist.id())
+			exit_code = 1
 		except Exception as e:
 			print("FAILED to build %s" % sdist.id())
 			import traceback
@@ -347,6 +368,7 @@ def build_action(config, opts):
 		job.always_commit = opts.force
 		job.quiet = opts.quiet
 		job.rebuild_if_needed = opts.rebuild_if_needed
+		job.shell_on_fail = opts.shell_on_fail
 
 		try:
 			if not job.rebuild_required():
@@ -376,6 +398,9 @@ If our build *IS* correct, and this warning is due to a bug, please fix the mis-
 
 			job.maybe_commit()
 
+		except brcoti_core.BuildAborted:
+			print("Build of %s ABORTED" % source.id())
+			exit_code = 1
 		except Exception as e:
 			print("FAILED to build %s" % source.id())
 			import traceback
@@ -428,6 +453,8 @@ def build_option_parser():
                 help = "Build from git repo rather than sdist")
 	prep_parser.add_argument('--no-upstream-check', default = False, action = 'store_true',
                 help = "Do not compare our build results to upstream build (use with caution)")
+	prep_parser.add_argument('--shell-on-fail', default = False, action = 'store_true',
+                help = "When a build command fails, open an interactive shell session to debug the issue")
 
 	submit_parser = subparsers.add_parser('submit',
 		help = "Submit source package(s)")
@@ -444,6 +471,8 @@ def build_option_parser():
                 help = "Always store build results, even if they did not change")
 	build_parser.add_argument('--upstream-check', default = False, action = 'store_true',
                 help = "Compare our build results to upstream build (use with caution)")
+	build_parser.add_argument('--shell-on-fail', default = False, action = 'store_true',
+                help = "When a build command fails, open an interactive shell session to debug the issue")
 
 	mkindex_parser = subparsers.add_parser('make-index',
 		help = "Rebuild package index")
