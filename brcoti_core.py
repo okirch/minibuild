@@ -1146,6 +1146,9 @@ class ComputeNode(Object):
 	def putenv(self, name, value):
 		self.mni()
 
+	def interactive_shell(self, working_directory = None):
+		self.mni()
+
 	def exec(self, shellcmd, mode = None):
 		print("Running %s" % shellcmd)
 

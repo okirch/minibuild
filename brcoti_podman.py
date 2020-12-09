@@ -278,6 +278,12 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 	def putenv(self, name, value):
 		self.env[name] = value
 
+	def interactive_shell(self, working_dir = None):
+		cmd = brcoti_core.ShellCommand("/bin/bash")
+		cmd.working_dir = working_dir
+		cmd.privileged_user = True
+		self._make_command(cmd, mode = "shell").run()
+
 	def _make_command(self, shellcmd, mode = None):
 		args = []
 
@@ -296,8 +302,11 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 
 		if not shellcmd.privileged_user:
 			args.append(" --user %s" % self.build_user)
-		if mode is not None and mode.startswith('w'):
-			args.append(" --interactive")
+		if mode is not None:
+			if mode == 'shell':
+				args.append(" -it")
+			elif mode.startswith('w'):
+				args.append(" --interactive")
 		args.append(self.container_id)
 
 		return PodmanCmd("exec", *args, shellcmd.cmd)
