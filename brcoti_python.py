@@ -1123,6 +1123,13 @@ class PythonEngine(brcoti_core.Engine):
 			type = 'sdist'
 		return PythonArtefact(name, version, type)
 
+	def def infer_build_requirements(self, sdist):
+		# We don't do that
+		return []
+
+	def install_requirement(self, compute, req):
+		raise NotImplementedError("%s: installation of extra requirements currently not implemented" % self.type)
+
 	def create_build_strategy_default(self):
 		return BuildStrategy_Wheel(self.engine_config)
 

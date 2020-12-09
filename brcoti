@@ -114,6 +114,22 @@ class BuildJob(object):
 
 		return True
 
+	# This is a prep task - eg ruby would look at the upstream artefact
+	# and scan it for :development dependencies
+	def anticipate_build_dependencies(self):
+		spec = self.source.info
+
+		dep_list = []
+		for sdist in spec.sources:
+			dep_list += self.engine.infer_build_requirements(sdist)
+
+		if dep_list:
+			print("Inferred build requirement(s) from package:")
+			for dep in dep_list:
+				print("  %s" % dep.format())
+
+			spec.requires += dep_list
+
 	def unpack_source(self):
 		print("=== Unpacking %s ===" % self.id())
 		build_info = self.source.info
@@ -283,6 +299,7 @@ def prep_action(config, opts):
 		job.shell_on_fail = opts.shell_on_fail
 
 		try:
+			job.anticipate_build_dependencies()
 			job.unpack_source()
 			job.build_package()
 			job.process_build_dependencies()

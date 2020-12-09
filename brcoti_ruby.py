@@ -1024,10 +1024,43 @@ class RubyEngine(brcoti_core.Engine):
 	def create_artefact_from_NVT(self, name, version, type):
 		return RubyArtefact(name, version, type)
 
+	def infer_build_requirements(self, sdist):
+		result = []
+		if sdist.is_source:
+			req = RubyBuildRequirement(sdist.name, "==%s" % sdist.version)
+			req = "%s==%s" % (sdist.name, sdist.version)
+			build = self.resolve_build_requirement(req)
+
+			if not build.local_path:
+				self.downloader.download(build)
+
+			if not build.gemspec:
+				build.read_gemspec_from_gem()
+
+			for dep in build.gemspec.dependencies:
+				if dep.type != 'development':
+					continue
+
+				dep = RubyBuildRequirement(dep.name, dep.format(), dep)
+				result.append(dep)
+
+		return result
+
 	def install_requirement(self, compute, req):
+		# Sometimes, a package will specify a dependency such as
+		#  bundler >= 1.0, < 3
+		# It seems that gem install --version is not equipped to deal with this
+
 		assert(req.cooked_requirement)
 		gem_req = req.cooked_requirement
 		version_string = gem_req.format_versions()
+
+		pkg = self.resolve_build_requirement(req)
+		if not pkg:
+			raise ValueError("Unable to satisfy dependency %s" % (req.format()))
+
+		version_string = str(pkg.version)
+		print("Using %s to satisfy dependency %s" % (pkg.id(), gem_req.format()))
 
 		cmd = ["gem", "install"]
 		if version_string:

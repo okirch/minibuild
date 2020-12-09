@@ -1618,6 +1618,9 @@ class Engine(Object):
 	def create_artefact_from_NVT(self, name, version, type):
 		self.mni()
 
+	def infer_build_requirements(self, sdist):
+		self.mni()
+
 	def build_source_locate(self, req, verbose = True):
 		finder = self.create_source_download_finder(req, verbose)
 		return finder.get_best_match(self.index)
