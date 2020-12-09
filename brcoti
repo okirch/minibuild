@@ -187,7 +187,20 @@ class BuildJob(object):
 
 		retval = True
 		for mine in build.build_info.artefacts:
-			req_string = "%s == %s" % (mine.name, mine.version)
+			# The version of the artefact we built may not be what we
+			# started with. Some gems append the build date to the
+			# package version. In other cases (eg when building a compiled
+			# native ruby extension), the version will include the platform
+			# (such as x86_linux)
+			#
+			# Therefore, we need to use the version number of the package
+			# we started from.
+			sdist = self.source_for(mine)
+
+			if sdist.id() != mine.id():
+				print("  Comparing %s to upstream %s" % (mine.id(), sdist.id()))
+
+			req_string = "%s == %s" % (sdist.name, sdist.version)
 			print("Trying to find upstream build for %s" % req_string)
 			req = engine.parse_build_requirement(req_string)
 
@@ -215,6 +228,8 @@ class BuildJob(object):
 
 			retval = False
 
+		if retval:
+			print("Our build matches upstream")
 		return retval
 
 	def maybe_commit(self):
