@@ -351,7 +351,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 					version = version_list[0]
 
 				if gem[2] != 'ruby':
-					print("Warning: Cannot use %s-%s: platform is \"%s\"" % (name, version, gem[2]))
+					# print("Warning: Cannot use %s-%s: platform is \"%s\"" % (name, version, gem[2]))
 					continue
 
 				release = RubyReleaseInfo(name, version)
