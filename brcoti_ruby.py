@@ -1032,6 +1032,14 @@ class RubyEngine(brcoti_core.Engine):
 		cmd = ["gem", "install"]
 		if version_string:
 			cmd += ["--version", "'" + version_string + "'"]
+
+		# For some weird reasons, gem seems to ignore all proxy related
+		# environment variables and insists that you use a command line
+		# option
+		proxy = self.config.globals.http_proxy
+		if proxy:
+			cmd += ["--http-proxy", proxy]
+
 		cmd.append(gem_req.name)
 
 		cmd = " ".join(cmd)
