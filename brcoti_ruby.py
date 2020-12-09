@@ -733,10 +733,14 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 		return '%s(%s)' % (self._type, self.inner_job.describe())
 
 	def next_command(self, build_directory):
-		yield brcoti_core.ShellCommand('bundler install --full-index', privileged_user = True)
+		# While we bootstrap ruby building, skip everything test related and go just for the build
+		yield brcoti_core.ShellCommand('bundler install --full-index --without test', privileged_user = True)
 
 		for cmd in self.inner_job.next_command(build_directory):
 			yield "bundler exec " + cmd
+
+	# TBD: run bundle package to collect the used gems into vendor/cache
+	# and return them for inclusion in the build-info file
 
 class BuildStrategy_Auto(RubyBuildStrategy):
 	_type = "auto"
