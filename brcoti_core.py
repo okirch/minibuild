@@ -168,7 +168,7 @@ class ArtefactComparison(Object):
 				for name in name_set:
 					print("    %s" % name)
 
-		print("%s comparison results:" % self.name)
+		print("%s comparison results:" % os.path.basename(self.name))
 		print_delta("added", self.added)
 		print_delta("removed", self.removed)
 		print_delta("changed", self.changed)
@@ -1475,6 +1475,8 @@ class Engine(Object):
 		self.uploader = self.create_uploader(engine_config)
 		self.publisher = self.create_publisher(engine_config)
 
+		self.default_index = self.index
+
 	def create_index(self, engine_config):
 		repo_config = engine_config.resolve_repository("download-repo")
 		if repo_config is None:
@@ -1623,7 +1625,7 @@ class Engine(Object):
 
 	def build_source_locate(self, req, verbose = True):
 		finder = self.create_source_download_finder(req, verbose)
-		return finder.get_best_match(self.index)
+		return finder.get_best_match(self.default_index)
 
 	def build_source_locate_upstream(self, req, verbose = True):
 		finder = self.create_source_download_finder(req, verbose)
@@ -1720,7 +1722,7 @@ class Engine(Object):
 	# Given a build requirement, find the best match in the package index
 	def resolve_build_requirement(self, req, verbose = False):
 		finder = self.create_binary_download_finder(req, verbose)
-		return finder.get_best_match(self.index)
+		return finder.get_best_match(self.default_index)
 
 	def submit_source(self, source):
 		name = os.path.basename(source.path)
@@ -1744,6 +1746,8 @@ class Engine(Object):
 	def factory(name, config):
 		engine = Engine.engine_cache.get(name)
 		if engine is not None:
+			# Always default the index to local
+			engine.default_index = engine.index
 			return engine
 
 		print("Create %s builder" % name)

@@ -1112,7 +1112,8 @@ class PythonEngine(brcoti_core.Engine):
 
 	def prepare_environment(self, compute_backend, build_info):
 		compute = super(PythonEngine, self).prepare_environment(compute_backend, build_info)
-		compute.putenv("PIP_INDEX_URL", compute.translate_url(self.index.url))
+		# FIXME: this should happen in the pip build stategy
+		compute.putenv("PIP_INDEX_URL", compute.translate_url(self.default_index.url))
 		return compute
 
 	def create_artefact_from_local_file(self, path):
@@ -1159,7 +1160,7 @@ class PythonEngine(brcoti_core.Engine):
 
 	def resolve_build_requirement(self, req):
 		finder = PythonBinaryDownloadFinder(req)
-		return finder.get_best_match(self.index)
+		return finder.get_best_match(self.default_index)
 
 def engine_factory(config, engine_config):
 	return PythonEngine(config, engine_config)
