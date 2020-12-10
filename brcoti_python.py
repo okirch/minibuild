@@ -769,10 +769,10 @@ class BuildStrategy_Wheel(PythonBuildStrategy):
 		yield cmd
 
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
-	def __init__(self, compute, engine_config):
+	def __init__(self, compute, engine):
 		super(PythonBuildDirectory, self).__init__(compute, compute.default_build_dir())
 
-		self.build_info = brcoti_core.BuildInfo(ENGINE_NAME)
+		self.build_info = brcoti_core.BuildInfo(engine.name)
 
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
@@ -1145,7 +1145,7 @@ class PythonEngine(brcoti_core.Engine):
 			raise ValueError("Currently unable to handle builds with more than one source")
 		sdist = build_info.sources[0]
 
-		bd = PythonBuildDirectory(compute, self.engine_config)
+		bd = PythonBuildDirectory(compute, self)
 		if sdist.git_url():
 			bd.unpack_git(sdist, sdist.id())
 		else:
