@@ -293,7 +293,7 @@ class Ruby:
 			   self.type != other.type:
 				return False
 
-			if sorted(self.requirement) != sorted(other.requirement):
+			if self.requirement != other.requirement:
 				return False
 
 			return True
