@@ -150,6 +150,11 @@ class Artefact(ArtefactAttrs):
 	def is_source(self):
 		self.mni()
 
+	# By default, an artefact implementation does not provide information
+	# on install requirements
+	def get_install_requirements(self):
+                return []
+
 class ArtefactComparison(Object):
 	def __init__(self, name, added = set(), removed = set(), changed = set()):
 		self.name = name

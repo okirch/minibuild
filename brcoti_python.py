@@ -288,6 +288,13 @@ class PythonArtefact(brcoti_core.Artefact):
 
 		return get_python_version() in spec
 
+	def get_install_requirements(self):
+		# FIXME: extract this from the wheel
+		#
+		# pi = getinfo_pkginfo(self.local_path)
+		# loop through pi.requires_dist
+		return []
+
 	@staticmethod
 	def parse_filename(filename):
 		def split_suffix(name):

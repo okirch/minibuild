@@ -113,6 +113,20 @@ class RubyArtefact(brcoti_core.Artefact):
 	def verify_required_rubygems_version(self):
 		return self.verify_minimum_version(get_rubygems_version(), self.required_rubygems_version)
 
+	def get_install_requirements(self):
+		if not self.gemspec:
+			if not self.local_path:
+				return []
+			self.read_gemspec_from_gem()
+			assert(self.gemspec)
+
+		result = []
+		for dep in self.gemspec.dependencies:
+			if dep.type not in ('development', ):
+				result.append(RubyBuildRequirement.from_cooked(dep))
+
+		return result
+
 	@staticmethod
 	def parse_filename(filename):
 		def split_suffix(name):
