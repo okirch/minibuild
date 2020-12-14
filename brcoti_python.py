@@ -776,6 +776,10 @@ class BuildStrategy_Wheel(PythonBuildStrategy):
 
 		yield cmd
 
+		# FIXME: we should parse pip.log here and store the list of
+		# requirements (and used wheels) so that we can later report
+		# them via build_dependencies() and build_used()
+
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine):
 		super(PythonBuildDirectory, self).__init__(compute, compute.default_build_dir())

@@ -741,6 +741,9 @@ class BuildStrategy_GemCompile(RubyBuildStrategy):
 	def build_dependencies(self):
 		return self._requires + self.inner_job.build_dependencies()
 
+	def build_used(self, build_directory):
+		return self.inner_job.build_used(build_directory)
+
 class BuildStrategy_Rake(RubyBuildStrategy):
 	_type = "rake"
 	_requires = ['rake']
@@ -773,6 +776,11 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 
 	def next_command(self, build_directory):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
+		yield "bundle config set without 'test'"
+
+		# FIXME: more recent versions of bundler don't like the --without flag and tell us to
+		# use
+		#  bundle config set without 'test'
 		yield brcoti_core.ShellCommand('bundler install --full-index --without test', privileged_user = True)
 
 		for cmd in self.inner_job.next_command(build_directory):
@@ -780,6 +788,25 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 
 	def build_dependencies(self):
 		return self._requires + self.inner_job.build_dependencies()
+
+	def build_used(self, build_directory):
+		result = self.inner_job.build_used(build_directory)
+
+		cache_path = build_directory.bundler_cache_dir
+		print("Looking for bundler installed gems in %s/%s" % (build_directory.directory.path, cache_path))
+		cache_dir = build_directory.directory.lookup(cache_path)
+		if cache_dir is None:
+			print("WARNING: did not find bundler cache directory %s" % build_directory.bundler_cache_dir)
+			return result
+
+		gems = cache_dir.glob_files("*.gem")
+		for w in gems:
+			build = RubyArtefact.from_local_file(w.hostpath())
+			for algo in RubyEngine.REQUIRED_HASHES:
+				build.update_hash(algo)
+			result.append(build)
+
+		return result
 
 	# TBD: run bundle package to collect the used gems into vendor/cache
 	# and return them for inclusion in the build-info file
@@ -837,6 +864,9 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 	def build_dependencies(self):
 		return self.actual.build_dependencies()
 
+	def build_used(self, build_directory):
+		return self.actual.build_used(build_directory)
+
 class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine):
 		super(RubyBuildDirectory, self).__init__(compute, compute.default_build_dir())
@@ -847,6 +877,12 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		self.rubygem_cache_dir = compute.get_directory(gem_cache_path)
 		if not self.rubygem_cache_dir:
 			raise ValueError("Configuration specifies gem-cache \"%s\", which does not exist in the compute environment" % gem_cache_path)
+
+		# bundler-cache is a relative path, which only makes sense within the build
+		# directory, and only once we've run bundler install
+		self.bundler_cache_dir = engine.engine_config.get_value("bundler-cache")
+		if not self.bundler_cache_dir:
+			raise ValueError("Configuration does not specify bundler-cache")
 
 		with self.compute.popen("gem list") as f:
 			self.pre_build_gems = ruby_utils.Ruby.GemList.parse(f)
@@ -952,6 +988,10 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 				for algo in RubyEngine.REQUIRED_HASHES:
 					artefact.update_hash(algo)
 				self.build_info.used.append(artefact)
+
+		if build_strategy:
+			self.build_info.used += build_strategy.build_used(self)
+			# self.compute.run_command("find", working_dir = self.directory)
 
 		return self.build_info.requires
 

@@ -623,6 +623,9 @@ class BuildStrategy(Object):
 	def build_dependencies(self):
 		return self._requires
 
+	def build_used(self, build_directory):
+		return []
+
 	@staticmethod
 	def parse(engine, arg):
 		# print("BuildStrategy.parse(\"%s\")" % arg)

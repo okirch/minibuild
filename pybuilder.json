@@ -61,7 +61,8 @@
 				"download-repo" :  "rebuilds",
 				"upstream-repo" :  "upstream",
 				"publish-repo"	:  "publish",
-				"gem-cache"	:  "/usr/lib64/ruby/gems/2.5.0/cache"
+				"gem-cache"	:  "/usr/lib64/ruby/gems/2.5.0/cache",
+				"bundler-cache"	:  ".bundle/ruby/2.5.0/cache"
 			}
 		}, {
 			"name" :  "rpm",
