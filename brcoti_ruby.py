@@ -1153,13 +1153,14 @@ class RubyEngine(brcoti_core.Engine):
 				continue
 
 			try:
-				self.downloader.download_to(found, destdir = self.binary_extra_dir)
+				found_path = self.downloader.download(found)
 			except:
 				print("Requirement %s: download from %s failed" % (req, found.url))
 				still_missing.append(req)
 				continue
 
 			print("Requirement %s: downloaded from %s" % (req, found.url))
+			shutil.copy(found_path, self.binary_extra_dir)
 			rebuild_index = True
 
 		if rebuild_index:
