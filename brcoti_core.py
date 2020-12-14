@@ -316,14 +316,13 @@ class Downloader(object):
 	def download(self, build):
 		filename = build.filename
 
-		if os.path.isfile(filename):
-			return filename
+		if False:
+			# This is a bad idea. Among other things, this won't
+			# set build.local_path
+			if os.path.isfile(filename):
+				return filename
 
-		cached_filename = self._download(build, filename)
-		if cached_filename != filename:
-			shutil.copy(cached_filename, filename)
-
-		return filename
+		return self._download(build, filename)
 
 	def _download(self, build, path):
 		import urllib.request

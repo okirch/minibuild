@@ -237,10 +237,10 @@ class BuildJob(object):
 			# the a cache
 			assert(upstream.cache)
 
-			engine.downloader.download(upstream)
+			path = engine.downloader.download(upstream)
 
 			# This returns an ArtefactComparison object
-			result = build.compare_build_artefacts(upstream.local_path, mine.local_path)
+			result = build.compare_build_artefacts(path, mine.local_path)
 
 			if result:
 				# Our build is identical with upstream
