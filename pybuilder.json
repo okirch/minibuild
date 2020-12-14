@@ -60,7 +60,8 @@
 			"config" : {
 				"download-repo" :  "rebuilds",
 				"upstream-repo" :  "upstream",
-				"publish-repo"	:  "publish"
+				"publish-repo"	:  "publish",
+				"gem-cache"	:  "/usr/lib64/ruby/gems/2.5.0/cache"
 			}
 		}, {
 			"name" :  "rpm",

@@ -843,6 +843,14 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 		self.build_info = brcoti_core.BuildInfo(engine.name)
 
+		gem_cache_path = engine.engine_config.get_value("gem-cache")
+		self.rubygem_cache_dir = compute.get_directory(gem_cache_path)
+		if not self.rubygem_cache_dir:
+			raise ValueError("Configuration specifies gem-cache \"%s\", which does not exist in the compute environment" % gem_cache_path)
+
+		with self.compute.popen("gem list") as f:
+			self.pre_build_gems = ruby_utils.Ruby.GemList.parse(f)
+
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
 	def archive_get_unpack_directory(self, sdist):
@@ -924,6 +932,26 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			for req_string in build_strategy.build_dependencies():
 				req = RubyBuildRequirement.from_string(req_string)
 				self.build_info.requires.append(req)
+
+		with self.compute.popen("gem list") as f:
+			self.post_build_gems = ruby_utils.Ruby.GemList.parse(f)
+
+		changes = self.pre_build_gems.changes(self.post_build_gems)
+		if changes:
+			# Should we record all gems found in this directory,
+			# or just the ones that were added since startup
+			# of the container?
+			for id in changes.added:
+				cached_gem = self.rubygem_cache_dir.lookup("%s.gem" % id)
+				if cached_gem is None:
+					raise ValueError("Gem %s was installed, but could not find it in cache" % id)
+					continue
+
+				artefact = RubyArtefact.from_local_file(cached_gem.hostpath())
+
+				for algo in RubyEngine.REQUIRED_HASHES:
+					artefact.update_hash(algo)
+				self.build_info.used.append(artefact)
 
 		return self.build_info.requires
 
