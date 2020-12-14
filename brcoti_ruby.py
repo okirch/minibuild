@@ -58,6 +58,10 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 		cooked_requirement = ruby_utils.Ruby.parse_dependency(req_string)
 		return RubyBuildRequirement(cooked_requirement.name, req_string, cooked_requirement)
 
+	@staticmethod
+	def from_cooked(gem_dependency):
+		return RubyBuildRequirement(gem_dependency.name, gem_dependency.format(), gem_dependency)
+
 	def __repr__(self):
 		if self.cooked_requirement:
 			return repr(self.cooked_requirement)
@@ -805,7 +809,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			# GemDependency objects; we need to convert these into
 			# RubyBuildRequirements
 			for dep in gemfile_lock.requirements():
-				requirements.append(RubyBuildRequirement(dep.name, dep.format(), dep))
+				requirements.append(RubyBuildRequirement.from_cooked(dep))
 
 		return requirements
 
