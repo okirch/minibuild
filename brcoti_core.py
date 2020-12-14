@@ -28,6 +28,7 @@ import io
 import glob
 import shutil
 import re
+import tempfile
 
 def __pre_command():
 	# Avoid messing up the order of our output and the output of subprocesses when
@@ -322,6 +323,30 @@ class Downloader(object):
 
 		build.local_path = filename
 		return filename
+
+class DownloadCache(object):
+	def __init__(self, path = None):
+		self.tempdir = None
+
+		if path is None:
+			self.tempdir = tempfile.TemporaryDirectory(prefix = "brcoti-cache-")
+			path = self.tempdir.name
+
+		self.path = path
+
+	def zap(self):
+		# for now
+		pass
+
+	def get(self, filename):
+		filename = os.path.basename(filename)
+		assert(filename)
+
+		path = os.path.join(self.path, filename)
+		if os.path.isfile(path):
+			return path
+
+		return None
 
 # For now, a very trivial uploader.
 class Uploader(Object):
