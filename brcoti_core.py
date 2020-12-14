@@ -1750,7 +1750,6 @@ class Engine(Object):
 		raise ValueError("%s: unknown build strategy \"%s\"" % (self.name, name))
 
 	def finalize_build_depdendencies(self, build):
-		tempdir = None
 		for req in build.build_info.requires:
 			missing = []
 			for algo in self.REQUIRED_HASHES:
@@ -1764,24 +1763,21 @@ class Engine(Object):
 			# to build the package
 			print("%s: update missing hash(es): %s" % (req.id(), " ".join(missing)))
 
-			if not tempdir:
-				import tempfile
-
-				tempdir = tempfile.TemporaryDirectory(prefix = "build-deps-")
-
 			resolved_req = req.resolution
 			if not resolved_req:
 				resolved_req = self.resolve_build_requirement(req)
 			if not resolved_req:
 				raise ValueError("Unable to resolve build dependency %s" % req.name)
-			self.downloader.download_to(resolved_req, tempdir.name)
+
+			# resolve_build_requirement() goes to an index, and should hence
+			# always attach a cache object
+			assert(resolved_req.cache)
+
+			self.downloader.download(resolved_req)
 
 			for algo in missing:
 				resolved_req.update_hash(algo)
 				req.add_hash(algo, resolved_req.hash[algo])
-
-		if tempdir:
-			tempdir.cleanup()
 
 		return build.build_info.requires
 
