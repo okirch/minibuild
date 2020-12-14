@@ -805,6 +805,132 @@ class Ruby:
 
 			return result
 
+	# Process the output of "gem list", which contains lines like these:
+	#	equalizer (0.0.11)
+	#	etc (default: 1.0.0)
+	#
+	class GemList:
+		class Package:
+			def __init__(self, name = None):
+				self.name = name
+				self.versions = []
+
+			def find(self, name):
+				for node in self.children:
+					if node.name == name:
+						return node
+				return None
+
+			def __repr__(self):
+				return ", ".join(self.versions)
+
+			def dump(self, indent = ""):
+				print("%s%s %s" % (indent, self.name, self.value))
+				for node in self.children:
+					node.dump(indent + "  ")
+
+		def __init__(self):
+			self.packages = dict()
+
+		def dump(self):
+			return self.node.dump()
+
+		def add_package(self, name):
+			pkg = self.packages.get(name)
+			if pkg is None:
+				pkg = self.Package(name)
+				self.packages[name] = pkg
+
+			return pkg
+
+		@staticmethod
+		def parse(f, ignore_defaults = True):
+			import re
+
+			result = Ruby.GemList()
+
+			for l in f.readlines():
+				l = l.strip()
+
+				# parse identifier
+				m = re.search('([^ ]*) *\((.*)\)', l)
+				if not m:
+					raise ValueError(l)
+
+				name = m.group(1)
+				pkg = result.add_package(name)
+
+				rest = m.group(2)
+				for version in rest.split(','):
+					version = version.strip()
+					if version.startswith("default:"):
+						if ignore_defaults:
+							continue
+
+						version = version[8:].strip()
+
+					pkg.versions.append(version)
+
+			return result
+
+		def package_set(self):
+			return set(self.packages.keys())
+
+		class ChangeSet:
+			def __init__(self):
+				self.added = []
+				self.removed = []
+
+			def add_to_list(self, list,  name, one_or_more_versions):
+				if type(one_or_more_versions) == str:
+					list.append("%s-%s" % (name, one_or_more_versions))
+				else:
+					for version in one_or_more_versions:
+						list.append("%s-%s" % (name, version))
+
+			def add_versions(self, *args):
+				self.add_to_list(self.added, *args)
+
+			def remove_versions(self, *args):
+				self.add_to_list(self.removed, *args)
+
+			def __bool__(self):
+				return bool(self.added or self.removed)
+
+			def show(self):
+				if self.added:
+					print("Added")
+					for id in self.added:
+						print("  " + id)
+
+				if self.removed:
+					print("Removed")
+					for id in self.removed:
+						print("  " + id)
+
+		def changes(self, other):
+			assert(isinstance(other, self.__class__))
+			result = self.ChangeSet()
+
+			our_names = self.package_set()
+			her_names = other.package_set()
+
+			for name in our_names - her_names:
+				pkg = self.packages[name]
+				result.remove_versions(name, pkg.versions)
+
+			for name in her_names - our_names:
+				pkg = other.packages[name]
+				result.add_versions(name, pkg.versions)
+
+			for name in our_names & her_names:
+				our_versions = set(self.packages[name].versions)
+				her_versions = set(other.packages[name].versions)
+				result.remove_versions(name, our_versions - her_versions)
+				result.add_versions(name, her_versions - our_versions)
+
+			return result
+
 class DecompressNone:
 	@staticmethod
 	def open(fileobj):
