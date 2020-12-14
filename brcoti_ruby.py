@@ -324,11 +324,11 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		self._cached_specs = None
 
 	def get_package_info(self, name):
-		pi = self.locate_gem(name)
+		pi = self.locate_gem(name, verbose = False)
 
 		return pi
 
-	def locate_gem(self, name, latest_only = False):
+	def locate_gem(self, name, latest_only = False, verbose = True):
 		# latest_specs.4.8 and specs.4.8 contain an array of info tuples.
 		# Each tuple represents the (latest known) version of a gem, and consists of 3 elements:
 		#  [name, Gem::Version(...), platform]
@@ -338,7 +338,9 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		else:
 			gem_list = self._specs()
 
-		print("Locating %s in %s" % (name, self.url))
+		if verbose:
+			print("Locating %s in %s" % (name, self.url))
+
 		pi = RubyPackageInfo(name)
 		for gem in gem_list:
 			if gem[0] == name:
@@ -431,7 +433,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		for url in try_urls:
 			build = self.uri_to_source(gemspec, url)
 			if build is not None:
-				print("  found %s" % build.url)
+				# print("  found %s" % build.url)
 				return build
 
 		return None
@@ -451,7 +453,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 				build.git_repo_url = repo_uri
 				return build
 
-		print("Check if we can get source for %s from URI %s" % (gemspec.version, uri))
+		# print("Check if we can get source for %s from URI %s" % (gemspec.version, uri))
 		if uri.startswith('https://github.com/') or \
 		   uri.startswith('http://github.com/'):
 			# railties metadata specifies a source_code_url of
