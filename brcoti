@@ -90,6 +90,7 @@ class BuildJob(object):
 		self.quiet = False
 		self.rebuild_if_needed = False
 		self.shell_on_fail = False
+		self.auto_repair = False
 
 	def id(self):
 		return self.source.id()
@@ -140,7 +141,19 @@ class BuildJob(object):
 		# spawn a container/VM or whatever compute node we need
 		compute_node = self.engine.prepare_environment(self.compute_backend, build_info)
 
-		self.build = self.engine.build_unpack(compute_node, build_info)
+		try:
+			self.build = self.engine.build_unpack(compute_node, build_info, self.auto_repair)
+		except brcoti_core.UnsatisfiedDependencies as e:
+			print("Cannot build %s: missing build dependencies:" % self.id())
+			for req in e.dependencies:
+				print("  %s" % req.format())
+
+			if e.remedy:
+				print("")
+				print("Suggested remedy")
+				e.remedy.display()
+
+			raise e
 
 		self.build.set_logging(self.quiet, self.build_state.build_log_file())
 		return self.build
@@ -300,6 +313,7 @@ def prep_action(config, opts):
 		job = BuildJob(config, engine, compute_backend, source)
 		job.quiet = opts.quiet
 		job.shell_on_fail = opts.shell_on_fail
+		job.auto_repair = opts.auto_repair
 
 		try:
 			job.anticipate_build_dependencies()
@@ -405,6 +419,7 @@ def build_action(config, opts):
 		job.quiet = opts.quiet
 		job.rebuild_if_needed = opts.rebuild_if_needed
 		job.shell_on_fail = opts.shell_on_fail
+		job.auto_repair = opts.auto_repair
 
 		try:
 			if not job.rebuild_required():
@@ -491,6 +506,8 @@ def build_option_parser():
                 help = "Do not compare our build results to upstream build (use with caution)")
 	prep_parser.add_argument('--shell-on-fail', default = False, action = 'store_true',
                 help = "When a build command fails, open an interactive shell session to debug the issue")
+	prep_parser.add_argument('--auto-repair', default = False, action = 'store_true',
+                help = "Try to detect and fix build environment issues")
 
 	submit_parser = subparsers.add_parser('submit',
 		help = "Submit source package(s)")
@@ -509,6 +526,8 @@ def build_option_parser():
                 help = "Compare our build results to upstream build (use with caution)")
 	build_parser.add_argument('--shell-on-fail', default = False, action = 'store_true',
                 help = "When a build command fails, open an interactive shell session to debug the issue")
+	build_parser.add_argument('--auto-repair', default = False, action = 'store_true',
+                help = "Try to detect and fix build environment issues")
 
 	mkindex_parser = subparsers.add_parser('make-index',
 		help = "Rebuild package index")
