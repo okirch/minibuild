@@ -1149,15 +1149,14 @@ class RubyEngine(brcoti_core.Engine):
 				missing.append(req)
 
 		if missing and auto_repair:
-			missing = self.auto_repair(missing)
+			missing = self.merge_from_upstream(missing)
 
 		if missing:
 			raise brcoti_core.UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
 
 		return bd
 
-	def auto_repair(self, missing_deps):
-		print("auto_repair(%s)" % missing_deps)
+	def merge_from_upstream(self, missing_deps):
 		if not self.binary_extra_dir:
 			print("Unable to auto-add missing depdencies: binary_extra_dir not set")
 			return missing
