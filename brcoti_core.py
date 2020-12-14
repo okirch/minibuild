@@ -1731,6 +1731,32 @@ class Engine(Object):
 		finder = self.create_binary_download_finder(req, verbose)
 		return finder.get_best_match(self.default_index)
 
+	# Given a list of build requirements, check our index to see whether they
+	# can be satisified. Return a list of unsatisfied dependencies
+	def validate_build_requirements(self, requirements, merge_from_upstream = True):
+		missing = []
+
+		for req in requirements:
+			try:
+				found = self.resolve_build_requirement(req, verbose = False)
+			except:
+				found = None
+
+			if not found:
+				missing.append(req)
+
+		if missing and merge_from_upstream:
+			missing = self.merge_from_upstream(missing)
+
+		if missing:
+			raise brcoti_core.UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
+		return missing
+
+	def merge_from_upstream(self, missing_deps):
+		# Not all engines support merging missing packages from upstream. For example,
+		# the rpm engine pulls from opensuse.org and that's it.
+		return missing_deps
+
 	def submit_source(self, source):
 		name = os.path.basename(source.path)
 		assert(name and not name.startswith('.'))

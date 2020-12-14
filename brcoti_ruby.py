@@ -1137,22 +1137,7 @@ class RubyEngine(brcoti_core.Engine):
 			bd.apply_patches(build_info)
 
 		requirements = bd.infer_build_dependencies()
-		missing = []
-
-		for req in requirements:
-			try:
-				found = self.resolve_build_requirement(req, verbose = False)
-			except:
-				found = None
-
-			if not found:
-				missing.append(req)
-
-		if missing and auto_repair:
-			missing = self.merge_from_upstream(missing)
-
-		if missing:
-			raise brcoti_core.UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
+		self.validate_build_requirements(requirements, merge_from_upstream = auto_repair)
 
 		return bd
 
