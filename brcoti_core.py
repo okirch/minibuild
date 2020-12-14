@@ -1797,19 +1797,41 @@ class Engine(Object):
 		finder = self.create_binary_download_finder(req, verbose)
 		return finder.get_best_match(self.default_index)
 
+	# Given a (binary) artefact, resolve its installation dependencies
+	# recursively
+	def resolve_install_requirements(self, artefact):
+		if self.downloader:
+			return []
+
+		assert(artefact.cache)
+		self.downloader.download(artefact)
+		return artefact.get_install_requirements()
+
 	# Given a list of build requirements, check our index to see whether they
 	# can be satisified. Return a list of unsatisfied dependencies
-	def validate_build_requirements(self, requirements, merge_from_upstream = True):
+	def validate_build_requirements(self, requirements, merge_from_upstream = True, recursive = False):
+		# Copy the list
+		requirements = [] + requirements
+
 		missing = []
 
-		for req in requirements:
+		seen = set()
+		while requirements:
+			req = requirements.pop(0)
 			try:
 				found = self.resolve_build_requirement(req, verbose = False)
+				assert(found)
 			except:
-				found = None
-
-			if not found:
 				missing.append(req)
+
+			print("%s => %s" % (req.format(), found.id()))
+			if recursive:
+				for req in self.resolve_install_requirements(found):
+					req_string = req.format()
+					if req_string not in seen:
+						print(" requires %s" % req_string)
+						requirements.append(req)
+						seen.add(req_string)
 
 		if missing and merge_from_upstream:
 			missing = self.merge_from_upstream(missing)
