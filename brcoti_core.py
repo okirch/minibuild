@@ -1476,6 +1476,7 @@ class Engine(Object):
 		self.publisher = self.create_publisher(engine_config)
 
 		self.default_index = self.index
+		self.use_proxy = True
 
 	def create_index(self, engine_config):
 		repo_config = engine_config.resolve_repository("download-repo")
@@ -1530,7 +1531,7 @@ class Engine(Object):
 	def prepare_environment(self, compute_backend, build_info):
 		compute = compute_backend.spawn(self.engine_config.name)
 
-		if self.config.globals.http_proxy:
+		if self.use_proxy and self.config.globals.http_proxy:
 			proxy = self.config.globals.http_proxy
 			compute.putenv('http_proxy', proxy)
 			compute.putenv('HTTP_PROXY', proxy)
@@ -1748,6 +1749,7 @@ class Engine(Object):
 		if engine is not None:
 			# Always default the index to local
 			engine.default_index = engine.index
+			engine.use_proxy = True
 			return engine
 
 		print("Create %s builder" % name)

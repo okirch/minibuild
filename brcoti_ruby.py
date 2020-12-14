@@ -1070,7 +1070,7 @@ class RubyEngine(brcoti_core.Engine):
 		# environment variables and insists that you use a command line
 		# option
 		proxy = self.config.globals.http_proxy
-		if proxy:
+		if proxy and self.use_proxy:
 			cmd += ["--http-proxy", proxy]
 
 		cmd.append(gem_req.name)

@@ -60,14 +60,11 @@ def source_from_path(name, config):
 
 	return source
 
-def find_source(engine, req_string, use_upstream = False, use_git = False):
-	print("=== Locating %s in %s repository ===" % (req_string, use_upstream and "upstream" or "rebuild"))
+def find_source(engine, req_string, use_git = False):
+	print("=== Locating %s ===" % (req_string,))
 	req = engine.parse_build_requirement(req_string)
 
-	if not use_upstream:
-		sdist = engine.build_source_locate(req)
-	else:
-		sdist = engine.build_source_locate_upstream(req)
+	sdist = engine.build_source_locate(req)
 
 	if sdist is None:
 		print("FAILED to locate source for %s" % req)
@@ -271,14 +268,20 @@ class BuildJob(object):
 
 def prep_action(config, opts):
 	engine = create_build_engine(config)
-	compute_backend = create_compute_backend(config, "local")
+
+	engine.default_index = engine.upstream_index
+	# We want to build using upstream, so don't go through our proxy
+	engine.use_proxy = False
+
+	# Allow to override on the command line?
+	compute_backend = create_compute_backend(config, DEFAULT_BUILD_COMPUTE)
 
 	exit_code = 0
 	for name in opts.packages:
 		if os.path.isfile(name):
 			source = source_from_path(name, config)
 		else:
-			source = find_source(engine, name, use_upstream = True, use_git = opts.git)
+			source = find_source(engine, name, use_git = opts.git)
 		if source is None:
 			exit_code = 1
 			continue
