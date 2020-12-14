@@ -1086,6 +1086,9 @@ class RubyEngine(brcoti_core.Engine):
 		if version_string:
 			cmd += ["--version", "'" + version_string + "'"]
 
+		# Duh, more braindeadness
+		cmd.append('--no-format-executable')
+
 		# For some weird reasons, gem seems to ignore all proxy related
 		# environment variables and insists that you use a command line
 		# option
