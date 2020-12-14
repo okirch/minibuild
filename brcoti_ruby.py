@@ -714,6 +714,7 @@ class BuildStrategy_GemCompile(RubyBuildStrategy):
 	def __init__(self, inner_job, name = None):
 		super(BuildStrategy_GemCompile, self).__init__()
 		self.inner_job = inner_job
+		self.inner_job_done = False
 		self.name = name
 
 	def describe(self):
@@ -723,14 +724,18 @@ class BuildStrategy_GemCompile(RubyBuildStrategy):
 			return '%s(%s)' % (self._type, self.inner_job.describe())
 
 	def next_command(self, build_directory):
-		for cmd in self.inner_job.next_command(build_directory):
-			yield cmd
+		# This self.inner_job_done thingy allows BuildStrategy_Auto to create
+		# a GemCompile strategy without re-running the inner job
+		if not self.inner_job_done:
+			for cmd in self.inner_job.next_command(build_directory):
+				yield cmd
+			self.inner_job_done = True
 
 		if self.name:
-			yield "gem compile '%s-*.gem'" % self.name
+			yield "gem compile '%s'-*.gem" % self.name
 		else:
-			for spec in build_directory.directory.glob_files("*.gem"):
-				yield "gem compile '%s'" % os.path.basename(spec.path)
+			for spec in build_directory.glob_build_results(paths_only = True):
+				yield "gem compile '%s'" % spec.path
 
 class BuildStrategy_Rake(RubyBuildStrategy):
 	_type = "rake"
@@ -799,6 +804,24 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 		# TODO: now look at the results and see if they contain
 		# a native extension. If so, compile than gem (and alter
 		# our strategy)
+		need_compile = False
+		print("Checking build results for extensions")
+		for artefact in build_directory.glob_build_results():
+			print("%s %s" % (artefact.id(), artefact.gemspec.extensions))
+			if artefact.gemspec.extensions:
+				print("Gem %s has extensions; should be compiled" % artefact.id())
+				need_compile = True
+
+		if need_compile:
+			yield brcoti_core.ShellCommand('gem install gem-compiler', privileged_user = True)
+
+			strategy = BuildStrategy_GemCompile(strategy)
+
+			# Do not re-run bundler/rake/gem build
+			strategy.inner_job_done = True
+
+			for cmd in strategy.next_command(build_directory):
+				yield cmd
 
 		self.actual = strategy
 
