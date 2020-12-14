@@ -781,7 +781,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		return name + "-" + version
 
 	def infer_build_dependencies(self):
-		return None
+		return []
 
 	def collect_build_results(self):
 		# glob_files returns a list of ComputeResource* objects
@@ -1143,23 +1143,8 @@ class PythonEngine(brcoti_core.Engine):
 
 		super(PythonEngine, self).create_build_strategy(name, *args)
 
-	def build_unpack(self, compute, build_info, auto_repair = False):
-		if len(build_info.sources) != 1:
-			raise ValueError("Currently unable to handle builds with more than one source")
-		sdist = build_info.sources[0]
-
-		bd = PythonBuildDirectory(compute, self)
-		if sdist.git_url():
-			bd.unpack_git(sdist, sdist.id())
-		else:
-			bd.unpack_archive(sdist)
-
-		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
-
-		if build_info.patches:
-                        bd.apply_patches(build_info)
-
-		return bd
+	def create_build_directory(self, compute):
+		return PythonBuildDirectory(compute, self)
 
 	def resolve_build_requirement(self, req):
 		finder = PythonBinaryDownloadFinder(req)

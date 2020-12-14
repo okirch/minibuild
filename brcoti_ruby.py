@@ -1120,26 +1120,8 @@ class RubyEngine(brcoti_core.Engine):
 
 		super(RubyEngine, self).create_build_strategy(name, *args)
 
-	def build_unpack(self, compute, build_info, auto_repair = False):
-		if len(build_info.sources) != 1:
-			raise ValueError("Currently unable to handle builds with more than one source")
-		sdist = build_info.sources[0]
-
-		bd = RubyBuildDirectory(compute, self)
-		if sdist.git_url():
-			bd.unpack_git(sdist, sdist.id())
-		else:
-			bd.unpack_archive(sdist)
-
-		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
-
-		if build_info.patches:
-			bd.apply_patches(build_info)
-
-		requirements = bd.infer_build_dependencies()
-		self.validate_build_requirements(requirements, merge_from_upstream = auto_repair)
-
-		return bd
+	def create_build_directory(self, compute):
+		return RubyBuildDirectory(compute, self)
 
 	def merge_from_upstream(self, missing_deps):
 		if not self.binary_extra_dir:

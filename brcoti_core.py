@@ -1757,6 +1757,32 @@ class Engine(Object):
 		# the rpm engine pulls from opensuse.org and that's it.
 		return missing_deps
 
+	# We could also replace this by setting
+	#  Engine.buildDirectoryClass = {Ruby,Python,...}BuildDirectory
+	def create_build_directory(self, compute):
+		self.mni()
+
+	def build_unpack(self, compute, build_info, auto_repair = False):
+		if len(build_info.sources) != 1:
+			raise ValueError("Currently unable to handle builds with more than one source")
+		sdist = build_info.sources[0]
+
+		bd = self.create_build_directory(compute)
+		if sdist.git_url():
+			bd.unpack_git(sdist, sdist.id())
+		else:
+			bd.unpack_archive(sdist)
+
+		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
+
+		if build_info.patches:
+			bd.apply_patches(build_info)
+
+		requirements = bd.infer_build_dependencies()
+		self.validate_build_requirements(requirements, merge_from_upstream = auto_repair)
+
+		return bd
+
 	def submit_source(self, source):
 		name = os.path.basename(source.path)
 		assert(name and not name.startswith('.'))
