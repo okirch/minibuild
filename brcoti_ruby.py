@@ -832,28 +832,34 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 		return requirements
 
-	def collect_build_results(self):
-		sdist = self.sdist
+	def glob_build_results(self, paths_only = False):
 		gems = self.directory.glob_files("*.gem")
 
 		pkgdir = self.directory.lookup("pkg")
 		if pkgdir is not None:
 			gems += pkgdir.glob_files("*.gem")
 
-		print("Successfully built %s: %s" % (sdist.id(), ", ".join([w.basename() for w in gems])))
+		if paths_only:
+			return gems
+
+		result = []
 		for w in gems:
-			w = w.hostpath()
-
-			build = RubyArtefact.from_local_file(w)
-
+			build = RubyArtefact.from_local_file(w.hostpath())
 			build.read_gemspec_from_gem()
+			result.append(build)
 
+		return result
+
+	def collect_build_results(self):
+		build_results = self.glob_build_results()
+
+		print("Successfully built %s: %s" % (self.sdist.id(), ", ".join([a.filename for a in build_results])))
+		for artefact in build_results:
 			for algo in RubyEngine.REQUIRED_HASHES:
 				build.update_hash(algo)
 
-			self.build_info.add_artefact(build)
-
-		return self.build_info.artefacts
+		self.build_info.artefacts = build_results
+		return build_results
 
 	# Compare old build of a gem vs the current build. This method
 	# is expected to return an ArtefactComparison object
