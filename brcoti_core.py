@@ -598,6 +598,10 @@ class SourceDirectory(Source):
 		return self.info.sources[0].id()
 
 class BuildStrategy(Object):
+	# Derived classes that have static build dependencies should define a
+	# class attribute _requires containing strings
+	_requires = []
+
 	def __init__(self):
 		pass
 
@@ -606,6 +610,9 @@ class BuildStrategy(Object):
 
 	def next_command(self):
 		self.mni()
+
+	def build_dependencies(self):
+		return self._requires
 
 	@staticmethod
 	def parse(engine, arg):
@@ -878,7 +885,7 @@ class BuildDirectory(Object):
 	def unchanged_from_previous_build(self, build_state):
 		self.mni()
 
-	def guess_build_dependencies(self):
+	def guess_build_dependencies(self, build_strategy = None):
 		self.mni()
 
 	def finalize_build_depdendencies(self, downloader):

@@ -710,6 +710,7 @@ class BuildStrategy_GemBuild(RubyBuildStrategy):
 
 class BuildStrategy_GemCompile(RubyBuildStrategy):
 	_type = "gem-compile"
+	_requires = ['gem-compiler']
 
 	def __init__(self, inner_job, name = None):
 		super(BuildStrategy_GemCompile, self).__init__()
@@ -737,8 +738,12 @@ class BuildStrategy_GemCompile(RubyBuildStrategy):
 			for spec in build_directory.glob_build_results(paths_only = True):
 				yield "gem compile '%s'" % spec.path
 
+	def build_dependencies(self):
+		return self._requires + self.inner_job.build_dependencies()
+
 class BuildStrategy_Rake(RubyBuildStrategy):
 	_type = "rake"
+	_requires = ['rake']
 
 	def __init__(self, targets = ['build']):
 		super(BuildStrategy_Rake, self).__init__()
@@ -757,6 +762,7 @@ class BuildStrategy_Rake(RubyBuildStrategy):
 
 class BuildStrategy_Bundler(RubyBuildStrategy):
 	_type = "bundler"
+	_requires = ['bundler']
 
 	def __init__(self, inner_job):
 		super(BuildStrategy_Bundler, self).__init__()
@@ -771,6 +777,9 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 
 		for cmd in self.inner_job.next_command(build_directory):
 			yield "bundler exec " + cmd
+
+	def build_dependencies(self):
+		return self._requires + self.inner_job.build_dependencies()
 
 	# TBD: run bundle package to collect the used gems into vendor/cache
 	# and return them for inclusion in the build-info file
@@ -824,6 +833,9 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 				yield cmd
 
 		self.actual = strategy
+
+	def build_dependencies(self):
+		return self.actual.build_dependencies()
 
 class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine):
@@ -892,7 +904,11 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	# It would be better if we'd inspect the build log for the actual artefacts
 	# used, rather than going through the spec index ourselves. However, for the
 	# time being I don't know where to actually get this info from
-	def guess_build_dependencies(self):
+	#
+	# FIXME: if we have a Gemfile but no Gemfile.lock, we might ay well run
+	# "bundler lock" inside the container to get a nice and clean list of
+	# dependencies
+	def guess_build_dependencies(self, build_strategy = None):
 		from packaging.requirements import Requirement
 
 		seen = dict()
@@ -903,6 +919,11 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 				continue
 
 			self.add_build_dependencies_from_gemspec(build.gemspec, seen)
+
+		if build_strategy:
+			for req_string in build_strategy.build_dependencies():
+				req = RubyBuildRequirement.from_string(req_string)
+				self.build_info.requires.append(req)
 
 		return self.build_info.requires
 

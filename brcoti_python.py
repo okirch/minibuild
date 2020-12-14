@@ -830,7 +830,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	#   Collecting poetry-core>=1.0.0
 	#   ...
 	#
-	def guess_build_dependencies(self):
+	def guess_build_dependencies(self, build_strategy = None):
 		from packaging.requirements import Requirement
 		import re
 

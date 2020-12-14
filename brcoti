@@ -167,6 +167,7 @@ class BuildJob(object):
 		build_strategy = self.source.info.build_strategy
 		if build_strategy is None:
 			build_strategy = self.engine.create_build_strategy_default()
+		self.build_strategy = build_strategy
 
 		try:
 			artefacts = build.build(build_strategy)
@@ -189,7 +190,7 @@ class BuildJob(object):
 		print("=== Inspecting build dependencies ===")
 		build = self.build
 
-		build.guess_build_dependencies()
+		build.guess_build_dependencies(self.build_strategy)
 
 		requires = self.engine.finalize_build_depdendencies(build)
 
