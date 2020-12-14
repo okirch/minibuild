@@ -406,6 +406,7 @@ class BuildInfo(Object):
 		self.artefacts = []
 		self.sources = []
 		self.patches = []
+		self.used = []
 
 	def add_source(self, sdist):
 		self.sources.append(sdist)
@@ -416,11 +417,15 @@ class BuildInfo(Object):
 	def add_artefact(self, build):
 		self.artefacts.append(build)
 
+	def add_used(self, build):
+		self.used.append(build)
+
 	def save(self, path):
 		with open(path, "w") as f:
 			f.write("engine %s\n" % self.engine)
 			self.write_build_requires(f)
-			self.write_artefacts(f)
+			self.write_artefacts(f, "built", self.artefacts)
+			self.write_artefacts(f, "used", self.used)
 			self.write_sources(f)
 
 			if self.build_strategy:
@@ -448,13 +453,13 @@ class BuildInfo(Object):
 				if artefact.url:
 					print("  url %s" % artefact.url, file = f)
 
-	def write_artefacts(self, f):
-		for build in self.artefacts:
-			f.write("artefact %s %s %s %s\n" % (build.engine, build.name, build.version, build.type))
-			f.write("  filename %s\n" % build.filename)
+	def write_artefacts(self, f, keyword, artefact_list):
+		for build in artefact_list:
+			print("%s %s %s %s %s" % (keyword, build.engine, build.name, build.version, build.type), file = f)
+			print("  filename %s" % build.filename, file = f)
 
 			for (algo, md) in build.hash.items():
-				f.write("  hash %s %s\n" % (algo, md))
+				print("  hash %s %s" % (algo, md), file = f)
 
 	def write_sources(self, f):
 		for sdist in self.sources:
@@ -503,17 +508,21 @@ class BuildInfo(Object):
 								path, result.engine, default_engine.name))
 
 						build_engine = Engine.factory(result.engine, config)
-					elif kwd in ('require', 'artefact'):
+					elif kwd in ('require', 'artefact', 'built', 'used'):
 						(name, l) = l.split(maxsplit = 1)
 						engine = Engine.factory(name, config)
 
 						if kwd == 'require':
 							obj = engine.parse_build_requirement(l.strip())
 							result.add_requirement(obj)
-						elif kwd == 'artefact':
+						elif kwd == 'artefact' or kwd == 'built':
 							args = l.split()
 							obj = engine.create_artefact_from_NVT(*args)
 							result.add_artefact(obj)
+						elif kwd == 'used':
+							args = l.split()
+							obj = engine.create_artefact_from_NVT(*args)
+							result.add_used(obj)
 					elif kwd == 'source':
 						arg = l.strip()
 						if arg.startswith("git:") or arg.startswith("http:") or arg.startswith("https:"):
