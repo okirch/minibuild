@@ -260,6 +260,8 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 			# from the index).
 			# If possible, also create a source artefact by guessing the source
 			# URL.
+			# The binary artefact will be attached to the cache representing this
+			# index; the source artefact will not be attached to any cache.
 			index.get_gemspec(best_release)
 
 			for build in best_release.builds:
@@ -327,6 +329,8 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		self.zap_cache()
 
 	def zap_cache(self):
+		super(RubySpecIndex, self).zap_cache()
+
 		self._cached_latest_specs = None
 		self._cached_specs = None
 
@@ -425,6 +429,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 
 		build.filename = "%s-%s.gem" % (gemspec.name, gemspec.version)
 		build.url = "%s/gems/%s" % (self.url, build.filename)
+		build.cache = self.cache
 		return build
 
 	def gemspec_to_source(self, gemspec):

@@ -465,6 +465,7 @@ class PythonDownloadFinder(brcoti_core.DownloadFinder):
 		if self.verbose:
 			print("Using %s" % best_match.id())
 
+		best_match.cache = self.cache
 		return best_match
 
 class PythonSourceDownloadFinder(PythonDownloadFinder):

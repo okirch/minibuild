@@ -135,6 +135,8 @@ class Artefact(ArtefactAttrs):
 		self.git_repo_url = None
 		self.git_repo_tag = None
 
+		self.cache = None
+
 	def __repr__(self):
 		return "%s(%s)" % (self.__class__.__name__, self.id())
 
@@ -263,8 +265,10 @@ class HTTPPackageIndex(PackageIndex):
 		self.url = url
 		self._pkg_url_template = None
 
+		self.cache = DownloadCache()
+
 	def zap_cache(self):
-		pass
+		self.cache.zap()
 
 	def get_package_info(self, name):
 		import urllib.request
@@ -319,6 +323,9 @@ class Downloader(object):
 	def _download(self, build, path):
 		import urllib.request
 
+		if build.cache and not build.local_path:
+			build.local_path = build.cache.get(build.filename)
+
 		if build.local_path:
 			return build.local_path
 
@@ -335,6 +342,8 @@ class Downloader(object):
 		if path:
 			filename = path
 
+		if build.cache:
+			filename = build.cache.create(build.filename)
 		with open(filename, "wb") as f:
 			f.write(resp.read())
 
@@ -366,6 +375,12 @@ class DownloadCache(object):
 			return path
 
 		return None
+
+	def create(self, filename):
+		filename = os.path.basename(filename)
+		assert(filename)
+
+		return os.path.join(self.path, filename)
 
 # For now, a very trivial uploader.
 class Uploader(Object):
