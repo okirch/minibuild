@@ -678,6 +678,133 @@ class Ruby:
 			ret = yaml.load(io, Loader = yaml.Loader)
 			return ret.finalize()
 
+
+	class GemfileLock:
+		class Node:
+			def __init__(self, name = None, value = None):
+				self.name = name
+				self.value = value or ""
+				self.children = []
+
+			def find(self, name):
+				for node in self.children:
+					if node.name == name:
+						return node
+				return None
+
+			def dump(self, indent = ""):
+				print("%s%s %s" % (indent, self.name, self.value))
+				for node in self.children:
+					node.dump(indent + "  ")
+
+		def __init__(self, topNode):
+			self.node = topNode
+
+		def dump(self):
+			return self.node.dump()
+
+		@staticmethod
+		def parse(fsResource):
+			import re
+
+			top = Ruby.GemfileLock.Node()
+
+			current = top
+			prev = None
+			indent = ""
+			stack = []
+			with fsResource.open('r') as f:
+				for l in f.readlines():
+					while not l.startswith(indent):
+						(current, indent) = stack.pop()
+
+					l = l[len(indent):].rstrip()
+
+					# If indentation level increases, we're starting
+					# a nested group
+					if l.startswith(' '):
+						assert(prev)
+						stack.append((current, indent))
+						current = prev
+
+						# clumsy
+						while l.startswith(' '):
+							indent += ' '
+							l = l[1:]
+
+					# parse identifier
+					m = re.search('([^ :]*)[ :]*(.*)', l)
+					if not m:
+						raise ValueError(l)
+
+					id = m.group(1)
+					rest = m.group(2)
+					node = Ruby.GemfileLock.Node(id, rest)
+					current.children.append(node)
+					prev = node
+
+			return Ruby.GemfileLock(top)
+
+		def lookup(self, name):
+			node = self.node
+			for n in name.split('.'):
+				if node is None:
+					break
+				node = node.find(n)
+
+			return node
+
+		def requirements(self):
+			result = []
+
+			specs = self.lookup("GEM.specs")
+			if specs:
+				for child in specs.children:
+					result += self._requirements(child)
+
+			return result
+
+		def _requirements(self, node):
+			result = []
+
+			# A Gemlock GEM entry can take several forms
+			#  name!
+			#	Used to refer to the gem being built
+			#  name
+			#	No version info
+			#  name (>= 1.2.4)
+			#	Requirement in parentheses
+			#  name (1.2.4)
+			#	Exact version number in parentheses
+			if not node.name.endswith('!'):
+				req_name = node.name
+				req_version = node.value.strip("()")
+
+				if not req_version:
+					req_string = req_name
+				elif not req_version[0].isdigit():
+					req_string = "%s %s" % (req_name, req_version)
+				else:
+					req_string = "%s == %s" % (req_name, req_version)
+				req = Ruby.GemDependency.parse(req_string)
+				result.append(req)
+
+			for child in node.children:
+				result += self._requirements(child)
+
+			return result
+
+		def build_targets(self):
+			result = []
+
+			specs = self.lookup("PATH.specs")
+			if specs:
+				print("  Build target(s):")
+				for node in specs.children:
+					print("    %s %s" % (node.name, node.value))
+
+			return result
+
 class DecompressNone:
 	@staticmethod
 	def open(fileobj):
