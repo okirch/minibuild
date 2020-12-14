@@ -348,6 +348,7 @@ class Downloader(object):
 
 		if build.cache:
 			filename = build.cache.create(build.filename)
+
 		with open(filename, "wb") as f:
 			f.write(resp.read())
 
@@ -1785,9 +1786,6 @@ class Engine(Object):
 				file_path = os.path.join(dir_path, f)
 				if publisher.is_artefact(file_path):
 					publisher.publish_artefact(file_path)
-
-	def build_unpack(self, compute, sdist):
-		self.mni()
 
 	def create_build_strategy_default(self):
 		self.mni()

@@ -1,0 +1,39 @@
+
+build strategies
+	move env setting into their respective classes
+		(such as PIP_INDEX_URL)
+	move proxy env setting into the build command loop
+
+extract packages-used from container
+	rake (if not explicitly required by the Gemfile)
+
+change ruby from proxy to mirror?
+	provide a per-build instance that can hide/add packages
+
+support source dirs that let you build more than one version
+	build-info needs extension
+
+support mirrored git repos
+
+build-info
+ -	rename Source.info to Source.spec, and call it
+ 	the "build spec"
+
+rake strategy
+ -	if we get to the point where we execute rake, and
+ 	it hasn't been installed by bundler, generate an
+	automatic requirement
+
+bundler:
+ -	make the bundler command configurable
+
+local compute
+ -	add interactive_shell
+
+add python-requires info to simple index
+
+restricted network
+
+Support maven/java
+
+Distinguish "initial prep" vs "build from our captured sources"

@@ -200,6 +200,10 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 			args += ("--network", network_name)
 		if pod_name:
 			args += ("--pod", pod_name)
+
+		# For debugging
+		args += ('--cap-add', 'sys_ptrace')
+
 		args.append(img_config.image)
 
 		f = PodmanCmd("run", " ".join(args)).popen()
