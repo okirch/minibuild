@@ -1600,6 +1600,44 @@ class Engine(Object):
 	def create_source_download_finder(self, req, verbose = True):
 		self.mni()
 
+	#
+	# This method validates the explicit requirements specified in a build-info
+	# file, making sure that they can be resolved.
+	# This helps to detect missing packages even before we've started up the
+	# container.
+	#
+	def validate_build_info(self, build_info, auto_repair = False):
+		req_dict = {}
+		for req in build_info.requires:
+			if req.engine == self.name:
+				engine = self
+			else:
+				engine = Engine.factory(req.engine, self.config)
+
+			req_list = req_dict.get(engine)
+			if req_list is None:
+				req_list = []
+				req_dict[engine] = req_list
+
+			req_list.append(req)
+
+		missing = []
+
+		for engine, req_list in req_dict.items():
+			print("Explicit %s requirements given in build-info:" % engine.name)
+			for req in req_list:
+				print("  %s" % req.format())
+
+			# See if we can resolve all requirements (and any packages pulled in via runtime
+			# requirements).
+			# If auto_repair was given, this will try to merge any missing packages
+			# from upstream and stick them into the extra-binaries repo.
+			missing += engine.validate_build_requirements(req_list, merge_from_upstream = auto_repair, recursive = True)
+
+		if missing:
+			sdist = build_info.sources[0]
+			raise UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
+
 	# Returns a ComputeNode instance
 	def prepare_environment(self, compute_backend, build_info):
 		compute = compute_backend.spawn(self.engine_config.name)

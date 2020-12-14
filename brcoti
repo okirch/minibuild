@@ -132,6 +132,8 @@ class BuildJob(object):
 		print("=== Unpacking %s ===" % self.id())
 		build_info = self.source.info
 
+		self.engine.validate_build_info(build_info, auto_repair = self.auto_repair)
+
 		# Download the source archive if we don't have it yet
 		for sdist in build_info.sources:
 			# FIXME: how do we make sure we use the right downloader here? 
