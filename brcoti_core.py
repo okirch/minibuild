@@ -297,7 +297,26 @@ class Downloader(object):
 	def __init__(self):
 		pass
 
-	def download(self, build, destdir = None):
+	def download_to(self, build, destdir):
+		filename = os.path.join(destdir, build.filename)
+		cached_filename = self._download(build, filename)
+		if cached_filename != filename:
+			shutil.copy(cached_filename, filename)
+		return filename
+
+	def download(self, build):
+		filename = build.filename
+
+		if os.path.isfile(filename):
+			return filename
+
+		cached_filename = self._download(build, filename)
+		if cached_filename != filename:
+			shutil.copy(cached_filename, filename)
+
+		return filename
+
+	def _download(self, build, path):
 		import urllib.request
 
 		if build.local_path:
@@ -313,8 +332,8 @@ class Downloader(object):
 					build.filename, url, resp.status, resp.reason))
 
 		filename = build.filename
-		if destdir:
-			filename = os.path.join(destdir, filename)
+		if path:
+			filename = path
 
 		with open(filename, "wb") as f:
 			f.write(resp.read())
@@ -1740,7 +1759,7 @@ class Engine(Object):
 				resolved_req = self.resolve_build_requirement(req)
 			if not resolved_req:
 				raise ValueError("Unable to resolve build dependency %s" % req.name)
-			self.downloader.download(resolved_req, tempdir.name)
+			self.downloader.download_to(resolved_req, tempdir.name)
 
 			for algo in missing:
 				resolved_req.update_hash(algo)

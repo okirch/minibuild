@@ -1148,7 +1148,7 @@ class RubyEngine(brcoti_core.Engine):
 				continue
 
 			try:
-				self.downloader.download(found, destdir = self.binary_extra_dir)
+				self.downloader.download_to(found, destdir = self.binary_extra_dir)
 			except:
 				print("Requirement %s: download from %s failed" % (req, found.url))
 				still_missing.append(req)

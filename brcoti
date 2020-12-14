@@ -235,7 +235,7 @@ class BuildJob(object):
 			if not upstream:
 				raise ValueError("No upstream build for %s" % req_string)
 
-			engine.downloader.download(upstream, destdir = tmpdir.name)
+			engine.downloader.download_to(upstream, destdir = tmpdir.name)
 
 			# This returns an ArtefactComparison object
 			result = build.compare_build_artefacts(upstream.local_path, mine.local_path)
