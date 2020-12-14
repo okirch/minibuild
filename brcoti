@@ -207,10 +207,6 @@ class BuildJob(object):
 		engine = self.engine
 		build = self.build
 
-		import tempfile
-
-		tmpdir = tempfile.TemporaryDirectory(prefix = "brcoti-")
-
 		retval = True
 		for mine in build.build_info.artefacts:
 			# The version of the artefact we built may not be what we
@@ -235,7 +231,11 @@ class BuildJob(object):
 			if not upstream:
 				raise ValueError("No upstream build for %s" % req_string)
 
-			engine.downloader.download_to(upstream, destdir = tmpdir.name)
+			# The artefact was returned by an index; it's a bug to not be attached
+			# the a cache
+			assert(upstream.cache)
+
+			engine.downloader.download(upstream)
 
 			# This returns an ArtefactComparison object
 			result = build.compare_build_artefacts(upstream.local_path, mine.local_path)
