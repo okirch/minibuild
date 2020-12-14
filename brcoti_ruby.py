@@ -1156,5 +1156,7 @@ class RubyEngine(brcoti_core.Engine):
 		if rebuild_index:
 			self.publish_build_results()
 
+		return still_missing
+
 def engine_factory(config, engine_config):
 	return RubyEngine(config, engine_config)

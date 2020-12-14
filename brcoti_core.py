@@ -1754,8 +1754,6 @@ class Engine(Object):
 		if missing and merge_from_upstream:
 			missing = self.merge_from_upstream(missing)
 
-		if missing:
-			raise brcoti_core.UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
 		return missing
 
 	def merge_from_upstream(self, missing_deps):
@@ -1784,8 +1782,12 @@ class Engine(Object):
 		if build_info.patches:
 			bd.apply_patches(build_info)
 
+		# Get requirements from Gemfile, Gemfile.lock etc
 		requirements = bd.infer_build_dependencies()
-		self.validate_build_requirements(requirements, merge_from_upstream = auto_repair)
+
+		missing = self.validate_build_requirements(requirements, merge_from_upstream = auto_repair)
+		if missing:
+			raise UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
 
 		return bd
 
