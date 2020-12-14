@@ -211,6 +211,8 @@ class Ruby:
 
 			for req in string.split(','):
 				req = req.replace(' ', '')
+				if not req:
+					continue
 
 				for i in range(len(req)):
 					if req[i] not in "<>=!~":
