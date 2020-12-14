@@ -1654,15 +1654,6 @@ class Engine(Object):
 			compute.putenv('HTTP_PROXY', proxy)
 			compute.putenv('https_proxy', proxy)
 
-		# install additional packages as requested by build-info
-		if build_info:
-			for req in build_info.requires:
-				if req.engine == self.name:
-					engine = self
-				else:
-					engine = Engine.factory(req.engine, self.config)
-				engine.install_requirement(compute, req)
-
 		return compute
 
 	def downloader(self):
@@ -1898,6 +1889,15 @@ class Engine(Object):
 		sdist = build_info.sources[0]
 
 		bd = self.create_build_directory(compute)
+
+		# install additional packages as requested by build-info
+		for req in build_info.requires:
+			if req.engine == self.name:
+				engine = self
+			else:
+				engine = Engine.factory(req.engine, self.config)
+			engine.install_requirement(compute, req)
+
 		if sdist.git_url():
 			bd.unpack_git(sdist, sdist.id())
 		else:
