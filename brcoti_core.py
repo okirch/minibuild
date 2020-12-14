@@ -262,6 +262,9 @@ class HTTPPackageIndex(PackageIndex):
 		self.url = url
 		self._pkg_url_template = None
 
+	def zap_cache(self):
+		pass
+
 	def get_package_info(self, name):
 		import urllib.request
 		from urllib.error import HTTPError
@@ -1657,6 +1660,9 @@ class Engine(Object):
 
 		publisher.finish()
 		publisher.commit()
+
+		if self.index:
+			self.index.zap_cache()
 
 	def rescan_state_dir(self, publisher, path):
 		if not os.path.isdir(path):

@@ -320,6 +320,9 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		# formats, but the gemspec is only provided as zlib compressed file
 		self._pkg_url_template = "{index_url}/quick/Marshal.4.8/{pkg_name}-{pkg_version}.gemspec.rz"
 
+		self.zap_cache()
+
+	def zap_cache(self):
 		self._cached_latest_specs = None
 		self._cached_specs = None
 
