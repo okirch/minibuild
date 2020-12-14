@@ -622,6 +622,12 @@ class BuildFailure(Exception):
 class BuildAborted(Exception):
 	pass
 
+class UnsatisfiedDependencies(Exception):
+	def __init__(self, msg, req_list, remedy = None):
+		super(UnsatisfiedDependencies, self).__init__(msg)
+		self.dependencies = req_list
+		self.remedy = remedy
+
 class BuildDirectory(Object):
 	def __init__(self, compute, build_base):
 		self.compute = compute

@@ -780,6 +780,9 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		name, version, type = PythonArtefact.parse_filename(sdist.filename)
 		return name + "-" + version
 
+	def infer_build_dependencies(self):
+		return None
+
 	def collect_build_results(self):
 		# glob_files returns a list of ComputeResource* objects
 		wheels = self.directory.glob_files(os.path.join("dist", "*.whl"))
@@ -1124,7 +1127,7 @@ class PythonEngine(brcoti_core.Engine):
 			type = 'sdist'
 		return PythonArtefact(name, version, type)
 
-	def def infer_build_requirements(self, sdist):
+	def infer_build_requirements(self, sdist):
 		# We don't do that
 		return []
 
@@ -1140,7 +1143,7 @@ class PythonEngine(brcoti_core.Engine):
 
 		super(PythonEngine, self).create_build_strategy(name, *args)
 
-	def build_unpack(self, compute, build_info):
+	def build_unpack(self, compute, build_info, auto_repair = False):
 		if len(build_info.sources) != 1:
 			raise ValueError("Currently unable to handle builds with more than one source")
 		sdist = build_info.sources[0]

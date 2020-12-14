@@ -788,6 +788,24 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		name, version, type = RubyArtefact.parse_filename(sdist.filename)
 		return name + "-" + version
 
+	def infer_build_dependencies(self):
+		loc = self.directory.lookup('Gemfile.lock')
+
+		requirements = []
+		if loc is not None:
+			gemfile_lock = ruby_utils.Ruby.GemfileLock.parse(loc)
+
+			print("Analyzing contents of Gemfile.lock")
+			# gemfile_lock.dump()
+
+			# gemfile_lock.requirements() returns a list of
+			# GemDependency objects; we need to convert these into
+			# RubyBuildRequirements
+			for dep in gemfile_lock.requirements():
+				requirements.append(RubyBuildRequirement(dep.name, dep.format(), dep))
+
+		return requirements
+
 	def collect_build_results(self):
 		sdist = self.sdist
 		gems = self.directory.glob_files("*.gem")
@@ -1099,7 +1117,7 @@ class RubyEngine(brcoti_core.Engine):
 
 		super(RubyEngine, self).create_build_strategy(name, *args)
 
-	def build_unpack(self, compute, build_info):
+	def build_unpack(self, compute, build_info, auto_repair = False):
 		if len(build_info.sources) != 1:
 			raise ValueError("Currently unable to handle builds with more than one source")
 		sdist = build_info.sources[0]
@@ -1115,7 +1133,56 @@ class RubyEngine(brcoti_core.Engine):
 		if build_info.patches:
 			bd.apply_patches(build_info)
 
+		requirements = bd.infer_build_dependencies()
+		missing = []
+
+		for req in requirements:
+			try:
+				found = self.resolve_build_requirement(req, verbose = False)
+			except:
+				found = None
+
+			if not found:
+				missing.append(req)
+
+		if missing and auto_repair:
+			missing = self.auto_repair(missing)
+
+		if missing:
+			raise brcoti_core.UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
+
 		return bd
+
+	def auto_repair(self, missing_deps):
+		print("auto_repair(%s)" % missing_deps)
+		if not self.binary_extra_dir:
+			print("Unable to auto-add missing depdencies: binary_extra_dir not set")
+			return missing
+
+		still_missing = []
+		rebuild_index = False
+		for req in missing_deps:
+			print("Trying %s" % req)
+			finder = self.create_binary_download_finder(req, False)
+			found = finder.get_best_match(self.upstream_index)
+			if found is None:
+				print("No upstream package to satisfy requirement %s" % req)
+				print("Requirement %s: no upstream package to satisfy requirement" % req)
+				still_missing.append(req)
+				continue
+
+			try:
+				self.downloader.download(found, destdir = self.binary_extra_dir)
+			except:
+				print("Requirement %s: download from %s failed" % (req, found.url))
+				still_missing.append(req)
+				continue
+
+			print("Requirement %s: downloaded from %s" % (req, found.url))
+			rebuild_index = True
+
+		if rebuild_index:
+			self.publish_build_results()
 
 def engine_factory(config, engine_config):
 	return RubyEngine(config, engine_config)
