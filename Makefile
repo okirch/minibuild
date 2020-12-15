@@ -16,11 +16,12 @@ endif
 LIBDIR ?= /usr/lib64
 PYDIR	= $(LIBDIR)/python3.6/site-packages
 
-all: marshal48.so
+all: marshal48.so bundler.so
 
-install: marshal48.so
+install: marshal48.so bundler.so
 	mkdir -p $(DESTDIR)$(PYDIR)
 	cp marshal48.so $(DESTDIR)$(PYDIR)
+	cp bundler.so $(DESTDIR)$(PYDIR)
 
 containers: $(addprefix $(IMGDIR)/,$(CONTAINERS))
 
@@ -58,5 +59,14 @@ MARSHAL_OBJS = $(addprefix marshal48/,$(patsubst %.c,%.o,$(MARSHAL_SRCS)))
 marshal48.so: $(MARSHAL_OBJS)
 	$(CC) --shared -o $@ $(MARSHAL_OBJS)
 
+BUNDLER_SRCS = \
+	extension.c \
+	gemfile.c \
+	parser.c
+BUNDLER_OBJS = $(addprefix bundler/,$(patsubst %.c,%.o,$(BUNDLER_SRCS)))
+
+bundler.so: $(BUNDLER_OBJS)
+	$(CC) --shared -o $@ $(BUNDLER_OBJS)
+
 clean:
-	rm -f *.so marshal48/*.o
+	rm -f *.so marshal48/*.o bundler/*.o
