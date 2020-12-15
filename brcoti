@@ -112,6 +112,24 @@ class BuildJob(object):
 
 		return True
 
+	# This is a prep task
+	# Merge explicit requirements given on the command line as
+	#  --require rpm:foo,bar,baz --require ruby:bundler,rake
+	def merge_cmdline_requirements(self, opt_list):
+		spec = self.source.info
+
+		for s in opt_list:
+			if ':' not in s:
+				raise ValueError("--require argument must be of the form \"engine:name,name,...\" (%s)" % s)
+
+			(engine_name, rest) = s.split(':', 1)
+
+			engine = brcoti_core.Engine.factory(engine_name, self.config)
+
+			for req in rest.split(','):
+				req = engine.parse_build_requirement(req)
+				spec.add_requirement(req)
+
 	# This is a prep task - eg ruby would look at the upstream artefact
 	# and scan it for :development dependencies
 	def anticipate_build_dependencies(self):
@@ -318,6 +336,8 @@ def prep_action(config, opts):
 		job.shell_on_fail = opts.shell_on_fail
 		job.auto_repair = opts.auto_repair
 
+		job.merge_cmdline_requirements(opts.require)
+
 		try:
 			job.anticipate_build_dependencies()
 			job.unpack_source()
@@ -511,6 +531,8 @@ def build_option_parser():
                 help = "When a build command fails, open an interactive shell session to debug the issue")
 	prep_parser.add_argument('--auto-repair', default = False, action = 'store_true',
                 help = "Try to detect and fix build environment issues")
+	prep_parser.add_argument('--require', default = [], action = 'append',
+                help = "List explicit build dependencies such as 'rpm:gcc-c++'")
 
 	submit_parser = subparsers.add_parser('submit',
 		help = "Submit source package(s)")
