@@ -4,6 +4,12 @@ build strategies
 		(such as PIP_INDEX_URL)
 	move proxy env setting into the build command loop
 
+dependencies on non-ruby packages (esp rpms)
+	when compiling an extension, run ldd on the .so to detect
+	its runtime deps.
+
+	Add rpm requirements to spec.requirements?
+
 extract packages-used from container
 	rake (if not explicitly required by the Gemfile)
 
