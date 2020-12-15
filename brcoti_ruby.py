@@ -789,14 +789,9 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 	def build_used(self, build_directory):
 		result = self.inner_job.build_used(build_directory)
 
-		cache_path = build_directory.bundler_cache_dir
-		print("Looking for bundler installed gems in %s/%s" % (build_directory.directory.path, cache_path))
-		cache_dir = build_directory.directory.lookup(cache_path)
-		if cache_dir is None:
-			print("WARNING: did not find bundler cache directory %s" % build_directory.bundler_cache_dir)
-			return result
+		gems = self.inspect_gem_cache(build_directory, build_directory.bundler_cache_dir)
+		gems += self.inspect_gem_cache(build_directory, build_directory.rubygem_user_cache_dir)
 
-		gems = cache_dir.glob_files("*.gem")
 		for w in gems:
 			build = RubyArtefact.from_local_file(w.hostpath())
 			for algo in RubyEngine.REQUIRED_HASHES:
@@ -804,6 +799,17 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 			result.append(build)
 
 		return result
+
+	def inspect_gem_cache(self, build_directory, cache_path):
+		display_path = os.path.join(build_directory.directory.path, cache_path)
+
+		cache_dir = build_directory.directory.lookup(cache_path)
+		if cache_dir is None:
+			print("WARNING: did not find bundler cache directory %s" % display_path)
+			return []
+
+		print("Looking for downloaded gems in %s" % cache_dir.path)
+		return cache_dir.glob_files("*.gem")
 
 	# TBD: run bundle package to collect the used gems into vendor/cache
 	# and return them for inclusion in the build-info file
@@ -870,10 +876,17 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 		self.build_info = brcoti_core.BuildInfo(engine.name)
 
-		gem_cache_path = engine.engine_config.get_value("gem-cache")
-		self.rubygem_cache_dir = compute.get_directory(gem_cache_path)
-		if not self.rubygem_cache_dir:
-			raise ValueError("Configuration specifies gem-cache \"%s\", which does not exist in the compute environment" % gem_cache_path)
+		gem_cache_path = engine.engine_config.get_value("gem-system-cache")
+		if not gem_cache_path:
+			raise ValueError("Configuration does not specify gem-system-cache")
+
+		self.rubygem_system_cache_dir = compute.get_directory(gem_cache_path)
+		if not self.rubygem_system_cache_dir:
+			raise ValueError("Configuration specifies gem-system-cache \"%s\", which does not exist in the compute environment" % gem_cache_path)
+
+		self.rubygem_user_cache_dir = engine.engine_config.get_value("gem-user-cache")
+		if not self.rubygem_user_cache_dir:
+			raise ValueError("Configuration does not specify gem-user-cache")
 
 		# bundler-cache is a relative path, which only makes sense within the build
 		# directory, and only once we've run bundler install
@@ -975,7 +988,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			# or just the ones that were added since startup
 			# of the container?
 			for id in changes.added:
-				cached_gem = self.rubygem_cache_dir.lookup("%s.gem" % id)
+				cached_gem = self.rubygem_system_cache_dir.lookup("%s.gem" % id)
 				if cached_gem is None:
 					raise ValueError("Gem %s was installed, but could not find it in cache" % id)
 					continue
