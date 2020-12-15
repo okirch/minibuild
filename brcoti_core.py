@@ -1567,8 +1567,15 @@ class Engine(Object):
 		self.uploader = self.create_uploader(engine_config)
 		self.publisher = self.create_publisher(engine_config)
 
+		self.reset_indices()
+
+	def reset_indices(self):
 		self.default_index = self.index
 		self.use_proxy = True
+
+	def use_upstream(self):
+		self.default_index = self.upstream_index
+		self.use_proxy = False
 
 	def create_index(self, engine_config):
 		repo_config = engine_config.resolve_repository("download-repo")
@@ -1950,9 +1957,6 @@ class Engine(Object):
 	def factory(name, config):
 		engine = Engine.engine_cache.get(name)
 		if engine is not None:
-			# Always default the index to local
-			engine.default_index = engine.index
-			engine.use_proxy = True
 			return engine
 
 		print("Create %s builder" % name)

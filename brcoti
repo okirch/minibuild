@@ -312,15 +312,15 @@ class BuildJob(object):
 def prep_action(config, opts):
 	engine = create_build_engine(config)
 
-	engine.default_index = engine.upstream_index
-	# We want to build using upstream, so don't go through our proxy
-	engine.use_proxy = False
-
 	# Allow to override on the command line?
 	compute_backend = create_compute_backend(config, DEFAULT_BUILD_COMPUTE)
 
 	exit_code = 0
 	for name in opts.packages:
+		# We want to build using upstream. This selects the upstream package repo
+		# and disables the proxy.
+		engine.use_upstream()
+
 		if os.path.isfile(name):
 			source = source_from_path(name, config)
 		else:
@@ -390,7 +390,15 @@ If you're in a hurry, re-run this command with --no-upstream-check
 		if job.build:
 			write_source_dir(name, source.info, job.build.build_info)
 
+			engine.reset_indices()
+			job.verify_artefact_availability(job.build.build_info.used)
+
 	print("=== Done ===")
+
+	# In case anyone would ever entertain the idea of mixing calls to prep_action
+	# with other actions within a single run.
+	engine.reset_indices()
+
 	return exit_code
 
 def write_source_dir(name, source_info, build_info):
