@@ -1868,6 +1868,7 @@ class Engine(Object):
 				assert(found)
 			except:
 				missing.append(req)
+				continue
 
 			print("%s => %s" % (req.format(), found.id()))
 			if recursive:

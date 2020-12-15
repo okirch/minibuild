@@ -56,6 +56,9 @@ class RPMBuildRequirement(brcoti_core.BuildRequirement):
 		cooked_requirement = RPMBuildRequirement.DummyCookedRequirement(req_string)
 		return RPMBuildRequirement(cooked_requirement.name, req_string, cooked_requirement)
 
+	def format(self):
+		return str(self.cooked_requirement)
+
 class RPMArtefact(brcoti_core.Artefact):
 	engine = ENGINE_NAME
 
@@ -145,6 +148,11 @@ class RPMEngine(brcoti_core.Engine):
 
 	def create_artefact_from_NVT(self, name, version, type):
 		return RPMArtefact(name, version, type)
+
+	def validate_build_requirements(self, requirements, merge_from_upstream = True, recursive = False):
+		# For the time being, assume that we can resolve all rpm requirements
+		# (they're probably hand crafted anyway)
+		return []
 
 	def install_requirement(self, compute, req):
 		cmd = ShellCommand("zypper --no-refresh install -y %s" % req, privileged_user = True)
