@@ -778,10 +778,7 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
 		yield "bundle config set without 'test'"
 
-		# FIXME: more recent versions of bundler don't like the --without flag and tell us to
-		# use
-		#  bundle config set without 'test'
-		yield brcoti_core.ShellCommand('bundler install --full-index --without test', privileged_user = True)
+		yield brcoti_core.ShellCommand('bundler install --full-index', privileged_user = True)
 
 		for cmd in self.inner_job.next_command(build_directory):
 			yield "bundler exec " + cmd
