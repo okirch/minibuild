@@ -130,6 +130,15 @@ class BuildJob(object):
 				req = engine.parse_build_requirement(req)
 				spec.add_requirement(req)
 
+	# This is a prep task
+	# Set the build strategy from the --strategy command line options, such as
+	#  --strategy 'bundler(gem-build())'
+	def set_cmdline_strategy(self, arg):
+		if not arg or arg == 'auto':
+			return
+
+		self.source.info.build_strategy = brcoti_core.BuildStrategy.parse(self.engine, arg)
+
 	# This is a prep task - eg ruby would look at the upstream artefact
 	# and scan it for :development dependencies
 	def anticipate_build_dependencies(self):
@@ -337,6 +346,7 @@ def prep_action(config, opts):
 		job.auto_repair = opts.auto_repair
 
 		job.merge_cmdline_requirements(opts.require)
+		job.set_cmdline_strategy(opts.strategy)
 
 		try:
 			job.anticipate_build_dependencies()
@@ -533,6 +543,8 @@ def build_option_parser():
                 help = "Try to detect and fix build environment issues")
 	prep_parser.add_argument('--require', default = [], action = 'append',
                 help = "List explicit build dependencies such as 'rpm:gcc-c++'")
+	prep_parser.add_argument('--strategy', default = None,
+                help = "Specify a build strategy like 'bundler(gem-build())' (default: auto)")
 
 	submit_parser = subparsers.add_parser('submit',
 		help = "Submit source package(s)")
