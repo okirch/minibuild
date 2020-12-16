@@ -1218,7 +1218,11 @@ gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 	gem->ignore = !ps->execute;
 
 	do {
-		token = gemfile_parser_next_token(ps, NULL);
+		do {
+			token = gemfile_parser_next_token(ps, NULL);
+
+			/* Line continuation after a trailing comma is okay */
+		} while (token == GEMFILE_T_EOL && ps->previous_token == GEMFILE_T_COMMA);
 
 		if (token == GEMFILE_T_STRING) {
 			bundler_gem_add_dependency(gem, ps->token_value);
