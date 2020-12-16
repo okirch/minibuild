@@ -724,6 +724,7 @@ class BuildDirectory(Object):
 		self.build_log = None
 
 		self.build_info = None
+		self.http_proxy = None
 
 	def cleanup(self):
 		if self.directory:
@@ -872,6 +873,9 @@ class BuildDirectory(Object):
 
 			if cmd.working_dir is None:
 				cmd.working_dir = self.directory
+
+			if self.http_proxy:
+				pass
 
 			# Set any other defaults, like the build user?
 
@@ -1956,6 +1960,9 @@ class Engine(Object):
 		sdist = build_info.sources[0]
 
 		bd = self.create_build_directory(compute)
+
+		if self.use_proxy:
+			bd.http_proxy = self.config.globals.http_proxy
 
 		# install additional packages as requested by build-info
 		for req in build_info.requires:
