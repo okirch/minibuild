@@ -288,6 +288,13 @@ class BuildJob(object):
 			print("Our build matches upstream")
 		return retval
 
+	# This is a prep task.
+	# After a successful build, we inspect the list of packages that got installed
+	# automatically (eg via pip wheel or bundler install) and check them against
+	# our local index.
+	def verify_artefact_availability(self, artefact_list):
+		self.engine.validate_used_packages(artefact_list, merge_from_upstream = self.auto_repair)
+
 	def maybe_commit(self):
 		print("=== Checking whether artefacts changed from previous build ===")
 		build_state = self.build_state
@@ -415,6 +422,9 @@ def write_source_dir(name, source_info, build_info):
 
 	info_path = os.path.join(src_dir, "build-info")
 	info.save(info_path)
+
+	info_path = os.path.join(src_dir, "build-used")
+	build_info.save(info_path)
 
 def submit_action(config, opts):
 	exit_code = 0

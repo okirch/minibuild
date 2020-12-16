@@ -1891,6 +1891,55 @@ class Engine(Object):
 
 		return missing
 
+	def validate_used_packages(self, used, merge_from_upstream = True):
+		name_match = []
+		no_match = []
+		missing = []
+
+		if not used:
+			return
+
+		print("Checking %d package(s) that were installed from upstream during build" % len(used))
+
+		for artefact in used:
+			req = self.parse_build_requirement("%s == %s" % (artefact.name, artefact.version))
+
+			# See if we have an exact match
+			try:
+				found = self.resolve_build_requirement(req, verbose = False)
+				if found:
+					continue
+			except:
+				pass
+
+			# See if we have any version of this package
+			try:
+				found = self.resolve_build_requirement(artefact.name, verbose = False)
+				if found:
+					name_match.append(artefact)
+					continue
+			except:
+				pass
+
+			no_match.append(artefact)
+			missing.append(req)
+
+		if name_match:
+			print("The following packages exist in our index, but with a different version:")
+			for artefact in name_match:
+				print("  %s" % artefact.id())
+
+		if missing:
+			print("The following packages are not present in our index at all:")
+			for artefact in no_match:
+				print("  %s" % artefact.id())
+
+			if merge_from_upstream:
+				print("Trying to merge them from upstream")
+				missing = self.merge_from_upstream(missing)
+
+		return missing
+
 	def merge_from_upstream(self, missing_deps):
 		# Not all engines support merging missing packages from upstream. For example,
 		# the rpm engine pulls from opensuse.org and that's it.

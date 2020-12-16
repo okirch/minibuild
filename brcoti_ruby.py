@@ -990,7 +990,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			for id in changes.added:
 				cached_gem = self.rubygem_system_cache_dir.lookup("%s.gem" % id)
 				if cached_gem is None:
-					raise ValueError("Gem %s was installed, but could not find it in cache" % id)
+					print("WARNING: Gem %s was installed, but could not find it in cache" % id)
 					continue
 
 				artefact = RubyArtefact.from_local_file(cached_gem.hostpath())
