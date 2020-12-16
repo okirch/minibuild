@@ -105,6 +105,8 @@ typedef struct {
 	unsigned int	lineno;
 	bundler_context_t *bundler_ctx;
 
+	gemfile_parse_error_t *error;
+
 	char		linebuf[1024];
 	char *		next;
 
@@ -148,7 +150,8 @@ typedef bool		__gemfile_parser_statement_handler_t(bundler_gemfile_t *gemf,
 
 static bool		gemfile_parser_process_do_block(bundler_gemfile_t *gemf, gemfile_parser_state *ps);
 static bool		__bundler_gemfile_eval(bundler_gemfile_t *gemf, const char *path,
-				bundler_context_t *ctx, unsigned int nesting);
+				bundler_context_t *ctx, unsigned int nesting,
+				gemfile_parse_error_t **err_ret);
 
 static void
 gemfile_parser_init(gemfile_parser_state *ps, const char *filename, FILE *fp, bundler_context_t *ctx)
@@ -164,6 +167,21 @@ static void
 gemfile_parser_destroy(gemfile_parser_state *ps)
 {
 	fclose(ps->file);
+	if (ps->error) {
+		gemfile_parse_error_free(ps->error);
+		ps->error = NULL;
+	}
+}
+
+static gemfile_parse_error_t *
+gemfile_parser_get_error(gemfile_parser_state *ps)
+{
+	gemfile_parse_error_t *ret;
+
+	ret = ps->error;
+	ps->error = NULL;
+
+	return ret;
 }
 
 static void
@@ -181,15 +199,62 @@ gemfile_parser_debug(gemfile_parser_state *ps, const char *fmt, ...)
 	va_end(ap);
 }
 
+static gemfile_parse_error_t *
+gemfile_parse_error_new(const char *filename, unsigned int lineno, unsigned int nlines)
+{
+	gemfile_parse_error_t *perr;
+
+	perr = calloc(1, sizeof(*perr) + nlines * sizeof(char *));
+	perr->filename = strdup(filename);
+	perr->lineno = lineno;
+	perr->maxlines = nlines;
+	return perr;
+}
+
+void
+gemfile_parse_error_free(gemfile_parse_error_t *perr)
+{
+	drop_string(&perr->filename);
+	while (perr->nlines)
+		free(perr->lines[--(perr->nlines)]);
+	free(perr);
+}
+
 static void
-gemfile_parser_error(gemfile_parser_state *ps, const char *fmt, ...)
+gemfile_parse_error_vprintf(gemfile_parse_error_t *perr, const char *fmt, va_list ap)
+{
+	char buffer[1024];
+
+	vsnprintf(buffer, sizeof(buffer), fmt, ap);
+	assert(perr->nlines < perr->maxlines);
+	perr->lines[perr->nlines++] = strdup(buffer);
+}
+
+static void
+gemfile_parse_error_printf(gemfile_parse_error_t *perr, const char *fmt, ...)
 {
 	va_list ap;
 
-	fprintf(stderr, "Error at line %u\n", ps->lineno);
+	va_start(ap, fmt);
+	gemfile_parse_error_vprintf(perr, fmt, ap);
+	va_end(ap);
+}
+
+static void
+gemfile_parser_error(gemfile_parser_state *ps, const char *fmt, ...)
+{
+	gemfile_parse_error_t *perr;
+	va_list ap;
+
+	if (ps->error != NULL)
+		return;
+
+	perr = gemfile_parse_error_new(ps->filename, ps->lineno, 8);
+
+	// gemfile_parse_error_printf(perr, "Error in %s at line %u\n", ps->filename, ps->lineno);
 
 	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
+	gemfile_parse_error_vprintf(perr, fmt, ap);
 	va_end(ap);
 
 	if (ps->linebuf[0]) {
@@ -204,11 +269,13 @@ gemfile_parser_error(gemfile_parser_state *ps, const char *fmt, ...)
 		if (len > max_len)
 			len = max_len;
 
-		fprintf(stderr, "%s\n", ps->linebuf);
-		fprintf(stderr, "%*.*s^--- here\n",
+		gemfile_parse_error_printf(perr, "%s\n", ps->linebuf);
+		gemfile_parse_error_printf(perr, "%*.*s^--- here\n",
 				len, len,
 				"");
 	}
+
+	ps->error = perr;
 }
 
 static int
@@ -924,6 +991,7 @@ gemfile_parser_process_include(bundler_gemfile_t *gemf, gemfile_parser_state *ps
 {
 	const char *string;
 	char pathbuf[PATH_MAX];
+	gemfile_parse_error_t *error = NULL;
 	bool ok;
 
 	if (!(string = gemfile_parser_expect_string(ps)))
@@ -941,11 +1009,13 @@ gemfile_parser_process_include(bundler_gemfile_t *gemf, gemfile_parser_state *ps
 	}
 
 	ps->nesting += 2;
-	ok = __bundler_gemfile_eval(gemf, string, ps->bundler_ctx, ps->nesting + 2);
+	ok = __bundler_gemfile_eval(gemf, string, ps->bundler_ctx, ps->nesting + 2, &error);
 	ps->nesting -= 2;
 
-	if (!ok)
+	if (!ok) {
+		ps->error = error;
 		return ok;
+	}
 
 	return gemfile_parser_expect_eol(ps);
 }
@@ -1425,8 +1495,8 @@ gemfile_parser_process_code_block(struct block_context *ctx, gemfile_parser_stat
 			break;
 
 		if (!strcmp(identifier, "if")) {
-			fprintf(stderr, "if command not implemented\n");
-			break;
+			gemfile_parser_error(ps, "if command not implemented\n");
+			return NULL;
 		} else
 		if (!ctx->handler(ctx->gemfile, ps, identifier)) {
 			break;
@@ -1625,7 +1695,8 @@ bundler_context_free(bundler_context_t *ctx)
 }
 
 bool
-__bundler_gemfile_eval(bundler_gemfile_t *gemf, const char *path, bundler_context_t *ctx, unsigned int nesting)
+__bundler_gemfile_eval(bundler_gemfile_t *gemf, const char *path, bundler_context_t *ctx,
+				unsigned int nesting, gemfile_parse_error_t **err_ret)
 {
 	gemfile_parser_state parser;
 	FILE *fp;
@@ -1644,19 +1715,23 @@ __bundler_gemfile_eval(bundler_gemfile_t *gemf, const char *path, bundler_contex
 	rv = gemfile_parser_process_toplevel(gemf, &parser);
 
 	gemfile_parser_debug(&parser, "Successfully parsed file\n");
+
+	if (!rv && err_ret)
+		*err_ret = gemfile_parser_get_error(&parser);
+
 	gemfile_parser_destroy(&parser);
 
 	return rv;
 }
 
 bundler_gemfile_t *
-bundler_gemfile_parse(const char *path, bundler_context_t *ctx, char **error_msg_p)
+bundler_gemfile_parse(const char *path, bundler_context_t *ctx, gemfile_parse_error_t **err_ret)
 {
 	bundler_gemfile_t *gemf;
 
 	gemf = bundler_gemfile_new();
 
-	if (!__bundler_gemfile_eval(gemf, path, ctx, 0)) {
+	if (!__bundler_gemfile_eval(gemf, path, ctx, 0, err_ret)) {
 		/* set error_msg_p to something useful */
 		bundler_gemfile_free(gemf);
 		return NULL;

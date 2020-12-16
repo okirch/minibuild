@@ -105,7 +105,8 @@ static int
 Gemfile_init(bundler_Gemfile *self, PyObject *args, PyObject *kwds)
 {
 	static char *kwlist[] = {"path", "context", NULL};
-	char *path, *error_msg = NULL;
+	char *path;
+	gemfile_parse_error_t *parse_err = NULL;
 	PyObject *contextObj = NULL;
 	bundler_context_t *ctx = NULL;
 
@@ -115,11 +116,18 @@ Gemfile_init(bundler_Gemfile *self, PyObject *args, PyObject *kwds)
 	if (contextObj && contextObj->ob_type == &bundler_ContextType)
 		ctx = ((bundler_Context *) contextObj)->handle;
 
-	self->handle = bundler_gemfile_parse(path, ctx, &error_msg);
+	self->handle = bundler_gemfile_parse(path, ctx, &parse_err);
 	if (self->handle == NULL) {
-		if (!error_msg)
-			error_msg = "(unspecific error)";
-		PyErr_Format(PyExc_ValueError, "Failed to parse gemfile: %s", error_msg);
+		if (parse_err == NULL) {
+			PyErr_SetString(PyExc_ValueError, "Failed to parse gemfile");
+		} else {
+			PyErr_Format(PyExc_SyntaxError,
+					"Failed to parse gemfile: %s", parse_err->lines[0]);
+			PyErr_SyntaxLocation(parse_err->filename, parse_err->lineno);
+
+			gemfile_parse_error_free(parse_err);
+		}
+
 		return -1;
 	}
 

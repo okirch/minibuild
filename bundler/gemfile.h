@@ -109,6 +109,15 @@ typedef struct {
 	bundler_instance_array_t	gemspecs;
 } bundler_gemfile_t;
 
+typedef struct {
+	char *				filename;
+	unsigned int			lineno;
+	unsigned int			column;
+
+	unsigned int			nlines, maxlines;
+	char *				lines[];
+} gemfile_parse_error_t;
+
 extern bundler_context_t *bundler_context_new(const char *ruby_version);
 extern void		bundler_context_free(bundler_context_t *);
 extern void		bundler_context_with_group(bundler_context_t *, const char *);
@@ -116,7 +125,8 @@ extern void		bundler_context_without_group(bundler_context_t *, const char *);
 extern void		bundler_context_set_debug(bundler_context_t *, bool);
 extern bool		bundler_context_get_debug(const bundler_context_t *);
 
-extern bundler_gemfile_t *bundler_gemfile_parse(const char *path, bundler_context_t *, char **error_msg_p);
+extern bundler_gemfile_t *bundler_gemfile_parse(const char *path, bundler_context_t *,
+					gemfile_parse_error_t **err_ret);
 extern void		bundler_gemfile_set_source(bundler_gemfile_t *gemf, const char *value);
 extern bundler_gemspec_t *bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf);
 extern void		bundler_gemfile_free(bundler_gemfile_t *);
@@ -126,5 +136,7 @@ extern void		bundler_value_release(bundler_value_t *v);
 extern const char *	bundler_gem_as_requirement(bundler_gem_t *gem);
 
 extern const char *	string_array_print(const string_array_t *array);
+
+extern void		gemfile_parse_error_free(gemfile_parse_error_t *);
 
 #endif /* GEMFILE_H */

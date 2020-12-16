@@ -32,6 +32,7 @@ $(IMGDIR)/brcoti-%: Dockerfile.%
 
 
 CFLAGS	:= -fPIC $(CCOPT) \
+	  -D_GNU_SOURCE \
 	  -Wall -Werror \
 	  $(shell python3-config --includes)
 LDFLAGS	:= \
