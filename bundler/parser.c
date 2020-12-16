@@ -40,7 +40,6 @@ struct bundler_context {
 	string_array_t	without_groups;
 };
 
-static void		bundler_group_destroy(bundler_group_t *grp);
 static void		bundler_gem_destroy(bundler_gem_t *gem);
 
 extern bundler_context_t *bundler_context_new(const char *ruby_version);
@@ -473,26 +472,6 @@ string_array_print(const string_array_t *array)
 	return __string_array_print(array, buffer, sizeof(buffer));
 }
 
-static bundler_group_t *
-bundler_group_array_extend(bundler_group_array_t *array)
-{
-	assert(array->count < BUNDLER_GROUP_ARRAY_MAX);
-
-	if (array->count >= BUNDLER_GROUP_ARRAY_MAX)
-		return NULL;
-	return &array->value[array->count++];
-}
-
-static void
-bundler_group_array_destroy(bundler_group_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		bundler_group_destroy(&array->value[i]);
-	memset(array, 0, sizeof(*array));
-}
-
 static bundler_gem_t *
 bundler_gem_array_extend(bundler_gem_array_t *array)
 {
@@ -685,36 +664,10 @@ bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf)
 {
 }
 
-bundler_group_t *
-bundler_gemfile_add_group(bundler_gemfile_t *gemf)
-{
-	return bundler_group_array_extend(&gemf->groups);
-}
-
-
 bundler_gem_t *
 bundler_gemfile_add_gem(bundler_gemfile_t *gemf)
 {
 	return bundler_gem_array_extend(&gemf->gems);
-}
-
-void
-bundler_group_destroy(bundler_group_t *grp)
-{
-	string_array_destroy(&grp->names);
-	bundler_gem_array_destroy(&grp->gems);
-}
-
-void
-bundler_group_add_name(bundler_group_t *grp, const char *name)
-{
-	string_array_append(&grp->names, name);
-}
-
-bundler_gem_t *
-bundler_group_add_gem(bundler_group_t *grp)
-{
-	return bundler_gem_array_extend(&grp->gems);
 }
 
 static bool
@@ -1407,7 +1360,6 @@ bundler_gemfile_free(bundler_gemfile_t *gemf)
 {
 	drop_string(&gemf->source);
 
-	bundler_group_array_destroy(&gemf->groups);
 	bundler_gem_array_destroy(&gemf->gems);
 	free(gemf);
 }

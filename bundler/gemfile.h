@@ -84,24 +84,9 @@ typedef struct {
 	bundler_gem_t			value[BUNDLER_GEM_ARRAY_MAX];
 } bundler_gem_array_t;
 
-typedef struct {
-	string_array_t			names;
-	bool				ignore;
-
-	bundler_gem_array_t		gems;
-} bundler_group_t;
-
-#define BUNDLER_GROUP_ARRAY_MAX		16
-typedef struct {
-	unsigned int			count;
-	bundler_group_t			value[BUNDLER_GROUP_ARRAY_MAX];
-} bundler_group_array_t;
-
 #define BUNDLER_GEMFILE_MAX_GROUPS	16
 typedef struct {
 	char *				source;
-
-	bundler_group_array_t		groups;
 	bundler_gem_array_t		gems;
 } bundler_gemfile_t;
 
@@ -114,10 +99,7 @@ extern bundler_gemfile_t *bundler_gemfile_parse(const char *path, bundler_contex
 extern void		bundler_gemfile_set_source(bundler_gemfile_t *gemf, const char *value);
 extern void		bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf);
 extern void		bundler_gemfile_free(bundler_gemfile_t *);
-extern bundler_group_t *bundler_gemfile_add_group(bundler_gemfile_t *);
-extern void		bundler_group_add_name(bundler_group_t *, const char *);
 extern bundler_gem_t *	bundler_gemfile_add_gem(bundler_gemfile_t *);
-extern bundler_gem_t *	bundler_group_add_gem(bundler_group_t *);
 extern const char *	bundler_value_print(const bundler_value_t *v);
 extern void		bundler_value_release(bundler_value_t *v);
 
