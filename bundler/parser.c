@@ -42,8 +42,6 @@ struct bundler_context {
 	bool		debug;
 };
 
-static void		bundler_gem_destroy(bundler_gem_t *gem);
-
 extern bundler_context_t *bundler_context_new(const char *ruby_version);
 static void		bundler_context_set_ruby_version(bundler_context_t *, const char *);
 static bool		bundler_context_match_platform(bundler_context_t *, const string_array_t *);
@@ -143,6 +141,7 @@ static const char *	gemfile_parser_token_name(int token);
 static int		gemfile_parser_single_token(gemfile_parser_state *ps);
 static bundler_value_t *gemfile_parser_process_expression(gemfile_parser_state *ps);
 static bool		gemfile_parser_err_unexpected_eol(gemfile_parser_state *ps);
+static bool		gemfile_parser_process_instance_common(bundler_gemfile_t *, gemfile_parser_state *, bundler_object_instance_t *);
 
 typedef bool		__gemfile_parser_statement_handler_t(bundler_gemfile_t *gemf,
 				gemfile_parser_state *ps, const char *identifier);
@@ -487,26 +486,6 @@ string_array_print(const string_array_t *array)
 	return __string_array_print(array, buffer, sizeof(buffer));
 }
 
-static bundler_gem_t *
-bundler_gem_array_extend(bundler_gem_array_t *array)
-{
-	assert(array->count < BUNDLER_GEM_ARRAY_MAX);
-
-	if (array->count >= BUNDLER_GEM_ARRAY_MAX)
-		return NULL;
-	return &array->value[array->count++];
-}
-
-static void
-bundler_gem_array_destroy(bundler_gem_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		bundler_gem_destroy(&array->value[i]);
-	memset(array, 0, sizeof(*array));
-}
-
 static void
 bundler_ivar_destroy(bundler_ivar_t *ivar)
 {
@@ -538,36 +517,95 @@ bundler_ivar_array_extend(bundler_ivar_array_t *array)
 }
 
 static void
+bundler_object_instance_string_argument(bundler_object_instance_t *obj, const char *string)
+{
+	if (obj->vtable && obj->vtable->string_argument)
+		obj->vtable->string_argument(obj, string);
+}
+
+static bundler_ivar_t *
+bundler_object_instance_add_ivar(bundler_object_instance_t *obj, const char *name)
+{
+	bundler_ivar_t *ivar;
+
+	ivar = bundler_ivar_array_extend(&obj->ivars);
+	ivar->name = strdup(name);
+	return ivar;
+}
+
+
+static void
 bundler_object_instance_destroy(bundler_object_instance_t *obj)
 {
 	bundler_ivar_array_destroy(&obj->ivars);
 }
 
-void
-bundler_gem_destroy(bundler_gem_t *gem)
+static void
+bundler_object_instance_free(bundler_object_instance_t *obj)
 {
-	drop_string(&gem->name);
-	string_array_destroy(&gem->dependency);
-	bundler_object_instance_destroy(&gem->base);
+	if (obj->vtable && obj->vtable->free) {
+		obj->vtable->free(obj);
+	} else {
+		bundler_object_instance_destroy(obj);
+		free(obj);
+	}
 }
 
 static void
-bundler_gem_add_dependency(bundler_gem_t *gem, const char *s)
+bundler_instance_array_append(bundler_instance_array_t *array, bundler_object_instance_t *item)
 {
+	assert(array->count < BUNDLER_INSTANCE_ARRAY_MAX);
+
+	array->value[array->count++] = item;
+}
+
+static void
+bundler_instance_array_destroy(bundler_instance_array_t *array)
+{
+	unsigned int i;
+
+	for (i = 0; i < array->count; ++i) {
+		bundler_object_instance_free(array->value[i]);
+		array->value[i] = NULL;
+	}
+	array->count = 0;
+}
+
+static void
+__bundler_gem_free(bundler_object_instance_t *obj)
+{
+	bundler_gem_t *gem = (bundler_gem_t *) obj;
+
+	drop_string(&gem->name);
+	string_array_destroy(&gem->dependency);
+	bundler_object_instance_destroy(&gem->base);
+	free(gem);
+}
+
+static void
+__bundler_gem_add_dependency(bundler_object_instance_t *obj, const char *s)
+{
+	bundler_gem_t *gem = (bundler_gem_t *) obj;
+
 	if (gem->name == NULL)
 		assign_string(&gem->name, s);
 	else
 		string_array_append(&gem->dependency, s);
 }
 
-static bundler_ivar_t *
-bundler_gem_add_ivar(bundler_gem_t *gem, const char *name)
+static bundler_gem_t *
+bundler_gem_new(void)
 {
-	bundler_ivar_t *ivar;
+	static bundler_object_vtable_t bundler_gem_vtable = {
+		.free			= __bundler_gem_free,
+		.string_argument	= __bundler_gem_add_dependency,
+	};
+	bundler_gem_t *gem;
 
-	ivar = bundler_ivar_array_extend(&gem->base.ivars);
-	ivar->name = strdup(name);
-	return ivar;
+	gem = calloc(1, sizeof(*gem));
+	gem->base.vtable = &bundler_gem_vtable;
+
+	return gem;
 }
 
 static bundler_ivar_t *
@@ -688,15 +726,24 @@ bundler_gemfile_set_ruby_version(bundler_gemfile_t *gemf, const char *value)
 	assign_string(&gemf->ruby_version, value);
 }
 
-void
+bundler_gemspec_t *
 bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf)
 {
+	bundler_gemspec_t *ret;
+
+	ret = calloc(1, sizeof(*ret));
+	bundler_instance_array_append(&gemf->gemspecs, &ret->base);
+	return ret;
 }
 
 static bundler_gem_t *
 bundler_gemfile_add_gem(bundler_gemfile_t *gemf)
 {
-	return bundler_gem_array_extend(&gemf->gems);
+	bundler_gem_t *gem;
+
+	gem = bundler_gem_new();
+	bundler_instance_array_append(&gemf->gems, &gem->base);
+	return gem;
 }
 
 static bool
@@ -824,12 +871,39 @@ gemfile_parser_process_ruby(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 static bool
 gemfile_parser_process_gemspec(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 {
+	bundler_gemspec_t *gemspec = NULL;
+
 	if (ps->execute) {
 		gemfile_parser_debug(ps, "Gemfile specifies a gemspec\n");
-		bundler_gemfile_add_gemspec(gemf);
+		gemspec = bundler_gemfile_add_gemspec(gemf);
 	}
 
-	return gemfile_parser_expect_eol(ps);
+	if (!gemfile_parser_process_instance_common(gemf, ps, &gemspec->base))
+		return false;
+
+	return true;
+}
+
+static bool
+gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
+{
+	bundler_gem_t *gem;
+
+	gem = bundler_gemfile_add_gem(gemf);
+
+	/* ugly */
+	gem->ignore = !ps->execute;
+
+	if (!gemfile_parser_process_instance_common(gemf, ps, &gem->base))
+		return false;
+
+	if (ps->bundler_ctx)
+		bundler_gem_apply_context(gem, ps->bundler_ctx);
+
+	if (gem->ignore)
+		gemfile_parser_debug(ps, "== Gem %s is being ignored\n", gem->name);
+
+	return true;
 }
 
 static bool
@@ -1207,15 +1281,9 @@ gemfile_parser_process_expression(gemfile_parser_state *ps)
 }
 
 static bool
-gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
+gemfile_parser_process_instance_common(bundler_gemfile_t *gemf, gemfile_parser_state *ps, bundler_object_instance_t *obj)
 {
-	bundler_gem_t *gem;
 	int token;
-
-	gem = bundler_gemfile_add_gem(gemf);
-
-	/* ugly */
-	gem->ignore = !ps->execute;
 
 	do {
 		do {
@@ -1224,15 +1292,25 @@ gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 			/* Line continuation after a trailing comma is okay */
 		} while (token == GEMFILE_T_EOL && ps->previous_token == GEMFILE_T_COMMA);
 
-		if (token == GEMFILE_T_STRING) {
-			bundler_gem_add_dependency(gem, ps->token_value);
-		} else if (token == GEMFILE_T_SYMBOL) {
-			bundler_ivar_t *ivar;
+		/* It's valid to have an identifier w/ nothing following it, like
+		 *   gemspec
+		 */
+		if (token == GEMFILE_T_EOL)
+			return true;
 
-			ivar = bundler_gem_add_ivar(gem, ps->token_value);
-			if (!ivar) {
-				fprintf(stderr, "Cannot create instance var :%s\n", ps->token_value);
-				return false;
+		if (token == GEMFILE_T_STRING) {
+			if (obj)
+				bundler_object_instance_string_argument(obj, ps->token_value);
+		} else if (token == GEMFILE_T_SYMBOL) {
+			bundler_ivar_t *ivar = NULL;
+			bundler_value_t *value;
+
+			if (obj) {
+				ivar = bundler_object_instance_add_ivar(obj, ps->token_value);
+				if (!ivar) {
+					fprintf(stderr, "Cannot create instance var :%s\n", ps->token_value);
+					return false;
+				}
 			}
 
 			if (!__bundler_gemfile_eval_expect(ps, GEMFILE_T_OPERATOR))
@@ -1243,29 +1321,42 @@ gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 			}
 
 			/* get the instance var value */
-			ivar->value = gemfile_parser_process_expression(ps);
-			if (ivar->value == NULL)
+			value = gemfile_parser_process_expression(ps);
+			if (value == NULL)
 				return false;
 
-			gemfile_parser_debug(ps, "== Set instance var gem.%s=%s\n", ivar->name, bundler_value_print(ivar->value));
+			if (ivar) {
+				gemfile_parser_debug(ps, "== Set instance var %s=%s\n", ivar->name, bundler_value_print(value));
+				ivar->value = value;
+			} else {
+				bundler_value_release(value);
+			}
 		} else if (token == GEMFILE_T_IDENTIFIER) {
-			bundler_ivar_t *ivar;
+			bundler_ivar_t *ivar = NULL;
+			bundler_value_t *value;
 
-			ivar = bundler_gem_add_ivar(gem, ps->token_value);
-			if (!ivar) {
-				fprintf(stderr, "Cannot create var %s\n", ps->token_value);
-				return false;
+			if (obj) {
+				ivar = bundler_object_instance_add_ivar(obj, ps->token_value);
+				if (!ivar) {
+					fprintf(stderr, "Cannot create var %s\n", ps->token_value);
+					return false;
+				}
 			}
 
 			if (!__bundler_gemfile_eval_expect(ps, GEMFILE_T_COLON))
 				return false;
 
 			/* get the variable value */
-			ivar->value = gemfile_parser_process_expression(ps);
-			if (ivar->value == NULL)
+			value = gemfile_parser_process_expression(ps);
+			if (value == NULL)
 				return false;
 
-			gemfile_parser_debug(ps, "== Set var gem.%s=%s\n", ivar->name, bundler_value_print(ivar->value));
+			if (ivar) {
+				gemfile_parser_debug(ps, "== Set var %s=%s\n", ivar->name, bundler_value_print(value));
+				ivar->value = value;
+			} else {
+				bundler_value_release(value);
+			}
 		} else
 			return gemfile_parser_err_unexpected(ps, token);
 
@@ -1274,12 +1365,6 @@ gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 
 	if (!__bundler_gemfile_token_is_eol(token))
 		return gemfile_parser_err_unexpected(ps, token);
-
-	if (ps->bundler_ctx)
-		bundler_gem_apply_context(gem, ps->bundler_ctx);
-
-	if (gem->ignore)
-		gemfile_parser_debug(ps, "== Gem %s is being ignored\n", gem->name);
 
 	return true;
 }
@@ -1395,7 +1480,8 @@ bundler_gemfile_free(bundler_gemfile_t *gemf)
 	drop_string(&gemf->source);
 	drop_string(&gemf->ruby_version);
 
-	bundler_gem_array_destroy(&gemf->gems);
+	bundler_instance_array_destroy(&gemf->gems);
+	bundler_instance_array_destroy(&gemf->gemspecs);
 	free(gemf);
 }
 
@@ -1577,9 +1663,9 @@ bundler_gemfile_show(bundler_gemfile_t *gemf)
 		printf("Source:   %s\n", gemf->ruby_version);
 
 	for (i = 0; i < gemf->gems.count; ++i) {
-		bundler_gem_t *gem = &gemf->gems.value[i];
+		bundler_gem_t *gem = (bundler_gem_t *) gemf->gems.value[i];
 
-		printf("  ");
+		printf("  gem ");
 		if (gem->ignore)
 			printf("[ignored] ");
 
@@ -1590,6 +1676,18 @@ bundler_gemfile_show(bundler_gemfile_t *gemf)
 
 		for (j = 0; j < gem->base.ivars.count; ++j) {
 			const bundler_ivar_t *ivar = &gem->base.ivars.value[j];
+			printf("    %s = %s\n", ivar->name, bundler_value_print(ivar->value));
+		}
+	}
+
+	for (i = 0; i < gemf->gemspecs.count; ++i) {
+		bundler_gemspec_t *gemspec = (bundler_gemspec_t *) gemf->gemspecs.value[i];
+
+		printf("  gemspec ");
+		printf("\n");
+
+		for (j = 0; j < gemspec->base.ivars.count; ++j) {
+			const bundler_ivar_t *ivar = &gemspec->base.ivars.value[j];
 			printf("    %s = %s\n", ivar->name, bundler_value_print(ivar->value));
 		}
 	}

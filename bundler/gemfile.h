@@ -65,9 +65,23 @@ typedef struct {
 	bundler_ivar_t			value[BUNDLER_IVAR_ARRAY_MAX];
 } bundler_ivar_array_t;
 
+typedef struct bundler_object_vtable	bundler_object_vtable_t;
+
 typedef struct {
+	bundler_object_vtable_t *	vtable;
 	bundler_ivar_array_t		ivars;
 } bundler_object_instance_t;
+
+struct bundler_object_vtable {
+	void				(*free)(bundler_object_instance_t *);
+	void				(*string_argument)(bundler_object_instance_t *, const char *);
+};
+
+#define BUNDLER_INSTANCE_ARRAY_MAX	64
+typedef struct {
+	unsigned int			count;
+	bundler_object_instance_t *	value[BUNDLER_INSTANCE_ARRAY_MAX];
+} bundler_instance_array_t;
 
 typedef struct {
 	bundler_object_instance_t	base;
@@ -78,17 +92,21 @@ typedef struct {
 	bool				ignore;
 } bundler_gem_t;
 
+typedef struct {
+	bundler_object_instance_t	base;
+} bundler_gemspec_t;
+
 #define BUNDLER_GEM_ARRAY_MAX		64
 typedef struct {
 	unsigned int			count;
 	bundler_gem_t			value[BUNDLER_GEM_ARRAY_MAX];
 } bundler_gem_array_t;
 
-#define BUNDLER_GEMFILE_MAX_GROUPS	16
 typedef struct {
 	char *				source;
 	char *				ruby_version;
-	bundler_gem_array_t		gems;
+	bundler_instance_array_t	gems;
+	bundler_instance_array_t	gemspecs;
 } bundler_gemfile_t;
 
 extern bundler_context_t *bundler_context_new(const char *ruby_version);
@@ -100,7 +118,7 @@ extern bool		bundler_context_get_debug(const bundler_context_t *);
 
 extern bundler_gemfile_t *bundler_gemfile_parse(const char *path, bundler_context_t *, char **error_msg_p);
 extern void		bundler_gemfile_set_source(bundler_gemfile_t *gemf, const char *value);
-extern void		bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf);
+extern bundler_gemspec_t *bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf);
 extern void		bundler_gemfile_free(bundler_gemfile_t *);
 extern void		bundler_gemfile_show(bundler_gemfile_t *);
 extern const char *	bundler_value_print(const bundler_value_t *v);
