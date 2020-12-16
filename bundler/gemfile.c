@@ -36,6 +36,7 @@ static PyObject *	Gemfile_new(PyTypeObject *type, PyObject *args, PyObject *kwds
 static int		Gemfile_init(bundler_Gemfile *self, PyObject *args, PyObject *kwds);
 static PyObject *	Gemfile_getattr(bundler_Gemfile *self, char *name);
 static PyObject *	Gemfile_dependencies(bundler_Gemfile *self, PyObject *args, PyObject *kwds);
+static PyObject *	Gemfile_show(bundler_Gemfile *self, PyObject *args, PyObject *kwds);
 
 static void		Context_dealloc(bundler_Context *self);
 static PyObject *	Context_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
@@ -57,6 +58,9 @@ static PyObject *	Context_without_group(bundler_Context *self, PyObject *args, P
 static PyMethodDef bundler_gemfileMethods[] = {
       {	"dependencies", (PyCFunction) Gemfile_dependencies, METH_VARARGS | METH_KEYWORDS,
 	"Obtain the list of gems required"
+      },
+      {	"show", (PyCFunction) Gemfile_show, METH_VARARGS | METH_KEYWORDS,
+	"Dump contents of gemfile to stdout"
       },
 
       {	NULL }
@@ -146,6 +150,20 @@ Gemfile_dependencies(bundler_Gemfile *self, PyObject *args, PyObject *kwds)
 {
 	return NULL;
 }
+
+static PyObject *
+Gemfile_show(bundler_Gemfile *self, PyObject *args, PyObject *kwds)
+{
+	static char *kwlist[] = {NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist))
+		return NULL;
+
+	bundler_gemfile_show(self->handle);
+
+	Py_RETURN_NONE;
+}
+
 
 
 /*

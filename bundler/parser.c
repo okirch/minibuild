@@ -570,6 +570,14 @@ bundler_gem_get_ivar(bundler_gem_t *gem, const char *name)
 	return NULL;
 }
 
+static const char *
+bundler_value_to_string(const bundler_value_t *v)
+{
+	/* for now, we just use the print() function, even though it uses a limited
+	 * internal buffer */
+	return bundler_value_print(v);
+}
+
 static bool
 bundler_value_to_string_array(const bundler_value_t *v, string_array_t *array)
 {
@@ -627,7 +635,7 @@ bundler_gem_apply_context(bundler_gem_t *gem, bundler_context_t *ctx)
 	bundler_gem_get_strings(gem, "platforms", &strings);
 
 	if (!bundler_context_match_platform(ctx, &strings)) {
-		printf("%s: platform is set, but does not match ours\n", gem->name);
+		// printf("%s: platform is set, but does not match ours\n", gem->name);
 		gem->ignore = true;
 	}
 
@@ -640,7 +648,7 @@ bundler_gem_apply_context(bundler_gem_t *gem, bundler_context_t *ctx)
 		string_array_append(&strings, "default");
 
 	if (!bundler_context_match_group(ctx, &strings)) {
-		printf("%s: group is set, but does not match context groups\n", gem->name);
+		// printf("%s: group is set, but does not match context groups\n", gem->name);
 		gem->ignore = true;
 	}
 
@@ -660,11 +668,17 @@ bundler_gemfile_set_source(bundler_gemfile_t *gemf, const char *value)
 }
 
 void
+bundler_gemfile_set_ruby_version(bundler_gemfile_t *gemf, const char *value)
+{
+	assign_string(&gemf->ruby_version, value);
+}
+
+void
 bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf)
 {
 }
 
-bundler_gem_t *
+static bundler_gem_t *
 bundler_gemfile_add_gem(bundler_gemfile_t *gemf)
 {
 	return bundler_gem_array_extend(&gemf->gems);
@@ -784,6 +798,7 @@ gemfile_parser_process_ruby(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 
 	if (ps->execute) {
 		gemfile_parser_debug(ps, "Gemfile specifies ruby version \"%s\"\n", bundler_value_print(value));
+		bundler_gemfile_set_ruby_version(gemf, bundler_value_to_string(value));
 	}
 
 	bundler_value_release(value);
@@ -1359,6 +1374,7 @@ void
 bundler_gemfile_free(bundler_gemfile_t *gemf)
 {
 	drop_string(&gemf->source);
+	drop_string(&gemf->ruby_version);
 
 	bundler_gem_array_destroy(&gemf->gems);
 	free(gemf);
@@ -1414,7 +1430,10 @@ bundler_context_set_ruby_version(bundler_context_t *ctx, const char *ruby_versio
 void
 bundler_context_with_group(bundler_context_t *ctx, const char *name)
 {
-	string_array_append(&ctx->with_groups, name);
+	if (!strcmp(name, "all"))
+		string_array_destroy(&ctx->with_groups);
+	else
+		string_array_append(&ctx->with_groups, name);
 }
 
 void
@@ -1453,7 +1472,8 @@ bundler_context_match_group(bundler_context_t *ctx, const string_array_t *names)
 	for (i = 0; i < names->count; ++i) {
 		const char *group = names->value[i];
 
-		if (string_array_contains(&ctx->with_groups, group))
+		if (ctx->with_groups.count == 0
+		 || string_array_contains(&ctx->with_groups, group))
 			with = true;
 
 		if (string_array_contains(&ctx->without_groups, group))
@@ -1489,7 +1509,7 @@ __bundler_gemfile_eval(bundler_gemfile_t *gemf, const char *path, bundler_contex
 
 	gemfile_parser_init(&parser, path, fp, ctx);
 	parser.nesting = nesting;
-	parser.debug = true;
+	parser.debug = false;
 
 	rv = gemfile_parser_process_toplevel(gemf, &parser);
 
@@ -1515,3 +1535,31 @@ bundler_gemfile_parse(const char *path, bundler_context_t *ctx, char **error_msg
 	return gemf;
 }
 
+void
+bundler_gemfile_show(bundler_gemfile_t *gemf)
+{
+	unsigned int i, j;
+
+	if (gemf->source)
+		printf("Source:   %s\n", gemf->source);
+	if (gemf->ruby_version)
+		printf("Source:   %s\n", gemf->ruby_version);
+
+	for (i = 0; i < gemf->gems.count; ++i) {
+		bundler_gem_t *gem = &gemf->gems.value[i];
+
+		printf("  ");
+		if (gem->ignore)
+			printf("[ignored] ");
+
+		printf("%s", gem->name);
+		if (gem->dependency.count)
+			printf(" %s", string_array_print(&gem->dependency));
+		printf("\n");
+
+		for (j = 0; j < gem->base.ivars.count; ++j) {
+			const bundler_ivar_t *ivar = &gem->base.ivars.value[j];
+			printf("    %s = %s\n", ivar->name, bundler_value_print(ivar->value));
+		}
+	}
+}

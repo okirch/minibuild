@@ -87,6 +87,7 @@ typedef struct {
 #define BUNDLER_GEMFILE_MAX_GROUPS	16
 typedef struct {
 	char *				source;
+	char *				ruby_version;
 	bundler_gem_array_t		gems;
 } bundler_gemfile_t;
 
@@ -99,7 +100,7 @@ extern bundler_gemfile_t *bundler_gemfile_parse(const char *path, bundler_contex
 extern void		bundler_gemfile_set_source(bundler_gemfile_t *gemf, const char *value);
 extern void		bundler_gemfile_add_gemspec(bundler_gemfile_t *gemf);
 extern void		bundler_gemfile_free(bundler_gemfile_t *);
-extern bundler_gem_t *	bundler_gemfile_add_gem(bundler_gemfile_t *);
+extern void		bundler_gemfile_show(bundler_gemfile_t *);
 extern const char *	bundler_value_print(const bundler_value_t *v);
 extern void		bundler_value_release(bundler_value_t *v);
 
