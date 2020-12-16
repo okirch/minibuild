@@ -38,6 +38,8 @@ struct bundler_context {
 
 	string_array_t	with_groups;
 	string_array_t	without_groups;
+
+	bool		debug;
 };
 
 static void		bundler_gem_destroy(bundler_gem_t *gem);
@@ -1442,6 +1444,18 @@ bundler_context_without_group(bundler_context_t *ctx, const char *name)
 	string_array_append(&ctx->without_groups, name);
 }
 
+void
+bundler_context_set_debug(bundler_context_t *ctx, bool b)
+{
+	ctx->debug = b;
+}
+
+bool
+bundler_context_get_debug(const bundler_context_t *ctx)
+{
+	return ctx->debug;
+}
+
 bool
 bundler_context_match_platform(bundler_context_t *ctx, const string_array_t *names)
 {
@@ -1509,7 +1523,7 @@ __bundler_gemfile_eval(bundler_gemfile_t *gemf, const char *path, bundler_contex
 
 	gemfile_parser_init(&parser, path, fp, ctx);
 	parser.nesting = nesting;
-	parser.debug = false;
+	parser.debug = ctx->debug;
 
 	rv = gemfile_parser_process_toplevel(gemf, &parser);
 

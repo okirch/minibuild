@@ -95,6 +95,8 @@ extern bundler_context_t *bundler_context_new(const char *ruby_version);
 extern void		bundler_context_free(bundler_context_t *);
 extern void		bundler_context_with_group(bundler_context_t *, const char *);
 extern void		bundler_context_without_group(bundler_context_t *, const char *);
+extern void		bundler_context_set_debug(bundler_context_t *, bool);
+extern bool		bundler_context_get_debug(const bundler_context_t *);
 
 extern bundler_gemfile_t *bundler_gemfile_parse(const char *path, bundler_context_t *, char **error_msg_p);
 extern void		bundler_gemfile_set_source(bundler_gemfile_t *gemf, const char *value);

@@ -42,6 +42,7 @@ static void		Context_dealloc(bundler_Context *self);
 static PyObject *	Context_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static int		Context_init(bundler_Context *self, PyObject *args, PyObject *kwds);
 static PyObject *	Context_getattr(bundler_Context *self, char *name);
+static int		Context_setattr(bundler_Context *self, char *name, PyObject *value);
 static PyObject *	Context_with_group(bundler_Context *self, PyObject *args, PyObject *kwds);
 static PyObject *	Context_without_group(bundler_Context *self, PyObject *args, PyObject *kwds);
 
@@ -194,6 +195,7 @@ PyTypeObject bundler_ContextType = {
 	.tp_dealloc	= (destructor) Context_dealloc,
 
 	.tp_getattr	= (getattrfunc) Context_getattr,
+	.tp_setattr	= (setattrfunc) Context_setattr,
 };
 
 /*
@@ -246,7 +248,25 @@ Context_dealloc(bundler_Context *self)
 static PyObject *
 Context_getattr(bundler_Context *self, char *name)
 {
+	if (!strcmp(name, "debug")) {
+		if (bundler_context_get_debug(self->handle))
+			Py_RETURN_TRUE;
+		else
+			Py_RETURN_FALSE;
+	}
+
 	return PyObject_GenericGetAttr((PyObject *) self, PyUnicode_FromString(name));
+}
+
+static int
+Context_setattr(bundler_Context *self, char *name, PyObject *value)
+{
+	if (!strcmp(name, "debug")) {
+		bundler_context_set_debug(self->handle, PyObject_IsTrue(value));
+		return 0;
+	}
+
+	return PyObject_GenericSetAttr((PyObject *) self, PyUnicode_FromString(name), value);
 }
 
 static PyObject *
