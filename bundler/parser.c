@@ -110,7 +110,11 @@ typedef struct {
 	char		linebuf[1024];
 	char *		next;
 
-	int		next_token;
+	int		next_token;		/* for token pushback */
+
+	int		current_token;		/* the token we just returned */
+	int		previous_token;		/* the token we returned before */
+
 	char		token_value[1024];
 
 	bool		debug;
@@ -214,9 +218,13 @@ gemfile_parser_next_token(gemfile_parser_state *ps, char **value_p)
 	int token;
 	char *s;
 
+	ps->previous_token = ps->current_token;
+	ps->current_token = -1;
+
 	if ((token = ps->next_token) >= 0) {
 		*value_p = ps->token_value;
 		ps->next_token = -1;
+		ps->current_token = token;
 		return token;
 	}
 
@@ -237,8 +245,10 @@ gemfile_parser_next_token(gemfile_parser_state *ps, char **value_p)
 
 		ps->linebuf[0] = '\0';
 
-		if (fgets(ps->linebuf, sizeof(ps->linebuf), ps->file) == NULL)
+		if (fgets(ps->linebuf, sizeof(ps->linebuf), ps->file) == NULL) {
+			ps->current_token = GEMFILE_T_EOF;
 			return GEMFILE_T_EOF;
+		}
 
 		ps->linebuf[strcspn(ps->linebuf, "\r\n")] = '\0';
 
@@ -277,6 +287,7 @@ gemfile_parser_next_token(gemfile_parser_state *ps, char **value_p)
 		while ((cc = *s++) != quote_cc) {
 			if (cc == '\0') {
 				gemfile_parser_error(ps, "Premature end of string\n");
+				ps->current_token = GEMFILE_T_ERROR;
 				return GEMFILE_T_ERROR;
 			}
 			ps->token_value[i++] = cc;
@@ -298,12 +309,14 @@ gemfile_parser_next_token(gemfile_parser_state *ps, char **value_p)
 		token = gemfile_parser_single_token(ps);
 		if (token < 0) {
 			gemfile_parser_error(ps, "Unable to parse next token\n");
+			ps->current_token = GEMFILE_T_ERROR;
 			return GEMFILE_T_ERROR;
 		}
 	}
 
 done:
 	gemfile_parser_debug(ps, "%-12s %2u \"%s\"\n", gemfile_parser_token_name(token), token, ps->token_value);
+	ps->current_token = token;
 	return token;
 }
 
