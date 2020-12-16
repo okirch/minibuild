@@ -35,7 +35,7 @@ static void		Gemfile_dealloc(bundler_Gemfile *self);
 static PyObject *	Gemfile_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static int		Gemfile_init(bundler_Gemfile *self, PyObject *args, PyObject *kwds);
 static PyObject *	Gemfile_getattr(bundler_Gemfile *self, char *name);
-static PyObject *	Gemfile_dependencies(bundler_Gemfile *self, PyObject *args, PyObject *kwds);
+static PyObject *	Gemfile_required(bundler_Gemfile *self, PyObject *args, PyObject *kwds);
 static PyObject *	Gemfile_show(bundler_Gemfile *self, PyObject *args, PyObject *kwds);
 
 static void		Context_dealloc(bundler_Context *self);
@@ -51,13 +51,13 @@ static PyObject *	Context_without_group(bundler_Context *self, PyObject *args, P
  * Define the python bindings of class "Gemfile"
  *
  * Create objects using
- *   gemfile = bundler.Gemfile(path)
+ *   gemfile = bundler.Gemfile(path, context = ctx)
  *
  * You can query the content of the Gemfile like this
- *   gemfile.dependencies(with = [...], without = [...])
+ *   gemfile.required()
  */
 static PyMethodDef bundler_gemfileMethods[] = {
-      {	"dependencies", (PyCFunction) Gemfile_dependencies, METH_VARARGS | METH_KEYWORDS,
+      {	"required", (PyCFunction) Gemfile_required, METH_VARARGS | METH_KEYWORDS,
 	"Obtain the list of gems required"
       },
       {	"show", (PyCFunction) Gemfile_show, METH_VARARGS | METH_KEYWORDS,
@@ -147,9 +147,38 @@ Gemfile_getattr(bundler_Gemfile *self, char *name)
 }
 
 static PyObject *
-Gemfile_dependencies(bundler_Gemfile *self, PyObject *args, PyObject *kwds)
+Gemfile_required(bundler_Gemfile *self, PyObject *args, PyObject *kwds)
 {
-	return NULL;
+	static char *kwlist[] = {NULL};
+	bundler_gemfile_t *gemf;
+	unsigned int i, count, index;
+	PyObject *result;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist))
+		return NULL;
+
+	gemf = self->handle;
+	for (i = count = 0; i < gemf->gems.count; ++i) {
+		bundler_gem_t *gem = (bundler_gem_t *) gemf->gems.value[i];
+
+		if (!gem->ignore)
+			count++;
+	}
+
+	result = PyTuple_New(count);
+	for (i = index = 0; i < gemf->gems.count; ++i) {
+		bundler_gem_t *gem = (bundler_gem_t *) gemf->gems.value[i];
+		const char *req_string;
+
+		if (gem->ignore)
+			continue;
+
+		req_string = bundler_gem_as_requirement(gem);
+
+		PyTuple_SET_ITEM(result, index++, PyUnicode_FromString(req_string));
+	}
+
+	return result;
 }
 
 static PyObject *

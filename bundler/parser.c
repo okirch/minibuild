@@ -608,6 +608,19 @@ bundler_gem_new(void)
 	return gem;
 }
 
+const char *
+bundler_gem_as_requirement(bundler_gem_t *gem)
+{
+	static char req_string[256];
+
+	if (gem->dependency.count == 0)
+		return gem->name;
+
+	snprintf(req_string, sizeof(req_string), "%s %s", gem->name,
+			string_array_print(&gem->dependency));
+	return req_string;
+}
+
 static bundler_ivar_t *
 bundler_gem_get_ivar(bundler_gem_t *gem, const char *name)
 {

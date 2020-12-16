@@ -123,6 +123,7 @@ extern void		bundler_gemfile_free(bundler_gemfile_t *);
 extern void		bundler_gemfile_show(bundler_gemfile_t *);
 extern const char *	bundler_value_print(const bundler_value_t *v);
 extern void		bundler_value_release(bundler_value_t *v);
+extern const char *	bundler_gem_as_requirement(bundler_gem_t *gem);
 
 extern const char *	string_array_print(const string_array_t *array);
 
