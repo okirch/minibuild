@@ -1281,6 +1281,9 @@ class RubyEngine(brcoti_core.Engine):
 		# Duh, more braindeadness
 		cmd.append('--no-format-executable')
 
+		cmd.append('--no-document')
+		cmd.append('--user-install')
+
 		# For some weird reasons, gem seems to ignore all proxy related
 		# environment variables and insists that you use a command line
 		# option
@@ -1291,7 +1294,8 @@ class RubyEngine(brcoti_core.Engine):
 		cmd.append(gem_req.name)
 
 		cmd = " ".join(cmd)
-		compute.run_command(cmd, privileged_user = True)
+		# compute.run_command(cmd, privileged_user = True)
+		compute.run_command(cmd)
 
 	def create_build_strategy_default(self):
 		return BuildStrategy_GemBuild()
