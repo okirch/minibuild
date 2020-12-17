@@ -907,6 +907,9 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		loc = self.directory.lookup('Gemfile.lock')
 
 		requirements = []
+
+		requirements += self.infer_gemfile_requirements()
+
 		if loc is not None:
 			gemfile_lock = ruby_utils.Ruby.GemfileLock.parse(loc)
 
@@ -920,6 +923,40 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 				requirements.append(RubyBuildRequirement.from_cooked(dep))
 
 		return requirements
+
+	def infer_gemfile_requirements(self):
+		import bundler
+
+		file = self.directory.lookup('Gemfile')
+		if file is None:
+			return []
+
+		# FIXME: we need a global RUBY_VERSION config item
+		ctx = bundler.Context("2.5.0")
+		ctx.with_group("development")
+
+		try:
+			gemfile = bundler.Gemfile(file.hostpath(), ctx)
+		except Exception as e:
+			print("Failed to parse Gemfile")
+			print(e)
+			return []
+
+		result = []
+		for r in gemfile.required():
+			if 'source=' in r:
+				i = r.index('source=')
+				source = r[i+7:]
+				r = r[:i]
+			else:
+				source = None
+
+			req = RubyBuildRequirement.from_string(r)
+			req.origin = "Gemfile"
+			req.index_url = source
+			result.append(req)
+
+		return result
 
 	def glob_build_results(self, paths_only = False):
 		gems = self.directory.glob_files("*.gem")
