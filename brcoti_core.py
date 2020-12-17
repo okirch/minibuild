@@ -1862,7 +1862,7 @@ class Engine(Object):
 	# Given a (binary) artefact, resolve its installation dependencies
 	# recursively
 	def resolve_install_requirements(self, artefact):
-		if self.downloader:
+		if not self.downloader:
 			return []
 
 		assert(artefact.cache)
@@ -1872,6 +1872,11 @@ class Engine(Object):
 	# Given a list of build requirements, check our index to see whether they
 	# can be satisified. Return a list of unsatisfied dependencies
 	def validate_build_requirements(self, requirements, merge_from_upstream = True, recursive = False):
+		if not requirements:
+			return
+
+		print("Trying to resolve explicit build requirements%s" % (recursive and " recursively" or ""))
+
 		# Copy the list
 		requirements = [] + requirements
 
@@ -1880,6 +1885,11 @@ class Engine(Object):
 		seen = set()
 		while requirements:
 			req = requirements.pop(0)
+
+			if req.format() in seen:
+				continue
+			seen.add(req.format())
+
 			try:
 				found = self.resolve_build_requirement(req, verbose = False)
 				assert(found)
@@ -1887,17 +1897,23 @@ class Engine(Object):
 				missing.append(req)
 				continue
 
-			print("%s => %s" % (req.format(), found.id()))
+			transitive = []
 			if recursive:
-				for req in self.resolve_install_requirements(found):
-					req_string = req.format()
-					if req_string not in seen:
-						print(" requires %s" % req_string)
-						requirements.append(req)
-						seen.add(req_string)
+				transitive = self.resolve_install_requirements(found)
+
+			if transitive:
+				print("  %s resolved to %s, which requires %s" % (req.format(), found.id(),
+							"|".join([req.format() for req in transitive])))
+			else:
+				print("  %s resolved to %s" % (req.format(), found.id()))
+
+			requirements += transitive
 
 		if missing and merge_from_upstream:
 			missing = self.merge_from_upstream(missing)
+
+		if not missing:
+			print("Looks like we're able to satisfy all dependencies, let's go ahead")
 
 		return missing
 
