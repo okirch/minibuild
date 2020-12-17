@@ -62,6 +62,40 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 	def from_cooked(gem_dependency):
 		return RubyBuildRequirement(gem_dependency.name, gem_dependency.format(), gem_dependency)
 
+	def merge(self, other):
+		assert(isinstance(other, RubyBuildRequirement))
+		assert(self.name == other.name)
+		assert(self.cooked_requirement)
+		assert(other.cooked_requirement)
+
+		# Both cooked_requirement are a Gem::Dependency
+		merge = RubyBuildRequirement(self.name)
+
+		merge_cooked = ruby_utils.Ruby.GemDependency()
+		merge.cooked_requirement = merge_cooked
+		merge_cooked.name = self.name
+
+		if self.cooked_requirement.type == other.cooked_requirement.type:
+			merge_cooked.type = self.cooked_requirement.type
+		else:
+			merge_cooked.type = 'any'
+
+		merge_cooked.prerelease = self.cooked_requirement.prerelease and other.cooked_requirement.prerelease
+
+		merge_cooked.requirement.req += self.cooked_requirement.requirement.req
+
+		for clause in other.cooked_requirement.requirement:
+			have = False
+			for other_clause in merge_cooked.requirement:
+				if other_clause == clause:
+					have = True
+
+			if not have:
+				merge_cooked.cooked_requirement.requirement.append(clause)
+
+		print("merged: %s + %s => %s" % (self, other, merge))
+		return merge
+
 	def __repr__(self):
 		if self.cooked_requirement:
 			return repr(self.cooked_requirement)

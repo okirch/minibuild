@@ -255,6 +255,50 @@ class PackageInfo(Object):
 	def versions(self):
 		return [r.version for r in self.releases]
 
+class EngineSpecificRequirementSet(Object):
+	def __init__(self, engine_name):
+		self.engine_name = engine_name
+		self.req_dict = dict()
+
+	@property
+	def requirements(self):
+		self.mni()
+
+	def add(self, req):
+		print("EngineSpecificRequirementSet.add(%s)" % req)
+
+		existing_req = self.req_dict.get(req.name)
+		if existing_req is None:
+			# Easy case
+			self.req_dict[req.name] = req
+			return True
+
+		if existing_req == req:
+			return False
+
+		# Merge the two requirements into one, if possible
+		self.req_dict[req.name] = existing_req.merge(req)
+		return True
+
+	def __iter__(self):
+		return sorted(self.req_dict.values(), key = lambda r: r.name)
+
+class RequirementSet(Object):
+	def __init__(self):
+		self.engine_dict = dict()
+
+	def add(self, req):
+		engine_name = req.engine
+		engine_set = self.engine_dict.get(req.engine)
+		if engine_set is None:
+			engine_set = EngineSpecificRequirementSet(engine_name)
+			self.engine_dict[req.engine] = engine_set
+
+		engine_set.add(req)
+
+	def __iter__(self):
+		return self.engine_dict.items()
+
 class DownloadFinder(Object):
 	def __init__(self, verbose):
 		self.verbose = verbose
@@ -410,11 +454,15 @@ class BuildInfo(Object):
 		self.patches = []
 		self.used = []
 
+		self.requires_set = RequirementSet()
+
 	def add_source(self, sdist):
 		self.sources.append(sdist)
 
 	def add_requirement(self, req):
 		self.requires.append(req)
+
+		self.requires_set.add(req)
 
 	def add_artefact(self, build):
 		self.artefacts.append(build)
