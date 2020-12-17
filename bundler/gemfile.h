@@ -88,6 +88,7 @@ typedef struct {
 
 	char *				name;
 	string_array_t			dependency;
+	char *				source;
 
 	bool				ignore;
 } bundler_gem_t;

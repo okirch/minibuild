@@ -99,6 +99,20 @@ static const char *	__gemfile_parser_token_names[__GEMFILE_T_MAX] = {
         [GEMFILE_T_PERCENT]		= "PERCENT",
 };
 
+/*
+ * I'm sure this is not the way ruby would handle something like
+ *   source "blabla" do
+ *     stuff
+ *   end
+ *
+ * but for our purposes this is currently the most straightforward approach.
+ */
+typedef struct gemfile_context_attrs {
+	struct gemfile_context_attrs *	parent;
+	const char *			key;
+	const char *			value;
+} gemfile_context_attrs_t;
+
 typedef struct {
 	const char *	filename;
 	FILE *		file;
@@ -124,6 +138,7 @@ typedef struct {
 
 	/* identation when printing debug msgs */
 	unsigned int	nesting;
+	gemfile_context_attrs_t *attrs;
 
 	/* Set to false if we're inside a block that should not
 	 * get executed (eg if/else, or non-matching group/platform block */
@@ -478,6 +493,19 @@ gemfile_parser_token_name(int token)
 	return __gemfile_parser_token_names[token];
 }
 
+static const char *
+gemfile_parser_get_attr(gemfile_parser_state *ps, const char *key)
+{
+	gemfile_context_attrs_t *attr;
+
+	for (attr = ps->attrs; attr; attr = attr->parent) {
+		if (!strcmp(attr->key, key))
+			return attr->value;
+	}
+
+	return NULL;
+}
+
 static void
 string_array_destroy(string_array_t *array)
 {
@@ -645,6 +673,7 @@ __bundler_gem_free(bundler_object_instance_t *obj)
 
 	drop_string(&gem->name);
 	string_array_destroy(&gem->dependency);
+	drop_string(&gem->source);
 	bundler_object_instance_destroy(&gem->base);
 	free(gem);
 }
@@ -675,17 +704,26 @@ bundler_gem_new(void)
 	return gem;
 }
 
+static void
+bundler_gem_set_source(bundler_gem_t *gem, const char *source)
+{
+	assign_string(&gem->source, source);
+}
+
 const char *
 bundler_gem_as_requirement(bundler_gem_t *gem)
 {
-	static char req_string[256];
+	static char buffer[256];
+	const char *req_string;
 
-	if (gem->dependency.count == 0)
-		return gem->name;
+	req_string = string_array_print(&gem->dependency);
 
-	snprintf(req_string, sizeof(req_string), "%s %s", gem->name,
-			string_array_print(&gem->dependency));
-	return req_string;
+	snprintf(buffer, sizeof(buffer), "%s%s%s%s%s",
+			gem->name,
+			*req_string? " " : "", req_string,
+			gem->source? " source=" : "",
+			gem->source? : "");
+	return buffer;
 }
 
 static bundler_ivar_t *
@@ -918,16 +956,48 @@ static bool
 gemfile_parser_process_source(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 {
 	const char *string;
+	char *source;
+	int token;
+	bool ok = false;
 
 	if (!(string = gemfile_parser_expect_string(ps)))
 		return false;
+	source = strdup(string);
 
-	if (ps->execute) {
-		gemfile_parser_debug(ps, "Gemfile source is \"%s\"\n", string);
-		bundler_gemfile_set_source(gemf, string);
+	token = gemfile_parser_next_token(ps, NULL);
+	if (__bundler_gemfile_token_is_eol(token)) {
+		if (ps->execute) {
+			gemfile_parser_debug(ps, "Gemfile source is \"%s\"\n", source);
+			bundler_gemfile_set_source(gemf, source);
+		}
+
+		/* all is well */
+		ok = true;
+	} else
+	if (token == GEMFILE_T_IDENTIFIER && !strcmp(ps->token_value, "do")) {
+		gemfile_context_attrs_t attrs = {
+			.parent = ps->attrs,
+			.key = "source",
+			.value = source
+		};
+
+		if (!gemfile_parser_expect_eol(ps))
+			goto out;
+
+		ps->attrs = &attrs;
+		ps->nesting += 2;
+
+		ok = gemfile_parser_process_do_block(gemf, ps);
+
+		ps->attrs = attrs.parent;
+		ps->nesting -= 2;
+	} else {
+                ok = gemfile_parser_err_unexpected(ps, token);
 	}
 
-	return gemfile_parser_expect_eol(ps);
+out:
+	free(source);
+	return ok;
 }
 
 static bool
@@ -968,6 +1038,7 @@ static bool
 gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 {
 	bundler_gem_t *gem;
+	const char *source;
 
 	gem = bundler_gemfile_add_gem(gemf);
 
@@ -976,6 +1047,11 @@ gemfile_parser_process_gem(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 
 	if (!gemfile_parser_process_instance_common(gemf, ps, &gem->base))
 		return false;
+
+	if ((source = gemfile_parser_get_attr(ps, "source")) != NULL) {
+		gemfile_parser_debug(ps, "== Gem %s from source %s\n", gem->name, source);
+		bundler_gem_set_source(gem, source);
+	}
 
 	if (ps->bundler_ctx)
 		bundler_gem_apply_context(gem, ps->bundler_ctx);
