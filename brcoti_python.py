@@ -1163,5 +1163,5 @@ class PythonEngine(brcoti_core.Engine):
 		finder = PythonBinaryDownloadFinder(req)
 		return finder.get_best_match(self.default_index)
 
-def engine_factory(config, engine_config):
-	return PythonEngine(config, engine_config)
+def engine_factory(engine_config):
+	return PythonEngine(engine_config)

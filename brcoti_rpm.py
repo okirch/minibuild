@@ -159,5 +159,5 @@ class RPMEngine(brcoti_core.Engine):
 		cmd.no_default_env = True
 		compute.exec(cmd)
 
-def engine_factory(config, engine_config):
-	return RPMEngine(config, engine_config)
+def engine_factory(engine_config):
+	return RPMEngine(engine_config)

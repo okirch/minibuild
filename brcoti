@@ -126,7 +126,7 @@ class BuildJob(object):
 
 			(engine_name, rest) = s.split(':', 1)
 
-			engine = brcoti_core.Engine.factory(engine_name, self.config)
+			engine = brcoti_core.Engine.factory(engine_name)
 
 			for req in rest.split(','):
 				req = engine.parse_build_requirement(req)
@@ -443,7 +443,7 @@ def submit_action(config, opts):
 		print("=== Using source directory %s ===" % name)
 		source = brcoti_core.Engine.create_source_from_local_directory(name, config)
 
-		engine = brcoti_core.Engine.factory(source.info.engine, config)
+		engine = brcoti_core.Engine.factory(source.info.engine)
 		if not engine:
 			print("%s: build-info specifies invalid engine \"%s\"" % (name, source.info.engine))
 			exit_code = 1
@@ -466,7 +466,7 @@ def build_action(config, opts):
 			exit_code = 1
 			continue
 
-		engine = brcoti_core.Engine.factory(source.info.engine, config)
+		engine = brcoti_core.Engine.factory(source.info.engine)
 
 		print("=== Package %s ===" %(source.id()))
 		job = BuildJob(config, engine, compute_backend, source)
@@ -527,7 +527,7 @@ If our build *IS* correct, and this warning is due to a bug, please fix the mis-
 	return exit_code
 
 def mkindex_action(config, opts):
-	engine = brcoti_core.Engine.factory(opts.engine, config)
+	engine = brcoti_core.Engine.factory(opts.engine)
 
 	print("=== Publishing %s build results ===" % engine.name)
 	engine.publish_build_results()
@@ -550,7 +550,7 @@ def merge_extra_action(config, opts):
 
 	for (engine_name, req_list) in by_engine.items():
 		print("=== Merging %s packages from upstream ===" % engine_name)
-		engine = brcoti_core.Engine.factory(engine_name, config)
+		engine = brcoti_core.Engine.factory(engine_name)
 
 		req_list = [engine.parse_build_requirement(req_string) for req_string in req_list]
 

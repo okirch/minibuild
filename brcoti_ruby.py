@@ -1352,5 +1352,5 @@ class RubyEngine(brcoti_core.Engine):
 
 		return still_missing
 
-def engine_factory(config, engine_config):
-	return RubyEngine(config, engine_config)
+def engine_factory(engine_config):
+	return RubyEngine(engine_config)

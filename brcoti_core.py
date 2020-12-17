@@ -509,10 +509,10 @@ class BuildInfo(Object):
 							raise ValueError("Beware, %s specifies engine \"%s\" which conflicts with engine %s" % (
 								path, result.engine, default_engine.name))
 
-						build_engine = Engine.factory(result.engine, config)
+						build_engine = Engine.factory(result.engine)
 					elif kwd in ('require', 'artefact', 'built', 'used'):
 						(name, l) = l.split(maxsplit = 1)
-						engine = Engine.factory(name, config)
+						engine = Engine.factory(name)
 
 						if kwd == 'require':
 							obj = engine.parse_build_requirement(l.strip())
@@ -1572,6 +1572,7 @@ class Engine(Object):
 
 		# This should go away at some point
 		self.config = Config.the_instance
+		config = Config.the_instance
 
 		self.engine_config = engine_config
 
@@ -1656,7 +1657,7 @@ class Engine(Object):
 			if req.engine == self.name:
 				engine = self
 			else:
-				engine = Engine.factory(req.engine, self.config)
+				engine = Engine.factory(req.engine)
 
 			req_list = req_dict.get(engine)
 			if req_list is None:
@@ -2002,7 +2003,7 @@ class Engine(Object):
 			if req.engine == self.name:
 				engine = self
 			else:
-				engine = Engine.factory(req.engine, self.config)
+				engine = Engine.factory(req.engine)
 			engine.install_requirement(compute, req)
 
 		if sdist.git_url():
@@ -2043,10 +2044,16 @@ class Engine(Object):
 	engine_cache = {}
 
 	@staticmethod
-	def factory(name, config):
+	def factory(name):
 		engine = Engine.engine_cache.get(name)
 		if engine is not None:
 			return engine
+
+		if Config.the_instance is None:
+			print("Engine.factory called before a config file was loaded. This will not work.")
+			raise ValueError
+
+		config = Config.the_instance
 
 		print("Create %s builder" % name)
 		engine_config = config.get_engine(name)
