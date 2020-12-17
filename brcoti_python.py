@@ -911,6 +911,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 					continue
 
 				req = PythonBuildRequirement(name)
+				req.origin = "pip"
 				self.build_info.add_requirement(req)
 				if not self.quiet:
 					print("Found requirement %s" % req.name)

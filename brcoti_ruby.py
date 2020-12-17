@@ -1216,6 +1216,7 @@ class RubyEngine(brcoti_core.Engine):
 					continue
 
 				dep = RubyBuildRequirement(dep.name, dep.format(), dep)
+				dep.origin = "package"
 				result.append(dep)
 
 		return result

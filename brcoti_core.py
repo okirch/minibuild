@@ -115,6 +115,7 @@ class BuildRequirement(ArtefactAttrs):
 			self.cooked_requirement = cooked_requirement
 
 		self.resolution = None
+		self.origin = None
 
 	def parse_requirement(self, req_string):
 		self.mni()
@@ -1662,7 +1663,10 @@ class Engine(Object):
 		for engine, req_list in req_dict.items():
 			print("Explicit %s requirements given in build-info:" % engine.name)
 			for req in req_list:
-				print("  %s" % req.format())
+				if req.origin:
+					print("  %s (via %s)" % (req.format(), req.origin))
+				else:
+					print("  %s" % req.format())
 
 			# See if we can resolve all requirements (and any packages pulled in via runtime
 			# requirements).
