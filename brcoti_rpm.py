@@ -132,8 +132,8 @@ class RPMEngine(brcoti_core.Engine):
 	type = 'rpm'
 	REQUIRED_HASHES = ()
 
-	def __init__(self, config, engine_config):
-		super(RPMEngine, self).__init__(config, engine_config)
+	def __init__(self, engine_config):
+		super(RPMEngine, self).__init__(engine_config)
 
 		# FIXME: get the name of the pkg manager from engine_config
 

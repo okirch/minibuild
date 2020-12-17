@@ -1201,8 +1201,8 @@ class RubyEngine(brcoti_core.Engine):
 
 	REQUIRED_HASHES = ()
 
-	def __init__(self, config, engine_config):
-		super(RubyEngine, self).__init__(config, engine_config)
+	def __init__(self, engine_config):
+		super(RubyEngine, self).__init__(engine_config)
 
 	def create_index_from_repo(self, repo_config):
 		return RubySpecIndex(repo_config.url)

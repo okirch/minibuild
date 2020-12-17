@@ -1442,7 +1442,12 @@ class Config(object):
 		'environments' : lambda self, o: Config._to_list(self, o, Config.Environment),
 	}
 
+	the_instance = None
+
 	def __init__(self, cmdline_opts):
+		assert(Config.the_instance is None)
+		Config.the_instance = self
+
 		self.command_line_options = cmdline_opts
 
 		self.configs = []
@@ -1562,10 +1567,12 @@ class Config(object):
 class Engine(Object):
 	type = 'NOT SET'
 
-	def __init__(self, config, engine_config):
+	def __init__(self, engine_config):
 		self.name = engine_config.name
 
-		self.config = config
+		# This should go away at some point
+		self.config = Config.the_instance
+
 		self.engine_config = engine_config
 
 		self.state_dir = os.path.join(config.globals.binary_root_dir, engine_config.name)
@@ -2048,15 +2055,15 @@ class Engine(Object):
 		if engine_config.type == 'python':
 			import brcoti_python
 
-			engine = brcoti_python.engine_factory(config, engine_config)
+			engine = brcoti_python.engine_factory(engine_config)
 		elif engine_config.type == 'ruby':
 			import brcoti_ruby
 
-			engine = brcoti_ruby.engine_factory(config, engine_config)
+			engine = brcoti_ruby.engine_factory(engine_config)
 		elif engine_config.type == 'rpm':
 			import brcoti_rpm
 
-			engine = brcoti_rpm.engine_factory(config, engine_config)
+			engine = brcoti_rpm.engine_factory(engine_config)
 		else:
 			raise NotImplementedError("No build engine for \"%s\"" % name)
 

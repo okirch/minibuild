@@ -1095,8 +1095,8 @@ class PythonEngine(brcoti_core.Engine):
 
 	REQUIRED_HASHES = ('md5', 'sha256')
 
-	def __init__(self, config, engine_config):
-		super(PythonEngine, self).__init__(config, engine_config)
+	def __init__(self, engine_config):
+		super(PythonEngine, self).__init__(engine_config)
 
 	def create_index_from_repo(self, repo_config):
 		repotype = repo_config.repotype or "simple"
