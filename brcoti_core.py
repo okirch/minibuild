@@ -307,14 +307,14 @@ class Downloader(object):
 	def __init__(self):
 		pass
 
-	def download_to(self, build, destdir):
+	def download_to(self, build, destdir, quiet = False):
 		filename = os.path.join(destdir, build.filename)
-		cached_filename = self._download(build, filename)
+		cached_filename = self._download(build, filename, quiet)
 		if cached_filename != filename:
 			shutil.copy(cached_filename, filename)
 		return filename
 
-	def download(self, build):
+	def download(self, build, quiet = False):
 		filename = build.filename
 
 		if False:
@@ -323,9 +323,9 @@ class Downloader(object):
 			if os.path.isfile(filename):
 				return filename
 
-		return self._download(build, filename)
+		return self._download(build, filename, quiet)
 
-	def _download(self, build, path):
+	def _download(self, build, path, quiet = False):
 		import urllib.request
 
 		if build.cache and not build.local_path:
@@ -1870,7 +1870,7 @@ class Engine(Object):
 			return []
 
 		assert(artefact.cache)
-		self.downloader.download(artefact)
+		self.downloader.download(artefact, quiet = True)
 		return artefact.get_install_requirements()
 
 	# Given a list of build requirements, check our index to see whether they
