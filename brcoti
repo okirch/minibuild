@@ -30,6 +30,8 @@ import glob
 import shutil
 import brcoti_core
 
+SCRIPT_NAME = sys.argv[0]
+
 DEFAULT_BUILD_COMPUTE = "podman"
 
 def create_build_engine(config):
