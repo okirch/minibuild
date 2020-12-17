@@ -503,6 +503,14 @@ If our build *IS* correct, and this warning is due to a bug, please fix the mis-
 		except brcoti_core.BuildAborted:
 			print("Build of %s ABORTED" % source.id())
 			exit_code = 1
+		except brcoti_core.UnsatisfiedDependencies as e:
+			print("Build of %s has unsatisfied dependencies" % source.id())
+			for req in e.dependencies:
+				print("  %s" % req.format())
+
+			print("In order to merge these from upstream, run the following command:")
+			print("%s merge-extra %s" % (SCRIPT_NAME,
+					" ".join(["'%s:%s'" % (r.engine, r.format()) for r in e.dependencies])))
 		except Exception as e:
 			print("FAILED to build %s" % source.id())
 			import traceback
@@ -519,6 +527,31 @@ def mkindex_action(config, opts):
 
 	print("=== Publishing %s build results ===" % engine.name)
 	engine.publish_build_results()
+
+	print("=== Done ===")
+	return 0
+
+def merge_extra_action(config, opts):
+
+	by_engine = dict()
+	for name in opts.packages:
+		(engine_name, req_string) = name.split(':', 1)
+
+		req_list = by_engine.get(engine_name)
+		if req_list is None:
+			req_list = []
+			by_engine[engine_name] = req_list
+
+		req_list.append(req_string)
+
+	for (engine_name, req_list) in by_engine.items():
+		print("=== Merging %s packages from upstream ===" % engine_name)
+		engine = brcoti_core.Engine.factory(engine_name, config)
+
+		req_list = [engine.parse_build_requirement(req_string) for req_string in req_list]
+
+		engine.merge_from_upstream(req_list)
+		# engine.publish_build_results()
 
 	print("=== Done ===")
 	return 0
@@ -589,6 +622,11 @@ def build_option_parser():
 	mkindex_parser.add_argument('--destdir', default = None,
 		help = "Specify the destination directory (defaults to working directory)")
 
+	merge_parser = subparsers.add_parser('merge-extra',
+		help = "Merge extra binary packages from upstream")
+	merge_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
+		help = "List of packages")
+
 	return parser
 
 opts = build_option_parser().parse_args()
@@ -618,6 +656,8 @@ elif opts.action == 'build':
 	exit_code = build_action(config, opts)
 elif opts.action == 'make-index':
 	exit_code = mkindex_action(config, opts)
+elif opts.action == 'merge-extra':
+	exit_code = merge_extra_action(config, opts)
 else:
 	raise NotImplementedError("Action %s not yet implemented" % opts.action)
 exit(exit_code)
