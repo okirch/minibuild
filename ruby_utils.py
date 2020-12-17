@@ -585,7 +585,8 @@ class Ruby:
 			self.year   = (0xFFFF & (value >> 14)) + 1900
 			self.month  = (0x000F & (value >> 10)) + 1
 			self.mday   = (0x001F & (value >>  5))
-			assert(self.tzmode == 1)
+
+			# assert(self.tzmode == 1)
 
 			# The timestamps contained in gem metadata only provide a date,
 			# never seconds or subsecond values. So we ignore the rest.

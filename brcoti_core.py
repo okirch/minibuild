@@ -714,6 +714,12 @@ class UnsatisfiedDependencies(Exception):
 		self.dependencies = req_list
 		self.remedy = remedy
 
+	def __repr__(self):
+		return "UnsatisfiedDepdencies(%s)" % self.format_dependencies()
+
+	def format_dependencies(self):
+		return ";".join([req.format() for req in self.dependencies])
+
 class BuildDirectory(Object):
 	def __init__(self, compute, build_base):
 		self.compute = compute
