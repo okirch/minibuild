@@ -90,6 +90,10 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 	def __init__(self, backend):
 		super(LocalComputeNode, self).__init__(backend)
 
+		# FIXME: make this configurable
+		self.build_user = "build:build"
+		self.build_home = "/home/build"
+
 	def putenv(self, name, value):
 		os.putenv(name, value)
 

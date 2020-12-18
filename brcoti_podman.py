@@ -171,6 +171,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 
 		# FIXME: make this configurable
 		self.build_user = "build:build"
+		self.build_home = "/home/build"
 
 		# For now, only root can do this. Sorry.
 		if os.getuid() != 0:
@@ -311,6 +312,9 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 
 		if not shellcmd.privileged_user:
 			args.append(" --user %s" % self.build_user)
+			args.append(" --env HOME=%s" % self.build_home)
+		else:
+			args.append(" --env HOME=/root")
 		if mode is not None:
 			if mode == 'shell':
 				args.append(" -it")
