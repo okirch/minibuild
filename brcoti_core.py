@@ -770,8 +770,11 @@ class UnsatisfiedDependencies(Exception):
 		return ";".join([req.format() for req in self.dependencies])
 
 class BuildDirectory(Object):
-	def __init__(self, compute, build_base):
+	def __init__(self, compute, engine):
 		self.compute = compute
+		self.engine = engine
+
+		build_base = compute.default_build_dir()
 		self.build_base = self.compute.get_directory(build_base)
 		self.directory = None
 		self.sdist = None

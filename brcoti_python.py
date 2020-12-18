@@ -782,7 +782,7 @@ class BuildStrategy_Wheel(PythonBuildStrategy):
 
 class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine):
-		super(PythonBuildDirectory, self).__init__(compute, compute.default_build_dir())
+		super(PythonBuildDirectory, self).__init__(compute, engine)
 
 		self.build_info = brcoti_core.BuildInfo(engine.name)
 

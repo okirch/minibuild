@@ -898,15 +898,18 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 
 		self.actual = strategy
 
-	def build_dependencies(self):
-		return self.actual.build_dependencies()
+	def build_dependencies(self, build_directory):
+		strategy = self.actual
+		if strategy is None:
+			strategy = self.actual_strategy(build_directory)
+		return strategy.build_dependencies(build_directory) + ["gem-compiler"]
 
 	def build_used(self, build_directory):
 		return self.actual.build_used(build_directory)
 
 class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine):
-		super(RubyBuildDirectory, self).__init__(compute, compute.default_build_dir())
+		super(RubyBuildDirectory, self).__init__(compute, engine)
 
 		self.build_info = brcoti_core.BuildInfo(engine.name)
 
