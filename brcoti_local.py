@@ -82,6 +82,10 @@ class LocalDirectory(brcoti_core.ComputeResourceDirectory):
 	def hostpath(self):
 		return self.path
 
+	def mkdir(self, path, mode = 0o755):
+		path = self._realpath(path)
+		mkdir(path, mode)
+
 class LocalComputeNode(brcoti_core.ComputeNode):
 	def __init__(self, backend):
 		super(LocalComputeNode, self).__init__(backend)

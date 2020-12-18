@@ -156,6 +156,11 @@ class PodmanDirectory(PodmanPathMixin, brcoti_core.ComputeResourceDirectory):
 		path = self._hostpath(path)
 		return open(path, mode)
 
+	def mkdir(self, path, mode = 0o755):
+		path = self._realpath(path)
+		path = self._hostpath(path)
+		mkdir(path, mode)
+
 class PodmanComputeNode(brcoti_core.ComputeNode):
 	def __init__(self, img_config, backend):
 		super(PodmanComputeNode, self).__init__(backend)
