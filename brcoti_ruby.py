@@ -931,6 +931,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		with self.compute.popen("gem list") as f:
 			self.pre_build_gems = ruby_utils.Ruby.GemList.parse(f)
 
+		self.locked_bundler_version = None
+
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
 	def archive_get_unpack_directory(self, sdist):
@@ -938,12 +940,12 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		return name + "-" + version
 
 	def infer_build_dependencies(self):
-		loc = self.directory.lookup('Gemfile.lock')
 
 		requirements = []
 
 		requirements += self.infer_gemfile_requirements()
 
+		loc = self.directory.lookup('Gemfile.lock')
 		if loc is not None:
 			gemfile_lock = ruby_utils.Ruby.GemfileLock.parse(loc)
 
@@ -955,6 +957,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			# RubyBuildRequirements
 			for dep in gemfile_lock.requirements():
 				requirements.append(RubyBuildRequirement.from_cooked(dep))
+
+			self.locked_bundler_version = gemfile_lock.bundler_version()
 
 		return requirements
 

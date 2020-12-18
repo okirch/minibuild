@@ -806,6 +806,12 @@ class Ruby:
 
 			return result
 
+		def bundler_version(self):
+			node = self.lookup('BUNDLED WITH')
+			if node is None:
+				return None
+			return node.name
+
 	# Process the output of "gem list", which contains lines like these:
 	#	equalizer (0.0.11)
 	#	etc (default: 1.0.0)
