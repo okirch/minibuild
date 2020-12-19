@@ -901,8 +901,8 @@ class BuildDirectory(Object):
 
 		return None
 
-	def apply_patches(self, build_info):
-		for patch in build_info.patches:
+	def apply_patches(self, build_spec):
+		for patch in build_spec.patches:
 			print("Applying patch %s" % patch)
 			pipe = self.compute.popen("patch -p1", mode = 'w', working_dir = self.directory.path)
 			with open(patch, "r") as pf:
@@ -1131,9 +1131,9 @@ class BuildState(Object):
 			f.write(data)
 
 	def rebuild_required(self):
-		path = self.get_old_path("build-info")
+		path = self.get_old_path("build-used")
 		if not os.path.exists(path):
-			print("Previous build did not create a build-info file")
+			print("Previous build did not create a build-used file")
 			return True
 
 		try:
@@ -1720,14 +1720,14 @@ class Engine(Object):
 		return EngineSpecificRequirementSet()
 
 	#
-	# This method validates the explicit requirements specified in a build-info
+	# This method validates the explicit requirements specified in a build-spec
 	# file, making sure that they can be resolved.
 	# This helps to detect missing packages even before we've started up the
 	# container.
 	#
-	def validate_build_info(self, build_info, auto_repair = False):
+	def validate_build_info(self, build_spec, auto_repair = False):
 		req_dict = {}
-		for req in build_info.requires:
+		for req in build_spec.requires:
 			if req.engine == self.name:
 				engine = self
 			else:
@@ -1757,11 +1757,11 @@ class Engine(Object):
 			missing += engine.validate_build_requirements(req_list, merge_from_upstream = auto_repair, recursive = True)
 
 		if missing:
-			sdist = build_info.sources[0]
+			sdist = build_spec.sources[0]
 			raise UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
 
 	# Returns a ComputeNode instance
-	def prepare_environment(self, compute_backend, build_info):
+	def prepare_environment(self, compute_backend, build_spec):
 		compute = compute_backend.spawn(self.engine_config.name)
 
 		if self.use_proxy and self.config.globals.http_proxy:
@@ -2061,10 +2061,10 @@ class Engine(Object):
 	def create_build_directory(self, compute):
 		self.mni()
 
-	def build_unpack(self, compute, build_info, auto_repair = False):
-		if len(build_info.sources) != 1:
+	def build_unpack(self, compute, build_spec, auto_repair = False):
+		if len(build_spec.sources) != 1:
 			raise ValueError("Currently unable to handle builds with more than one source")
-		sdist = build_info.sources[0]
+		sdist = build_spec.sources[0]
 
 		bd = self.create_build_directory(compute)
 
@@ -2072,7 +2072,7 @@ class Engine(Object):
 			bd.http_proxy = self.config.globals.http_proxy
 
 		# install additional packages as requested by build-info
-		for req in build_info.requires:
+		for req in build_spec.requires:
 			if req.engine == self.name:
 				engine = self
 			else:
@@ -2086,8 +2086,8 @@ class Engine(Object):
 
 		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
 
-		if build_info.patches:
-			bd.apply_patches(build_info)
+		if build_spec.patches:
+			bd.apply_patches(build_spec)
 
 		# Get requirements from Gemfile, Gemfile.lock etc
 		requirements = bd.infer_build_dependencies()

@@ -1126,8 +1126,8 @@ class PythonEngine(brcoti_core.Engine):
 	def parse_build_requirement(self, req_string):
 		return PythonBuildRequirement.from_string(req_string)
 
-	def prepare_environment(self, compute_backend, build_info):
-		compute = super(PythonEngine, self).prepare_environment(compute_backend, build_info)
+	def prepare_environment(self, compute_backend, build_spec):
+		compute = super(PythonEngine, self).prepare_environment(compute_backend, build_spec)
 		# FIXME: this should happen in the pip build stategy
 		compute.putenv("PIP_INDEX_URL", compute.translate_url(self.default_index.url))
 		return compute

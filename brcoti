@@ -160,22 +160,22 @@ class BuildJob(object):
 
 	def unpack_source(self):
 		print("=== Unpacking %s ===" % self.id())
-		build_info = self.source.spec
+		build_spec = self.source.spec
 
 		print("Validating build info")
-		self.engine.validate_build_info(build_info, auto_repair = self.auto_repair)
+		self.engine.validate_build_info(build_spec, auto_repair = self.auto_repair)
 
 		# Download the source archive if we don't have it yet
-		for sdist in build_info.sources:
+		for sdist in build_spec.sources:
 			# FIXME: how do we make sure we use the right downloader here? 
 			if sdist.url and not sdist.git_url():
 				self.engine.downloader.download(sdist)
 
 		# spawn a container/VM or whatever compute node we need
-		compute_node = self.engine.prepare_environment(self.compute_backend, build_info)
+		compute_node = self.engine.prepare_environment(self.compute_backend, build_spec)
 
 		try:
-			self.build = self.engine.build_unpack(compute_node, build_info, self.auto_repair)
+			self.build = self.engine.build_unpack(compute_node, build_spec, self.auto_repair)
 		except brcoti_core.UnsatisfiedDependencies as e:
 			print("Cannot build %s: missing build dependencies:" % self.id())
 			for req in e.dependencies:

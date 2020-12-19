@@ -1308,8 +1308,8 @@ class RubyEngine(brcoti_core.Engine):
 	def parse_build_requirement(self, req_string):
 		return RubyBuildRequirement.from_string(req_string)
 
-	def prepare_environment(self, compute_backend, build_info):
-		compute = super(RubyEngine, self).prepare_environment(compute_backend, build_info)
+	def prepare_environment(self, compute_backend, build_spec):
+		compute = super(RubyEngine, self).prepare_environment(compute_backend, build_spec)
 
 		# Make sure that commands we execute as user build find gem binaries in ~/bin
 		self.add_bindir_to_user_path(compute, compute.build_home)
