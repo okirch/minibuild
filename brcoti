@@ -98,7 +98,7 @@ class BuildJob(object):
 		return self.source.id()
 
 	def source_for(self, build):
-		spec = self.source.info
+		spec = self.source.spec
 
 		assert(len(spec.sources) == 1)
 		return spec.sources[0]
@@ -118,7 +118,7 @@ class BuildJob(object):
 	# Merge explicit requirements given on the command line as
 	#  --require rpm:foo,bar,baz --require ruby:bundler,rake
 	def merge_cmdline_requirements(self, opt_list):
-		spec = self.source.info
+		spec = self.source.spec
 
 		for s in opt_list:
 			if ':' not in s:
@@ -140,12 +140,12 @@ class BuildJob(object):
 		if not arg or arg == 'auto':
 			return
 
-		self.source.info.build_strategy = brcoti_core.BuildStrategy.parse(self.engine, arg)
+		self.source.spec.build_strategy = brcoti_core.BuildStrategy.parse(self.engine, arg)
 
 	# This is a prep task - eg ruby would look at the upstream artefact
 	# and scan it for :development dependencies
 	def anticipate_build_dependencies(self):
-		spec = self.source.info
+		spec = self.source.spec
 
 		dep_list = []
 		for sdist in spec.sources:
@@ -160,7 +160,7 @@ class BuildJob(object):
 
 	def unpack_source(self):
 		print("=== Unpacking %s ===" % self.id())
-		build_info = self.source.info
+		build_info = self.source.spec
 
 		print("Validating build info")
 		self.engine.validate_build_info(build_info, auto_repair = self.auto_repair)
@@ -195,7 +195,7 @@ class BuildJob(object):
 		print("=== Building %s ===" % self.id())
 		build = self.build
 
-		build_strategy = self.source.info.build_strategy
+		build_strategy = self.source.spec.build_strategy
 		if build_strategy is None:
 			build_strategy = self.engine.create_build_strategy_default()
 		self.build_strategy = build_strategy
@@ -340,7 +340,7 @@ def prep_action(config, opts):
 			exit_code = 1
 			continue
 
-		sdist = source.info.sources[0]
+		sdist = source.spec.sources[0]
 
 		url = sdist.git_url()
 		if not url:
@@ -348,7 +348,7 @@ def prep_action(config, opts):
 		if url:
 			print("Using %s" % url)
 
-		source.info.build_strategy = engine.create_build_strategy("auto")
+		source.spec.build_strategy = engine.create_build_strategy("auto")
 
 		print("=== Package %s ===" %(source.id()))
 		job = BuildJob(config, engine, compute_backend, source)
@@ -399,7 +399,7 @@ If you're in a hurry, re-run this command with --no-upstream-check
 			exit_code = 1
 
 		if job.build:
-			write_source_dir(name, source.info, job.build.build_info)
+			write_source_dir(name, source.spec, job.build.build_info)
 
 			engine.reset_indices()
 			job.verify_artefact_availability(job.build.build_info.used)
@@ -412,20 +412,19 @@ If you're in a hurry, re-run this command with --no-upstream-check
 
 	return exit_code
 
-def write_source_dir(name, source_info, build_info):
+def write_source_dir(name, spec, build_info):
 	src_dir = name
 	if os.path.isdir(src_dir):
 		shutil.rmtree(src_dir)
 	os.makedirs(src_dir, mode = 0o755)
-	for sdist in source_info.sources:
+	for sdist in spec.sources:
 		if sdist.local_path is not None:
 			shutil.copy(sdist.local_path, src_dir)
 
-	info = source_info
-	info.requires += build_info.requires
+	spec.requires += build_info.requires
 
 	spec_path = os.path.join(src_dir, "build-spec")
-	info.save(spec_path)
+	spec.save(spec_path)
 
 	info_path = os.path.join(src_dir, "build-used")
 	build_info.save(info_path)
@@ -443,9 +442,9 @@ def submit_action(config, opts):
 		print("=== Using source directory %s ===" % name)
 		source = brcoti_core.Engine.create_source_from_local_directory(name, config)
 
-		engine = brcoti_core.Engine.factory(source.info.engine)
+		engine = brcoti_core.Engine.factory(source.spec.engine)
 		if not engine:
-			print("%s: build-info specifies invalid engine \"%s\"" % (name, source.info.engine))
+			print("%s: build-info specifies invalid engine \"%s\"" % (name, source.spec.engine))
 			exit_code = 1
 			break
 
@@ -466,7 +465,7 @@ def build_action(config, opts):
 			exit_code = 1
 			continue
 
-		engine = brcoti_core.Engine.factory(source.info.engine)
+		engine = brcoti_core.Engine.factory(source.spec.engine)
 
 		print("=== Package %s ===" %(source.id()))
 		job = BuildJob(config, engine, compute_backend, source)

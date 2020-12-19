@@ -16,19 +16,17 @@ extract packages-used from container
 change ruby from proxy to mirror?
 	provide a per-build instance that can hide/add packages
 
+prep:
+	after building, check at the implicit dependencies
+	(eg from Gemfile.lock) and make sure we can resolve them
+	vs our own index
+
 support source dirs that let you build more than one version
-	build-info needs extension
+	build-spec needs extension
+		default-version
+		git-tag-pattern v%version or v%subst(.,_,%version)
 
 support mirrored git repos
-
-build-info
- -	rename Source.info to Source.spec, and call it
- 	the "build spec"
-
-rake strategy
- -	if we get to the point where we execute rake, and
- 	it hasn't been installed by bundler, generate an
-	automatic requirement
 
 bundler:
  -	make the bundler command configurable

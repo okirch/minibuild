@@ -632,11 +632,11 @@ class Source(Object):
 
 class SourceFile(Source):
 	def __init__(self, sdist, engine):
-		self.info = BuildInfo(engine.name)
-		self.info.add_source(sdist)
+		self.spec = BuildInfo(engine.name)
+		self.spec.add_source(sdist)
 
 	def id(self):
-		return self.info.sources[0].id()
+		return self.spec.sources[0].id()
 
 class SourceDirectory(Source):
 	def __init__(self, path, config):
@@ -654,13 +654,13 @@ class SourceDirectory(Source):
 
 			print("Found build-info file; please rename to build-spec at your convenience")
 
-		self.info = BuildInfo.from_file(spec_path, config)
+		self.spec = BuildInfo.from_file(spec_path, config)
 
-		if not self.info.sources:
+		if not self.spec.sources:
 			raise ValueError("%s: does not specify any sources" % path)
 
 	def id(self):
-		return self.info.sources[0].id()
+		return self.spec.sources[0].id()
 
 class BuildStrategy(Object):
 	# Derived classes that have static build dependencies should define a
