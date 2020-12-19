@@ -75,6 +75,11 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 		merge.cooked_requirement = merge_cooked
 		merge_cooked.name = self.name
 
+		if self.origin_priority() < other.origin_priority():
+			merge.origin = other.origin
+		else:
+			merge.origin = self.origin
+
 		if self.cooked_requirement.type == other.cooked_requirement.type:
 			merge_cooked.type = self.cooked_requirement.type
 		else:
@@ -95,6 +100,16 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 
 		print("merged: %s + %s => %s" % (self, other, merge))
 		return merge
+
+	origin_order = (
+			'package',
+			'Gemfile',
+			'commandline'
+		)
+	def origin_priority(self):
+		if self.origin in self.origin_order:
+			return self.origin_order(self.origin)
+		return -1
 
 	def __repr__(self):
 		if self.cooked_requirement:
