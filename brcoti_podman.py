@@ -310,11 +310,17 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 			for name, value in self.env.items():
 				args.append(" --env %s='%s'" % (name, value))
 
+		user_PATH = "%s/bin:/bin:/usr/bin" % self.build_home
+		root_PATH = user_PATH + ":/sbin:/usr/sbin"
+
 		if not shellcmd.privileged_user:
 			args.append(" --user %s" % self.build_user)
 			args.append(" --env HOME=%s" % self.build_home)
+			args.append(" --env PATH='%s'" % user_PATH)
 		else:
 			args.append(" --env HOME=/root")
+			args.append(" --env PATH='%s'" % root_PATH)
+
 		if mode is not None:
 			if mode == 'shell':
 				args.append(" -it")
