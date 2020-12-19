@@ -772,8 +772,8 @@ class BuildStrategy_GemCompile(RubyBuildStrategy):
 			for spec in build_directory.glob_build_results(paths_only = True):
 				yield "gem compile '%s'" % spec.path
 
-	def build_dependencies(self):
-		return self._requires + self.inner_job.build_dependencies()
+	def build_dependencies(self, build_directory):
+		return self._requires + self.inner_job.build_dependencies(build_directory)
 
 	def build_used(self, build_directory):
 		return self.inner_job.build_used(build_directory)
@@ -817,8 +817,12 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 		for cmd in self.inner_job.next_command(build_directory):
 			yield "bundler exec " + cmd
 
-	def build_dependencies(self):
-		return self._requires + self.inner_job.build_dependencies()
+	def build_dependencies(self, build_directory):
+		bundler_req = self._requires
+		print("Gemfile.lock specifies bundler == %s" % build_directory.locked_bundler_version)
+		if build_directory.locked_bundler_version:
+			bundler_req = ['bundler == %s' % build_directory.locked_bundler_version]
+		return bundler_req + self.inner_job.build_dependencies(build_directory)
 
 	def build_used(self, build_directory):
 		result = self.inner_job.build_used(build_directory)
@@ -859,7 +863,7 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 			return self.actual.describe()
 		return "auto"
 
-	def next_command(self, build_directory):
+	def actual_strategy(self, build_directory):
 		where = build_directory.directory
 
 		strategy = None
@@ -870,6 +874,11 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 
 		if where.lookup("Gemfile"):
 			strategy = BuildStrategy_Bundler(strategy)
+
+		return strategy
+
+	def next_command(self, build_directory):
+		strategy = self.actual_strategy(build_directory)
 
 		for cmd in strategy.next_command(build_directory):
 			yield cmd
@@ -886,8 +895,6 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 				need_compile = True
 
 		if need_compile:
-			yield brcoti_core.ShellCommand('gem install gem-compiler', privileged_user = True)
-
 			strategy = BuildStrategy_GemCompile(strategy)
 
 			# Do not re-run bundler/rake/gem build
@@ -1053,7 +1060,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			self.add_build_dependencies_from_gemspec(build.gemspec, seen)
 
 		if build_strategy:
-			for req_string in build_strategy.build_dependencies():
+			for req_string in build_strategy.build_dependencies(self):
 				req = RubyBuildRequirement.from_string(req_string)
 				self.build_info.requires.append(req)
 

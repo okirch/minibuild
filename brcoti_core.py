@@ -670,7 +670,7 @@ class BuildStrategy(Object):
 	def next_command(self):
 		self.mni()
 
-	def build_dependencies(self):
+	def build_dependencies(self, build_directory):
 		return self._requires
 
 	def build_used(self, build_directory):
@@ -907,6 +907,18 @@ class BuildDirectory(Object):
 				raise ValueError("patch command failed (%s)" % patch)
 
 	def build(self, build_strategy):
+		for req_string in build_strategy.build_dependencies(self):
+			print("build strategy requires %s" % req_string)
+
+			req = self.engine.parse_build_requirement(req_string)
+
+			# FIXME: check list of installed packages to see whether we
+			# really need this
+			# if not engine.dependency_already_satisfied(req):
+			self.engine.install_requirement(self.compute, req)
+
+			self.build_info.requires.append(req)
+
 		for cmd in build_strategy.next_command(self):
 			self.build_command_helper(cmd)
 
