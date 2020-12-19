@@ -827,8 +827,8 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 	def build_used(self, build_directory):
 		result = self.inner_job.build_used(build_directory)
 
-		gems = self.inspect_gem_cache(build_directory, build_directory.bundler_cache_dir)
-		gems += self.inspect_gem_cache(build_directory, build_directory.rubygem_user_cache_dir)
+		gems = build_directory.inspect_gem_cache(build_directory.bundler_cache_dir)
+		gems += build_directory.inspect_gem_cache(build_directory.rubygem_user_cache_dir)
 
 		for w in gems:
 			build = RubyArtefact.from_local_file(w.hostpath())
@@ -837,17 +837,6 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 			result.append(build)
 
 		return result
-
-	def inspect_gem_cache(self, build_directory, cache_path):
-		display_path = os.path.join(build_directory.directory.path, cache_path)
-
-		cache_dir = build_directory.directory.lookup(cache_path)
-		if cache_dir is None:
-			print("WARNING: did not find bundler cache directory %s" % display_path)
-			return []
-
-		print("Looking for downloaded gems in %s" % cache_dir.path)
-		return cache_dir.glob_files("*.gem")
 
 	# TBD: run bundle package to collect the used gems into vendor/cache
 	# and return them for inclusion in the build-info file
@@ -1069,11 +1058,16 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 		changes = self.pre_build_gems.changes(self.post_build_gems)
 		if changes:
+			gem_list = self.inspect_gem_cache(self.bundler_cache_dir) + \
+				   self.inspect_gem_cache(self.rubygem_user_cache_dir)
+
+			gem_dict = { os.path.basename(gem.path) : gem for gem in gem_list }
+
 			# Should we record all gems found in this directory,
 			# or just the ones that were added since startup
 			# of the container?
 			for id in changes.added:
-				cached_gem = self.rubygem_system_cache_dir.lookup("%s.gem" % id)
+				cached_gem = gem_dict.get("%s.gem" % id)
 				if cached_gem is None:
 					print("WARNING: Gem %s was installed, but could not find it in cache" % id)
 					continue
@@ -1116,6 +1110,25 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		buffer = io.StringIO()
 		write_func(buffer)
 		return build_state.write_file(name, buffer.getvalue())
+
+	def inspect_gem_cache(self, cache_dir):
+		if not isinstance(cache_dir, brcoti_core.ComputeResourceDirectory):
+			compute = self.compute
+
+			# This code should be in the ComputeNode class
+			if cache_dir.startswith('/'):
+				cache_dir = compute.get_directory(cache_dir)
+			elif cache_dir.startswith('~/'):
+				cache_path = os.path.join(compute.build_home, cache_dir[2:])
+				cache_dir = compute.get_directory(cache_path)
+			else:
+				cache_dir = self.directory.lookup(cache_dir)
+
+			if cache_dir is None:
+				return []
+
+		print("Looking for downloaded gems in %s" % cache_dir.path)
+		return cache_dir.glob_files("*.gem")
 
 class RubyPublisher(brcoti_core.Publisher):
 	def __init__(self, repoconfig):
