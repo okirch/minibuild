@@ -130,7 +130,7 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 
 	def get_directory(self, path):
 		if not os.path.isdir(path):
-			raise ValueError("%s is not a directory" % (path))
+			return None
 		return LocalDirectory(path)
 
 	def shutdown(self):

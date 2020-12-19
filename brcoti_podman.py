@@ -331,7 +331,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		assert(path.startswith('/'))
 
 		if not os.path.isdir(self.container_root + path):
-			raise ValueError("%s is not a directory (inside the container)" % (path))
+			return None
 		return PodmanDirectory(self.container_root, path)
 
 	def shutdown(self):

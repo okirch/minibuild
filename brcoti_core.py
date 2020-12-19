@@ -776,6 +776,8 @@ class BuildDirectory(Object):
 
 		build_base = compute.default_build_dir()
 		self.build_base = self.compute.get_directory(build_base)
+		assert(self.build_base)
+
 		self.directory = None
 		self.sdist = None
 		self.quiet = False
