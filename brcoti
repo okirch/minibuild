@@ -424,8 +424,8 @@ def write_source_dir(name, source_info, build_info):
 	info = source_info
 	info.requires += build_info.requires
 
-	info_path = os.path.join(src_dir, "build-info")
-	info.save(info_path)
+	spec_path = os.path.join(src_dir, "build-spec")
+	info.save(spec_path)
 
 	info_path = os.path.join(src_dir, "build-used")
 	build_info.save(info_path)

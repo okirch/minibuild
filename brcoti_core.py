@@ -645,11 +645,16 @@ class SourceDirectory(Source):
 		if not os.path.isdir(path):
 			raise ValueError("%s: not a directory" % path)
 
-		info_path = os.path.join(path, "build-info")
-		if not os.path.exists(info_path):
-			raise ValueError("%s: no build-info file" % path)
+		spec_path = os.path.join(path, "build-spec")
+		if not os.path.exists(spec_path):
+			# fall back to older name
+			spec_path = os.path.join(path, "build-info")
+			if not os.path.exists(spec_path):
+				raise ValueError("%s: no build-spec file, and no build-info fallback" % path)
 
-		self.info = BuildInfo.from_file(info_path, config)
+			print("Found build-info file; please rename to build-spec at your convenience")
+
+		self.info = BuildInfo.from_file(spec_path, config)
 
 		if not self.info.sources:
 			raise ValueError("%s: does not specify any sources" % path)
