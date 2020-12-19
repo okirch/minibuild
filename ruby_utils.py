@@ -809,7 +809,10 @@ class Ruby:
 		def bundler_version(self):
 			node = self.lookup('BUNDLED WITH')
 			if node is None:
+				node = self.lookup('BUNDLED')
+			if node is None or not node.children:
 				return None
+			node = node.children[0]
 			return node.name
 
 	# Process the output of "gem list", which contains lines like these:
