@@ -36,7 +36,7 @@ DEFAULT_BUILD_COMPUTE = "podman"
 
 def create_build_engine(config):
 	opts = config.command_line_options
-	return brcoti_core.Engine.factory(opts.engine, config)
+	return brcoti_core.Engine.factory(opts.engine)
 
 def create_compute_backend(config, default_backend):
 	backend_name = config.command_line_options.compute or default_backend
