@@ -1711,6 +1711,9 @@ class Engine(Object):
 	def create_source_download_finder(self, req, verbose = True):
 		self.mni()
 
+	def create_requirement_set(self):
+		return EngineSpecificRequirementSet()
+
 	#
 	# This method validates the explicit requirements specified in a build-info
 	# file, making sure that they can be resolved.
