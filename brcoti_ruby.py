@@ -810,9 +810,13 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 
 	def next_command(self, build_directory):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
+		yield "bundle config set bindir '%s'" % "/home/build/bin"
+		yield "bundle config set path '%s'" % "/home/build/.gem"
+
+		# While we bootstrap ruby building, skip everything test related and go just for the build
 		yield "bundle config set without 'test'"
 
-		yield brcoti_core.ShellCommand('bundler install --full-index', privileged_user = True)
+		yield 'bundler install --full-index '
 
 		for cmd in self.inner_job.next_command(build_directory):
 			yield "bundler exec " + cmd
@@ -1291,7 +1295,7 @@ class RubyEngine(brcoti_core.Engine):
 		compute = super(RubyEngine, self).prepare_environment(compute_backend, build_info)
 
 		# Make sure that commands we execute as user build find gem binaries in ~/bin
-		self.add_bindir_to_user_path(compute, compute.build_home))
+		self.add_bindir_to_user_path(compute, compute.build_home)
 
 		return compute
 
@@ -1299,7 +1303,6 @@ class RubyEngine(brcoti_core.Engine):
 		home = compute.get_directory(homedir)
 		if home is None:
 			print("WARNING: Can't find %s, unable to add ~/bin to path" % homedir)
-			barf
 			return
 
 		bindir = home.lookup("bin")
@@ -1372,6 +1375,8 @@ class RubyEngine(brcoti_core.Engine):
 
 		cmd.append('--no-document')
 		cmd.append('--user-install')
+
+		cmd += ['--bindir', compute.build_home + "/bin"]
 
 		# For some weird reasons, gem seems to ignore all proxy related
 		# environment variables and insists that you use a command line
