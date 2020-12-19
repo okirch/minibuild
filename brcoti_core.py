@@ -397,7 +397,8 @@ class Downloader(object):
 		with open(filename, "wb") as f:
 			f.write(resp.read())
 
-		print("Downloaded %s from %s" % (filename, url))
+		if not quiet:
+			print("Downloaded %s from %s" % (filename, url))
 
 		build.local_path = filename
 		return filename
