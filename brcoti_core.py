@@ -841,7 +841,7 @@ class BuildDirectory(Object):
 
 		tag = sdist.git_tag()
 
-		print("unpack_git: relative_unpack_dir=%s destdir=%s" % (relative_unpack_dir, destdir))
+		# print("unpack_git: relative_unpack_dir=%s destdir=%s" % (relative_unpack_dir, destdir))
 		tag = self.unpack_git_helper(repo_url, tag, destdir = destdir, version_hint = str(sdist.version))
 
 		self.directory = self.compute.get_directory(destdir)
@@ -1940,8 +1940,7 @@ class Engine(Object):
 		finder = self.create_binary_download_finder(req, verbose)
 		return finder.get_best_match(self.default_index)
 
-	# Given a (binary) artefact, resolve its installation dependencies
-	# recursively
+	# Given a (binary) artefact, return its installation dependencies
 	def resolve_install_requirements(self, artefact):
 		if not self.downloader:
 			return []

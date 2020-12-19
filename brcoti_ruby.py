@@ -977,6 +977,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 				requirements.append(RubyBuildRequirement.from_cooked(dep))
 
 			self.locked_bundler_version = gemfile_lock.bundler_version()
+			if self.locked_bundler_version:
+				print("Locked to bundler version %s" % self.locked_bundler_version)
 
 		return requirements
 
