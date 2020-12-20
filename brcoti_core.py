@@ -1725,7 +1725,7 @@ class Engine(Object):
 	# This helps to detect missing packages even before we've started up the
 	# container.
 	#
-	def validate_build_info(self, build_spec, auto_repair = False):
+	def validate_build_spec(self, build_spec, auto_repair = False):
 		req_dict = {}
 		for req in build_spec.requires:
 			if req.engine == self.name:

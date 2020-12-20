@@ -163,7 +163,7 @@ class BuildJob(object):
 		build_spec = self.source.spec
 
 		print("Validating build info")
-		self.engine.validate_build_info(build_spec, auto_repair = self.auto_repair)
+		self.engine.validate_build_spec(build_spec, auto_repair = self.auto_repair)
 
 		# Download the source archive if we don't have it yet
 		for sdist in build_spec.sources:
