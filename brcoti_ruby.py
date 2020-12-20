@@ -1408,6 +1408,8 @@ class RubyEngine(brcoti_core.Engine):
 		# compute.run_command(cmd, privileged_user = True)
 		compute.run_command(cmd)
 
+		return pkg
+
 	def create_build_strategy_default(self):
 		return BuildStrategy_GemBuild()
 

@@ -159,5 +159,7 @@ class RPMEngine(brcoti_core.Engine):
 		cmd.no_default_env = True
 		compute.exec(cmd)
 
+		# FIXME: return an RPMArtefact representing the package just installed
+
 def engine_factory(engine_config):
 	return RPMEngine(engine_config)

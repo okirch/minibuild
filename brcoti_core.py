@@ -792,6 +792,8 @@ class BuildDirectory(Object):
 		self.build_info = None
 		self.http_proxy = None
 
+		self.explicit_requirements_installed = []
+
 	def cleanup(self):
 		if self.directory:
 			self.directory.rmtree()
@@ -921,7 +923,7 @@ class BuildDirectory(Object):
 			# FIXME: check list of installed packages to see whether we
 			# really need this
 			# if not engine.dependency_already_satisfied(req):
-			self.engine.install_requirement(self.compute, req)
+			self.install_requirement(req)
 
 			self.build_info.requires.append(req)
 
@@ -1054,6 +1056,18 @@ class BuildDirectory(Object):
 
 	def compare_build_artefacts(self, old_path, new_path):
 		self.mni()
+
+	def install_requirement(self, req):
+		engine = self.engine
+
+		if req.engine != engine.name:
+			engine = Engine.factory(req.engine)
+
+		pkg = engine.install_requirement(self.compute, req)
+		if pkg:
+			self.explicit_requirements_installed.append(pkg)
+
+		return pkg
 
 class BuildState(Object):
 	def __init__(self, engine, savedir):
@@ -2073,11 +2087,7 @@ class Engine(Object):
 
 		# install additional packages as requested by build-info
 		for req in build_spec.requires:
-			if req.engine == self.name:
-				engine = self
-			else:
-				engine = Engine.factory(req.engine)
-			engine.install_requirement(compute, req)
+			bd.install_requirement(req)
 
 		if sdist.git_url():
 			bd.unpack_git(sdist, sdist.id())
