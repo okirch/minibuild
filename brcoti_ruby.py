@@ -946,8 +946,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		if not self.bundler_cache_dir:
 			raise ValueError("Configuration does not specify bundler-cache")
 
-		with self.compute.popen("gem list") as f:
-			self.pre_build_gems = ruby_utils.Ruby.GemList.parse(f)
+		self.pre_build_gems = self.get_installed_gems()
 
 		self.locked_bundler_version = None
 
@@ -1074,8 +1073,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 				req = RubyBuildRequirement.from_string(req_string)
 				self.build_info.requires.append(req)
 
-		with self.compute.popen("gem list") as f:
-			self.post_build_gems = ruby_utils.Ruby.GemList.parse(f)
+		self.post_build_gems = self.get_installed_gems()
 
 		changes = self.pre_build_gems.changes(self.post_build_gems)
 		if changes:
@@ -1131,6 +1129,10 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		buffer = io.StringIO()
 		write_func(buffer)
 		return build_state.write_file(name, buffer.getvalue())
+
+	def get_installed_gems(self):
+		with self.compute.popen("gem list") as f:
+			return ruby_utils.Ruby.GemList.parse(f)
 
 	def inspect_gem_cache(self, cache_dir):
 		if not isinstance(cache_dir, brcoti_core.ComputeResourceDirectory):
