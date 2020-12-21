@@ -1236,7 +1236,7 @@ class RubyPublisher(brcoti_core.Publisher):
 		return path.endswith(".gem")
 
 	def publish_artefact(self, path):
-		print(" %s" % path)
+		# print(" %s" % path)
 		shutil.copy(path, self.gems_dir)
 
 		path = os.path.join(self.gems_dir, os.path.basename(path))
