@@ -45,6 +45,9 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 	def __init__(self, name, req_string = None, cooked_requirement = None):
 		super(RubyBuildRequirement, self).__init__(canonical_package_name(name), req_string, cooked_requirement)
 
+		# By default, always require pure ruby
+		self.platform = 'ruby'
+
 	def parse_requirement(self, req_string):
 		import ruby_utils
 
@@ -132,6 +135,7 @@ class RubyArtefact(brcoti_core.Artefact):
 		super(RubyArtefact, self).__init__(canonical_package_name(name), version)
 
 		self.type = type
+		self.platform = 'ruby'
 		self.required_ruby_version = None
 		self.required_rubygems_version = None
 
@@ -146,6 +150,12 @@ class RubyArtefact(brcoti_core.Artefact):
 	@property
 	def is_source(self):
 		return self.type == 'source'
+
+	def id(self):
+		r = super(RubyArtefact, self).id()
+		if self.platform and self.platform != 'ruby':
+			r += "-" + self.platform
+		return r
 
 	def verify_minimum_version(self, my_version, req_version):
 		import ruby_utils
@@ -227,6 +237,8 @@ class RubyArtefact(brcoti_core.Artefact):
 	def from_local_file(path, name = None, version = None, type = None):
 		filename = os.path.basename(path)
 
+		# FIXME: rather than all the funky parsing stuff, we should
+		# probably parse the gem spec and be done with
 		if not name or not version or not type:
 			# try to detect version and type by looking at the file name
 			_name, _version, _type = RubyArtefact.parse_filename(filename)
@@ -279,8 +291,9 @@ class RubyArtefact(brcoti_core.Artefact):
 		self.required_rubygems_version = gemspec.required_rubygems_version
 
 class RubyReleaseInfo(brcoti_core.PackageReleaseInfo):
-	def __init__(self, name, version, parsed_version = None):
+	def __init__(self, name, version, platform = 'ruby', parsed_version = None):
 		super(RubyReleaseInfo, self).__init__(canonical_package_name(name), version)
+		self.platform = platform
 
 		if not parsed_version:
 			parsed_version = ruby_utils.Ruby.ParsedVersion(version)
@@ -288,6 +301,8 @@ class RubyReleaseInfo(brcoti_core.PackageReleaseInfo):
 		self.parsed_version = parsed_version
 
 	def id(self):
+		if self.platform != 'ruby':
+			return "%s-%s-%s" % (self.name, self.version, self.platform)
 		return "%s-%s" % (self.name, self.version)
 
 	def more_recent_than(self, other):
@@ -308,10 +323,17 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 		self.requirement = req.cooked_requirement
 		self.name = req.name
 		self.allow_prereleases = False
+		self.platform = req.platform
+
+		if self.verbose:
+			print("Looking for %s; platform=%s" % (req, req.platform))
 
 	def release_match(self, release):
 		assert(release.parsed_version)
 		if not self.allow_prereleases and release.parsed_version.is_prerelease:
+			return False
+
+		if self.platform and self.platform != release.platform:
 			return False
 
 		if (release.name, release.parsed_version) not in self.requirement:
@@ -342,13 +364,16 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 					print("ignoring release %s" % best_release.id())
 				continue
 
+			if self.verbose:
+				print("inspecting release %s" % best_release.id())
+
 			# Create an artefact for the binary gem (by downloading the gemspec
 			# from the index).
 			# If possible, also create a source artefact by guessing the source
 			# URL.
 			# The binary artefact will be attached to the cache representing this
 			# index; the source artefact will not be attached to any cache.
-			index.get_gemspec(best_release)
+			index.get_gemspec(best_release, verbose = self.verbose)
 
 			for build in best_release.builds:
 				# print("%s: inspecting build %s (type %s)" % (release.id(), build.filename, build.type))
@@ -390,7 +415,7 @@ class RubySourceDownloadFinder(RubyDownloadFinder):
 
 	def build_match(self, build):
 		if self.verbose:
-			print("inspecting %s which is of type %s" % (build.filename, build.type))
+			print("inspecting %s (type %s, platform %s)" % (build.filename, build.type, build.platform))
 			print("  git repo %s" % build.git_repo_url)
 
 		return build.type == 'source'
@@ -401,7 +426,12 @@ class RubyBinaryDownloadFinder(RubyDownloadFinder):
 
 	def build_match(self, build):
 		if self.verbose:
-			print("inspecting %s which is of type %s" % (build.filename, build.type))
+			print("inspecting %s (type %s, platform %s)" % (build.filename, build.type, build.platform))
+
+		if self.platform and build.platform != self.platform:
+			# print("RubyBinaryDownloadFinder: build platform %s doesn't match requested platform %s" % (build.platform, self.platform))
+			return False
+
 		return build.type == 'gem'
 
 class RubySpecIndex(brcoti_core.HTTPPackageIndex):
@@ -449,11 +479,9 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 				else:
 					version = version_list[0]
 
-				if gem[2] != 'ruby':
-					# print("Warning: Cannot use %s-%s: platform is \"%s\"" % (name, version, gem[2]))
-					continue
+				platform = gem[2]
 
-				release = RubyReleaseInfo(name, version)
+				release = RubyReleaseInfo(name, version, platform)
 				pi.add_release(release)
 
 		if not pi.releases:
@@ -487,15 +515,23 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		# This is fairly slow... need to speed this up!
 		return unmarshal(filename, resp)
 
-	def get_gemspec(self, release):
+	def get_gemspec(self, release, verbose = False):
 		import urllib.request
 
-		url = self._pkg_url_template.format(index_url = self.url, pkg_name = release.name, pkg_version = release.version)
+		version = release.version
+		platform = release.platform
+		if platform and platform != 'ruby':
+			version = "%s-%s" % (release.version, platform)
+
+		url = self._pkg_url_template.format(index_url = self.url, pkg_name = release.name, pkg_version = version)
+
+		if verbose:
+			print("Getting gemspec for %s-%s-%s from %s" % (release.name, release.version, platform, url))
 
 		resp = urllib.request.urlopen(url)
 		if resp.status != 200:
 			raise ValueError("Unable to get package info for %s-%s: HTTP response %s (%s)" % (
-					release.name, release.version, resp.status, resp.reason))
+					release.name, version, resp.status, resp.reason))
 
 		self.process_gemspec_response(resp, release)
 
