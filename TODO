@@ -10,9 +10,6 @@ dependencies on non-ruby packages (esp rpms)
 
 	Add rpm requirements to spec.requirements?
 
-extract packages-used from container
-	rake (if not explicitly required by the Gemfile)
-
 change ruby from proxy to mirror?
 	provide a per-build instance that can hide/add packages
 
