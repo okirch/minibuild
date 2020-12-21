@@ -155,7 +155,7 @@ class Ruby:
 
 		def contains(self, item):
 			op = self.op
-			if op == '==':
+			if op == '==' or op == '=':
 				return item == self.version
 			if op == '!=':
 				return item != self.version
