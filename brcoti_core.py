@@ -515,7 +515,7 @@ class BuildInfo(Object):
 	def write_sources(self, f):
 		for sdist in self.sources:
 			if sdist.git_repo_url:
-				url = "%s?version=%s" % (sdist.git_url(), sdist.version)
+				url = "%s?name=%s&version=%s" % (sdist.git_url(), sdist.name, sdist.version)
 				if sdist.git_tag():
 					url += "&tag=" + sdist.git_tag()
 				print("source %s" % url, file = f)
@@ -882,7 +882,7 @@ class BuildDirectory(Object):
 		if tag is None and version_hint:
 			tag = self.guess_git_tag(destdir, version_hint)
 			if tag is None:
-				raise ValueError("Unable to find a tag correcponding to version %s" % version_hint)
+				raise ValueError("Unable to find a tag corresponding to version %s" % version_hint)
 
 		if tag:
 			self.compute.run_command("git checkout --detach %s" % tag, working_dir = destdir)
@@ -1853,6 +1853,8 @@ class Engine(Object):
 					version = value
 				elif key == 'tag':
 					tag = value
+				elif key == 'name':
+					package_name = value
 				else:
 					raise ValueError("Invalid parameter %s in URL \"%s\"" % (kvp, url))
 
