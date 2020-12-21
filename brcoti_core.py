@@ -982,6 +982,14 @@ class BuildDirectory(Object):
 	def unchanged_from_previous_build(self, build_state):
 		self.mni()
 
+	def has_build_dependency(self, name, engine_name = None):
+		if engine_name == None:
+			engine_name = self.engine.name
+		for dep in self.build_info.requires + self.explicit_requirements_installed:
+			if dep.engine == engine_name and dep.name == name:
+				return True
+		return False
+
 	def guess_build_dependencies(self, build_strategy = None):
 		self.mni()
 
