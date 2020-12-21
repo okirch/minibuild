@@ -253,7 +253,30 @@ class RubyArtefact(brcoti_core.Artefact):
 	def read_gemspec_from_gem(self):
 		assert(self.local_path)
 
-		self.gemspec = GemFile(self.local_path).parse_metadata()
+		self._set_gemspec(GemFile(self.local_path).parse_metadata())
+
+	def _set_gemspec(self, gemspec):
+		self.gemspec = gemspec
+
+		self.name = gemspec.name
+		self.version = gemspec.version
+
+		# Sometimes, the platform is just a string, sometimes it's a Gem::Platform
+		# instance. We don't care, we force it to string.
+		if gemspec.platform:
+			self.platform = str(gemspec.platform)
+
+		if self.filename is None:
+			if self.platform and self.platform != 'ruby':
+				self.filename = "%s-%s-%s.gem" % (self.name, self.version, self.platform)
+			else:
+				self.filename = "%s-%s.gem" % (self.name, self.version)
+
+		self.author = gemspec.author
+		self.homepage = gemspec.homepage
+
+		self.required_ruby_version = gemspec.required_ruby_version
+		self.required_rubygems_version = gemspec.required_rubygems_version
 
 class RubyReleaseInfo(brcoti_core.PackageReleaseInfo):
 	def __init__(self, name, version, parsed_version = None):
@@ -490,7 +513,6 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 	def gemspec_to_binary(self, gemspec):
 		build = self.gemspec_to_build_common(gemspec, 'gem')
 
-		build.filename = "%s-%s.gem" % (gemspec.name, gemspec.version)
 		build.url = "%s/gems/%s" % (self.url, build.filename)
 		build.cache = self.cache
 		return build
@@ -549,14 +571,11 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 
 	def gemspec_to_build_common(self, gemspec, build_type):
 		build = RubyArtefact(gemspec.name, gemspec.version, type = build_type)
-		build.required_ruby_version = gemspec.required_ruby_version
-		build.required_rubygems_version = gemspec.required_rubygems_version
 
-		build.filename = "%s-%s.gem" % (gemspec.name, gemspec.version)
+		# This sets platform, filename, author, homepage, required_*_versions
+		build._set_gemspec(gemspec)
+
 		build.url = "%s/gems/%s" % (self.url, build.filename)
-
-		build.author = gemspec.author
-		build.homepage = gemspec.homepage
 
 		if False:
 			for attr_name in dir(gemspec):
@@ -568,7 +587,6 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 			for key, value in gemspec.metadata.items():
 				print("metadata." + key, value)
 
-		build.gemspec = gemspec
 		return build
 
 	def uri_exists(self, url):
