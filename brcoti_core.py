@@ -444,11 +444,8 @@ class Uploader(Object):
 	def upload(self, build):
 		self.mni()
 
-class BuildSpec(Object):
-	def __init__(self, engine):
-		self.engine = engine
-
-		self.name = None
+class BuildInfo(Object):
+	def __init__(self):
 		self.version = None
 
 		self.build_engine = None
@@ -476,28 +473,24 @@ class BuildSpec(Object):
 	def add_used(self, build):
 		self.used.append(build)
 
-	def save(self, path):
-		with open(path, "w") as f:
-			print("engine %s" % self.engine, file = f)
 
-			if self.name:
-				print("name %s" % self.name, file = f)
-			if self.version:
-				print("version %s" % self.version, file = f)
+	def write(self, f):
+		if self.version:
+			print("version %s" % self.version, file = f)
 
-			self.write_build_requires(f)
-			self.write_artefacts(f, "built", self.artefacts)
-			self.write_artefacts(f, "used", self.used)
-			self.write_sources(f)
+		self.write_build_requires(f)
+		self.write_artefacts(f, "built", self.artefacts)
+		self.write_artefacts(f, "used", self.used)
+		self.write_sources(f)
 
-			if self.build_strategy:
-				print("build-strategy %s" % self.build_strategy.describe(), file = f)
-			elif self.build_script:
-				print("build %s" % self.build_script, file = f)
+		if self.build_strategy:
+			print("build-strategy %s" % self.build_strategy.describe(), file = f)
+		elif self.build_script:
+			print("build %s" % self.build_script, file = f)
 
-			for patch in self.patches:
-				patch = os.path.basename(patch)
-				print("patch %s" % patch, file = f)
+		for patch in self.patches:
+			patch = os.path.basename(patch)
+			print("patch %s" % patch, file = f)
 
 	#
 	# Write out the build-requires information
@@ -606,6 +599,28 @@ class BuildSpec(Object):
 		self.build_script = arg
 		self.build_strategy = self.build_engine.create_build_strategy_from_script(filename)
 
+	def parse_build_strategy(self, path, line):
+		self.build_strategy = BuildStrategy.parse(self.build_engine, line.strip())
+
+class BuildSpec(BuildInfo):
+	def __init__(self, engine):
+		super(BuildSpec, self).__init__()
+
+		self.engine = engine
+
+		self.name = None
+		self.default_source_url = None
+		self.versions = []
+
+	def save(self, path):
+		with open(path, "w") as f:
+			print("engine %s" % self.engine, file = f)
+
+			if self.name:
+				print("name %s" % self.name, file = f)
+
+			self.write(f)
+
 	#
 	# Parse the build-requires file
 	#
@@ -639,15 +654,7 @@ class BuildSpec(Object):
 							raise ValueError("%s: duplicate name specification" % path)
 						result.name = l.strip()
 					elif kwd == 'engine':
-						if result.engine:
-							raise ValueError("%s: duplicate engine specification" % path)
-						result.engine = l.strip()
-						if default_engine and result.engine != default_engine.name:
-							raise ValueError("Beware, %s specifies engine \"%s\" which conflicts with engine %s" % (
-								path, result.engine, default_engine.name))
-
-						build_engine = Engine.factory(result.engine)
-						result.build_engine = build_engine
+						build_engine = result.parse_engine(path, l, default_engine)
 					elif kwd in ('require', 'artefact', 'built', 'used'):
 						if kwd == 'require':
 							obj = result.parse_requires(l)
@@ -660,7 +667,7 @@ class BuildSpec(Object):
 					elif kwd == 'build':
 						result.parse_build_script(path, l)
 					elif kwd == 'build-strategy':
-						result.build_strategy = BuildStrategy.parse(build_engine, l.strip())
+						result.parse_build_strategy(path, l)
 					elif kwd == 'patch':
 						result.parse_patch(path, l)
 					else:
@@ -687,6 +694,16 @@ class BuildSpec(Object):
 			raise ValueError("%s: missing engine specification" % path)
 		return result
 
+	def parse_engine(self, path, line, default_engine):
+		if self.engine:
+			raise ValueError("%s: duplicate engine specification" % path)
+		self.engine = line.strip()
+		if default_engine and self.engine != default_engine.name:
+			raise ValueError("Beware, %s specifies engine \"%s\" which conflicts with engine %s" % (
+				path, self.engine, default_engine.name))
+
+		self.build_engine = Engine.factory(self.engine)
+		return self.build_engine
 
 class Source(Object):
 	def __init__(self):
