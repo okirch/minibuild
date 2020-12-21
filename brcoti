@@ -550,6 +550,10 @@ def merge_extra_action(config, opts):
 
 	by_engine = dict()
 	for name in opts.packages:
+		if ':' not in name:
+			print("argument format should be <engine>:<package> - cannot parse \"%s\"" % name)
+			raise ValueError("Cannot parse upstream requirement \"%s\"" % name)
+
 		(engine_name, req_string) = name.split(':', 1)
 
 		req_list = by_engine.get(engine_name)
@@ -565,7 +569,7 @@ def merge_extra_action(config, opts):
 
 		req_list = [engine.parse_build_requirement(req_string) for req_string in req_list]
 
-		engine.merge_from_upstream(req_list)
+		engine.validate_build_requirements(req_list, merge_from_upstream = True, recursive = True)
 		# engine.publish_build_results()
 
 	print("=== Done ===")
