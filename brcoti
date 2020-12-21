@@ -199,6 +199,15 @@ class BuildJob(object):
 
 			raise e
 
+		# When cloning a git repo, we perform auto-detection of tags (in order
+		# to find the tag corresponding to the version we want to build).
+		# So as we get here, a git based source may suddenly have a tag assigned
+		# that did not have one before.
+		if build_spec.tag is None and len(build_spec.sources) == 1:
+			sdist = build_spec.sources[0]
+			if sdist.version == build_spec.version:
+				build_spec.tag = sdist.git_tag()
+
 		self.build.set_logging(self.quiet, self.build_state.build_log_file())
 		return self.build
 
@@ -240,6 +249,7 @@ class BuildJob(object):
 			print("Build requirements:")
 			for req in requires:
 				print("  %s" % (req, ))
+				self.source.spec.add_requirement(req)
 
 	def prepare_results(self):
 		print("=== Collecting build results ===")
@@ -476,6 +486,13 @@ def build_action(config, opts):
 			exit_code = 1
 			continue
 
+		guessing = False
+		if opts.version:
+			if not source.select_version(opts.version) and \
+			   not source.from_closest_version(opts.version):
+				raise ValueError("%s does not have version %s, and nothing to guess from" % (name, opts.version))
+			guessing = True
+
 		engine = brcoti_core.Engine.factory(source.spec.engine)
 
 		print("=== Package %s ===" %(source.id()))
@@ -489,6 +506,9 @@ def build_action(config, opts):
 		try:
 			if not job.rebuild_required():
 				continue
+
+			if guessing:
+				job.anticipate_build_dependencies()
 
 			job.unpack_source()
 			job.build_package()
@@ -525,6 +545,7 @@ If our build *IS* correct, and this warning is due to a bug, please fix the mis-
 			print("In order to merge these from upstream, run the following command:")
 			print("%s merge-extra %s" % (SCRIPT_NAME,
 					" ".join(["'%s:%s'" % (r.engine, r.format()) for r in e.dependencies])))
+			exit_code = 1
 		except Exception as e:
 			print("FAILED to build %s" % source.id())
 			import traceback
@@ -532,6 +553,9 @@ If our build *IS* correct, and this warning is due to a bug, please fix the mis-
 			traceback.print_tb(sys.exc_info()[2])
 			traceback.format_exc()
 			exit_code = 1
+
+		if guessing and not exit_code:
+			source.save()
 
 	print("=== Done ===")
 	return exit_code
@@ -655,6 +679,8 @@ def build_option_parser():
 		help = "Build package(s)")
 	build_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
 		help = "List of packages")
+	build_parser.add_argument('--version', default = None,
+                help = "Explicitly specify the package version to build from")
 	build_parser.add_argument('--rebuild-if-needed', default = False, action = 'store_true',
                 help = "Only rebuild package if needed")
 	build_parser.add_argument('--force', default = False, action = 'store_true',

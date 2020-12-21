@@ -656,10 +656,11 @@ class VersionSpec(BuildInfo):
 			return None
 		repo_url = source_urls[0]
 
-		url = "%s?name=%s&version=%s&tag=%s" % (repo_url,
+		url = "%s?name=%s&version=%s" % (repo_url,
 				self.package_name, 
-				self.version,
-				self.tag)
+				self.version)
+		if self.tag:
+			url += "&tag=%s" % self.tag
 		return url
 
 class DefaultSpec(VersionSpec):
@@ -847,7 +848,7 @@ class BuildSpec(Object):
 
 class Source(Object):
 	def __init__(self):
-		pass
+		self.path = None
 
 	def merge_info_from_build(self, build_info):
 		self.spec.requires += build_info.requires
@@ -865,12 +866,19 @@ class Source(Object):
 	def add_requires(self, req_list):
 		self.spec.requires += req_list
 
-	def save(self, path, spec_name = "build-spec"):
-		if os.path.exists(path):
-			raise ValueError("Refusing to save source to %s: file or directory exists" % path)
+	def save(self, path = None, spec_name = "build-spec"):
+		if path is None:
+			path = self.path
+			if path is None:
+				raise ValueError("Unable to save source; path is not set");
+		else:
+			if os.path.exists(path):
+				raise ValueError("Refusing to save source to %s: file or directory exists" % path)
 
-		os.makedirs(path, mode = 0o755)
+			os.makedirs(path, mode = 0o755)
+
 		for sdist in self.spec.sources:
+			# FIXME: only copy those that were added/modified
 			if sdist.local_path is not None:
 				shutil.copy(sdist.local_path, path)
 
@@ -913,12 +921,32 @@ class SourceDirectory(Source):
 				break
 
 	def select_version(self, version):
-		for v in self.spec.versions:
+		for v in self.spec_file.versions:
 			if v.version == version:
 				self.spec = v
 				return True
 
 		return False
+
+	def from_closest_version(self, version):
+		if not self.spec_file.versions:
+			return False
+
+		closest = self.spec_file.versions[-1]
+
+		new_ver = self.spec_file.add_version(version)
+		new_ver.build_strategy = closest.build_strategy
+
+		url = new_ver.implicit_git_url()
+		if url is None:
+			raise ValueError("Don't know how to determine source for %s" % new_ver.id())
+
+		# sdist = self.spec_file.build_engine.create_artefact_from_url(url)
+		new_ver.add_source(url)
+		# FIXME copy other settings?
+
+		self.spec = new_ver
+		return True
 
 	def id(self):
 		assert(self.spec)
@@ -2375,7 +2403,7 @@ class Engine(Object):
 
 	def build_unpack(self, compute, build_spec, auto_repair = False):
 		if len(build_spec.sources) != 1:
-			raise ValueError("Currently unable to handle builds with more than one source")
+			raise ValueError("Currently unable to handle builds with %d sources" % len(build_spec.sources))
 		sdist = build_spec.sources[0]
 
 		bd = self.create_build_directory(compute)
