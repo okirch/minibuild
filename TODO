@@ -1,4 +1,8 @@
 
+rename brcoti to minibuild
+
+building without sudo
+
 build strategies
 	move env setting into their respective classes
 		(such as PIP_INDEX_URL)
