@@ -2127,6 +2127,25 @@ class Engine(Object):
 
 		return bd
 
+	# This is for the comparison of the artefacts we built with upstream
+	# Some engines (like ruby) may decide to compile extensions, in which case
+	# there may be no exact upstream build.
+	# In this case, the engine would reimplement this method, and return None
+	# for those artefacts it won't compare.
+	def get_upstream_build_for(self, sdist, artefact):
+		req_string = "%s == %s" % (sdist.name, sdist.version)
+
+		print("Trying to find upstream build for %s" % req_string)
+		req = self.parse_build_requirement(req_string)
+
+		finder = self.create_binary_download_finder(req, verbose = False)
+		upstream = finder.get_best_match(self.upstream_index)
+		if not upstream:
+			raise ValueError("No upstream build for %s" % req_string)
+
+		print("upstream %s platform %s" % (upstream.id(), upstream.platform))
+		return upstream
+
 	def submit_source(self, source):
 		name = os.path.basename(source.path)
 		assert(name and not name.startswith('.'))

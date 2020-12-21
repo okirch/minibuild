@@ -1531,5 +1531,29 @@ class RubyEngine(brcoti_core.Engine):
 
 		return still_missing
 
+	# This is for the comparison of the artefacts we built with upstream
+	def get_upstream_build_for(self, sdist, artefact):
+		req_string = "%s == %s" % (sdist.name, sdist.version)
+
+		print("Trying to find upstream build for %s, platform=%s" % (req_string, artefact.platform))
+		req = self.parse_build_requirement(req_string)
+
+		# Do not compare compiled artefacts with their upstream
+		# (pure ruby) build.
+		if artefact.platform == 'x86_64-linux':
+			return None
+
+		if artefact.platform != 'ruby':
+			req.platform = artefact.platform
+
+		finder = self.create_binary_download_finder(req, verbose = False)
+		upstream = finder.get_best_match(self.upstream_index)
+		if not upstream:
+			raise ValueError("No upstream build for %s" % req_string)
+
+		print("Found build %s" % upstream.id())
+		print("  platform=%s" % upstream.platform)
+		return upstream
+
 def engine_factory(engine_config):
 	return RubyEngine(engine_config)

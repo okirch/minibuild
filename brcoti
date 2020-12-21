@@ -264,17 +264,14 @@ class BuildJob(object):
 			# we started from.
 			sdist = self.source_for(mine)
 
-			if sdist.id() != mine.id():
-				print("  Comparing %s to upstream %s" % (mine.id(), sdist.id()))
+			upstream = engine.get_upstream_build_for(sdist, mine)
+			if upstream is None:
+				print("    Skipping %s" % mine.filename)
+				continue
 
-			req_string = "%s == %s" % (sdist.name, sdist.version)
-			print("Trying to find upstream build for %s" % req_string)
-			req = engine.parse_build_requirement(req_string)
-
-			finder = engine.create_binary_download_finder(req, verbose = False)
-			upstream = finder.get_best_match(engine.upstream_index)
-			if not upstream:
-				raise ValueError("No upstream build for %s" % req_string)
+			if upstream.id() != mine.id():
+				print("  Comparing %s to upstream %s" % (mine.id(), upstream.id()))
+			assert(mine.platform == upstream.platform)
 
 			# The artefact was returned by an index; it's a bug to not be attached
 			# the a cache
@@ -361,7 +358,7 @@ def prep_action(config, opts):
 		if not url:
 			url = sdist.url
 		if url:
-			print("Building %s from %s" % (sdist.id, url))
+			print("Building %s from %s" % (sdist.id(), url))
 
 		source.spec.build_strategy = engine.create_build_strategy("auto")
 
