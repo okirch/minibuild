@@ -265,7 +265,11 @@ class RubyArtefact(brcoti_core.Artefact):
 	def read_gemspec_from_gem(self):
 		assert(self.local_path)
 
-		self._set_gemspec(GemFile(self.local_path).parse_metadata())
+		try:
+			self._set_gemspec(GemFile(self.local_path).parse_metadata())
+		except Error as e:
+			print("Unable to read gemspec from %s - parse error" % self.local_path)
+			raise e
 
 	def _set_gemspec(self, gemspec):
 		self.gemspec = gemspec
