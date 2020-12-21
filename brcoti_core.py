@@ -265,7 +265,7 @@ class EngineSpecificRequirementSet(Object):
 		self.mni()
 
 	def add(self, req):
-		print("EngineSpecificRequirementSet.add(%s)" % req)
+		# print("EngineSpecificRequirementSet.add(%s)" % req)
 
 		existing_req = self.req_dict.get(req.name)
 		if existing_req is None:
@@ -447,6 +447,11 @@ class Uploader(Object):
 class BuildInfo(Object):
 	def __init__(self, engine):
 		self.engine = engine
+
+		self.name = None
+		self.version = None
+
+		self.build_engine = None
 		self.build_script = None
 		self.build_strategy = None
 		self.requires = []
@@ -473,7 +478,13 @@ class BuildInfo(Object):
 
 	def save(self, path):
 		with open(path, "w") as f:
-			f.write("engine %s\n" % self.engine)
+			print("engine %s" % self.engine, file = f)
+
+			if self.name:
+				print("name %s" % self.name, file = f)
+			if self.version:
+				print("version %s" % self.version, file = f)
+
 			self.write_build_requires(f)
 			self.write_artefacts(f, "built", self.artefacts)
 			self.write_artefacts(f, "used", self.used)
@@ -485,17 +496,22 @@ class BuildInfo(Object):
 				print("build %s" % self.build_script, file = f)
 
 			for patch in self.patches:
+				patch = os.path.basename(patch)
 				print("patch %s" % patch, file = f)
 
 	#
 	# Write out the build-requires information
 	#
 	def write_build_requires(self, f):
+		seen = set()
 		for req in self.requires:
-			f.write("require %s %s\n" % (req.engine, req.format()))
-			if req.hash:
-				for (algo, md) in req.hash.items():
-					f.write("  hash %s %s\n" % (algo, md))
+			req_string = "%s %s" % (req.engine, req.format())
+			if req_string in seen:
+				continue
+			seen.add(req_string)
+
+			print("require %s" % req_string, file = f)
+			self.write_hashes(req, f)
 
 			artefact = req.resolution
 			if artefact:
@@ -504,13 +520,36 @@ class BuildInfo(Object):
 				if artefact.url:
 					print("  url %s" % artefact.url, file = f)
 
+	def parse_requires(self, line):
+		(name, rest) = line.split(maxsplit = 1)
+
+		engine = Engine.factory(name)
+		obj = engine.parse_build_requirement(rest.strip())
+		self.add_requirement(obj)
+		return obj
+
 	def write_artefacts(self, f, keyword, artefact_list):
 		for build in artefact_list:
 			print("%s %s %s %s %s" % (keyword, build.engine, build.name, build.version, build.type), file = f)
 			print("  filename %s" % build.filename, file = f)
 
-			for (algo, md) in build.hash.items():
-				print("  hash %s %s" % (algo, md), file = f)
+			self.write_hashes(build, f)
+
+	def parse_artefact(self, line):
+		name, *args = line.split()
+
+		engine = Engine.factory(name)
+		obj = engine.create_artefact_from_NVT(*args)
+		self.add_artefact(obj)
+		return obj
+
+	def parse_used(self, line):
+		name, *args = line.split()
+
+		engine = Engine.factory(name)
+		obj = engine.create_artefact_from_NVT(*args)
+		self.add_used(obj)
+		return obj
 
 	def write_sources(self, f):
 		for sdist in self.sources:
@@ -521,12 +560,56 @@ class BuildInfo(Object):
 				print("source %s" % url, file = f)
 			else:
 				print("source %s" % sdist.filename, file = f)
-				for (algo, md) in sdist.hash.items():
-					f.write("  hash %s %s\n" % (algo, md))
+				self.write_hashes(sdist, f)
+
+	def parse_source(self, line):
+		arg = line.strip()
+		if arg.startswith("git:") or arg.startswith("http:") or arg.startswith("https:"):
+			obj = self.build_engine.create_artefact_from_url(arg,
+					package_name = self.name,
+					version = self.version)
+		else:
+			filename = os.path.join(os.path.dirname(path), arg)
+			filename = os.path.realpath(filename)
+			obj = self.build_engine.create_artefact_from_local_file(filename)
+		self.add_source(obj)
+
+		if self.name is None:
+			self.name = obj.name
+		if self.version is None:
+			self.version = obj.version
+
+		return obj
+
+	def parse_patch(self, path, line):
+		arg = line.strip()
+		filename = os.path.join(os.path.dirname(path), arg)
+		filename = os.path.realpath(filename)
+
+		if not os.path.exists(filename):
+			raise ValueError("patch %s does not exist" % arg)
+		self.patches.append(filename)
+
+	def write_hashes(self, attrs, f):
+		if attrs.hash:
+			for (algo, md) in attrs.hash.items():
+				print("  hash %s %s" % (algo, md), file = f)
+
+	def parse_build_script(self, path, line):
+		arg = line.strip()
+		filename = os.path.join(os.path.dirname(path), arg)
+		filename = os.path.realpath(filename)
+
+		if not os.access(filename, os.X_OK):
+			raise ValueError("build script %s must be executable" % arg)
+
+		self.build_script = arg
+		self.build_strategy = self.build_engine.create_build_strategy_from_script(filename)
 
 	#
 	# Parse the build-requires file
 	#
+	# FIXME: config is not used
 	@staticmethod
 	def from_file(path, config, default_engine = None):
 		print("Loading build info from %s" % path)
@@ -534,6 +617,7 @@ class BuildInfo(Object):
 
 		engine = default_engine
 		build_engine = default_engine
+		result.build_engine = default_engine
 		with open(path, 'r') as f:
 			req = None
 			for l in f.readlines():
@@ -550,7 +634,11 @@ class BuildInfo(Object):
 
 					(kwd, l) = l.split(maxsplit = 1)
 
-					if kwd == 'engine':
+					if kwd == 'name':
+						if result.name:
+							raise ValueError("%s: duplicate name specification" % path)
+						result.name = l.strip()
+					elif kwd == 'engine':
 						if result.engine:
 							raise ValueError("%s: duplicate engine specification" % path)
 						result.engine = l.strip()
@@ -559,56 +647,30 @@ class BuildInfo(Object):
 								path, result.engine, default_engine.name))
 
 						build_engine = Engine.factory(result.engine)
+						result.build_engine = build_engine
 					elif kwd in ('require', 'artefact', 'built', 'used'):
-						(name, l) = l.split(maxsplit = 1)
-						engine = Engine.factory(name)
-
 						if kwd == 'require':
-							obj = engine.parse_build_requirement(l.strip())
-							result.add_requirement(obj)
+							obj = result.parse_requires(l)
 						elif kwd == 'artefact' or kwd == 'built':
-							args = l.split()
-							obj = engine.create_artefact_from_NVT(*args)
-							result.add_artefact(obj)
+							obj = result.parse_artefact(l)
 						elif kwd == 'used':
-							args = l.split()
-							obj = engine.create_artefact_from_NVT(*args)
-							result.add_used(obj)
+							obj = result.parse_used(l)
 					elif kwd == 'source':
-						arg = l.strip()
-						if arg.startswith("git:") or arg.startswith("http:") or arg.startswith("https:"):
-							obj = build_engine.create_artefact_from_url(arg)
-							print("%s: repo at %s" % (obj.id(), obj.git_url()))
-						else:
-							filename = os.path.join(os.path.dirname(path), arg)
-							filename = os.path.realpath(filename)
-							obj = build_engine.create_artefact_from_local_file(filename)
-						result.add_source(obj)
+						result.parse_source(l)
 					elif kwd == 'build':
-						arg = l.strip()
-						filename = os.path.join(os.path.dirname(path), arg)
-						filename = os.path.realpath(filename)
-
-						if not os.access(filename, os.X_OK):
-							raise ValueError("build script %s must be executable" % arg)
-
-						result.build_script = arg
-						result.build_strategy = engine.create_build_strategy_from_script(filename)
+						result.parse_build_script(path, l)
 					elif kwd == 'build-strategy':
 						result.build_strategy = BuildStrategy.parse(build_engine, l.strip())
 					elif kwd == 'patch':
-						arg = l.strip()
-						filename = os.path.join(os.path.dirname(path), arg)
-						filename = os.path.realpath(filename)
-
-						if not os.path.exists(filename):
-							raise ValueError("patch %s does not exist" % arg)
-						result.patches.append(filename)
+						result.parse_patch(path, l)
 					else:
 						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
 				else:
 					words = l.split()
 					kwd = words.pop(0)
+
+					if not words:
+						raise ValueError("%s: unparseable line <%s>" % (path, l))
 
 					if kwd == 'hash':
 						obj.add_hash(words[0], words[1])
