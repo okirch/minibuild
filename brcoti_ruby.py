@@ -825,8 +825,8 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 
 	def next_command(self, build_directory):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
-		yield "bundle config set bindir '%s'" % "/home/build/bin"
-		yield "bundle config set path '%s'" % "/home/build/.gem"
+		yield "bundle config bindir '%s'" % "/home/build/bin"
+		yield "bundle config path '%s'" % "/home/build/.gem"
 
 		# While we bootstrap ruby building, skip everything test related and go just for the build
 		yield "bundle config set without 'test'"
