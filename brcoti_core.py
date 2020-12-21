@@ -1832,7 +1832,7 @@ class Engine(Object):
 	# This is currently somewhat limited and there are lots of assertions.
 	# This code needs cleanup up and unification with the git url handling
 	# code of eg the Ruby engine.
-	def create_artefact_from_url(self, url):
+	def create_artefact_from_url(self, url, package_name = None, version = None, tag = None):
 		import urllib.parse
 
 		url, frag = urllib.parse.urldefrag(url)
@@ -1841,9 +1841,6 @@ class Engine(Object):
 
 		# For now, we only deal with github
 		assert(parsed_url.hostname == 'github.com')
-
-		version = None
-		tag = None
 
 		if frag:
 			assert(frag.startswith('version='))
@@ -1864,12 +1861,13 @@ class Engine(Object):
 		if version is None:
 			raise ValueError("Error when parsing URL \"%s\": no version given" % (url))
 
-		# github URLs are scheme:github.com/user_or_group/reponame/gobbledigook
-		path = parsed_url.path.strip('/').split('/')
-		assert(len(path) == 2)
-		name = path[1]
+		if package_name is None:
+			# github URLs are scheme:github.com/user_or_group/reponame/gobbledigook
+			path = parsed_url.path.strip('/').split('/')
+			assert(len(path) == 2)
+			package_name = path[1]
 
-		sdist = self.create_artefact_from_NVT(name, version, 'source')
+		sdist = self.create_artefact_from_NVT(package_name, version, 'source')
 		sdist.git_repo_url = url
 		sdist.git_repo_tag = tag
 
