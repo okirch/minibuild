@@ -788,7 +788,7 @@ class BuildStrategy_GemCompile(RubyBuildStrategy):
 				yield "gem compile '%s'" % spec.path
 
 	def build_dependencies(self, build_directory):
-		return self._requires + self.inner_job.build_dependencies(build_directory)
+		return self._build_dependencies(build_directory, nested_strategy = self.inner_job)
 
 	def build_used(self, build_directory):
 		return self.inner_job.build_used(build_directory)
@@ -837,11 +837,13 @@ class BuildStrategy_Bundler(RubyBuildStrategy):
 			yield "bundler exec " + cmd
 
 	def build_dependencies(self, build_directory):
-		bundler_req = self._requires
-		print("Gemfile.lock specifies bundler == %s" % build_directory.locked_bundler_version)
+		result = []
 		if build_directory.locked_bundler_version:
-			bundler_req = ['bundler == %s' % build_directory.locked_bundler_version]
-		return bundler_req + self.inner_job.build_dependencies(build_directory)
+			print("Gemfile.lock specifies bundler == %s" % build_directory.locked_bundler_version)
+			result = ['bundler == %s' % build_directory.locked_bundler_version]
+		elif not build_directory.has_build_dependency('bundler'):
+			result.append('bundler')
+		return result + self.inner_job.build_dependencies(build_directory)
 
 	def build_used(self, build_directory):
 		result = self.inner_job.build_used(build_directory)
@@ -871,7 +873,7 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 			return self.actual.describe()
 		return "auto"
 
-	def actual_strategy(self, build_directory):
+	def actual_strategy(self, build_directory, want_compiler = False):
 		where = build_directory.directory
 
 		strategy = None
@@ -882,6 +884,9 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 
 		if where.lookup("Gemfile"):
 			strategy = BuildStrategy_Bundler(strategy)
+
+		if want_compiler:
+			strategy = BuildStrategy_GemCompile(strategy)
 
 		return strategy
 
@@ -913,11 +918,16 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 
 		self.actual = strategy
 
+	# We're called twice. Once _before_ the build run, and once _after_.
+	# In the call before, we should always include gem-compiler to make sure it
+	# gets installed.
+	# In the call after, we should only include gem-compiler if the gem has
+	# and extension that needed compiling.
 	def build_dependencies(self, build_directory):
 		strategy = self.actual
 		if strategy is None:
-			strategy = self.actual_strategy(build_directory)
-		return strategy.build_dependencies(build_directory) + ["gem-compiler"]
+			strategy = self.actual_strategy(build_directory, want_compiler = True)
+		return strategy.build_dependencies(build_directory)
 
 	def build_used(self, build_directory):
 		return self.actual.build_used(build_directory)

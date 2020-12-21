@@ -677,7 +677,18 @@ class BuildStrategy(Object):
 		self.mni()
 
 	def build_dependencies(self, build_directory):
-		return self._requires
+		return self._build_dependencies(build_directory)
+
+	def _build_dependencies(self, build_directory, nested_strategy = None, engine_name = None):
+		result = []
+		for name in self._requires:
+			if build_directory.has_build_dependency(name, engine_name):
+				print("Build strategy asks for %s, but we already have a requirement for this." % name)
+			else:
+				result.append(name)
+		if nested_strategy:
+			result += nested_strategy.build_dependencies(build_directory)
+		return result
 
 	def build_used(self, build_directory):
 		return []
