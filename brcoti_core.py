@@ -446,21 +446,22 @@ class Uploader(Object):
 
 class BuildInfo(Object):
 	def __init__(self):
-		self.version = None
-
-		self.build_engine = None
 		self.build_script = None
 		self.build_strategy = None
 		self.requires = []
 		self.artefacts = []
 		self.sources = []
+		self.source_urls = []
 		self.patches = []
 		self.used = []
 
 		self.requires_set = RequirementSet()
 
-	def add_source(self, sdist):
-		self.sources.append(sdist)
+	@property
+	def source(self):
+		if not self.sources:
+			return None
+		return self.sources[0]
 
 	def add_requirement(self, req):
 		self.requires.append(req)
@@ -473,11 +474,7 @@ class BuildInfo(Object):
 	def add_used(self, build):
 		self.used.append(build)
 
-
 	def write(self, f):
-		if self.version:
-			print("version %s" % self.version, file = f)
-
 		self.write_build_requires(f)
 		self.write_artefacts(f, "built", self.artefacts)
 		self.write_artefacts(f, "used", self.used)
@@ -546,33 +543,49 @@ class BuildInfo(Object):
 
 	def write_sources(self, f):
 		for sdist in self.sources:
-			if sdist.git_repo_url:
+			if sdist.git_repo_url is None:
+				print("source %s" % sdist.filename, file = f)
+				self.write_hashes(sdist, f)
+			else:
 				url = "%s?name=%s&version=%s" % (sdist.git_url(), sdist.name, sdist.version)
 				if sdist.git_tag():
 					url += "&tag=" + sdist.git_tag()
-				print("source %s" % url, file = f)
-			else:
-				print("source %s" % sdist.filename, file = f)
-				self.write_hashes(sdist, f)
+
+				implicit_url = self.implicit_git_url()
+				if url != implicit_url:
+					print("source %s" % url, file = f)
+
+		for url in self.source_urls:
+			print("git-repo %s" % url, file = f)
+
+	def implicit_git_url(self):
+		return None
+
+	def parse_git_tag(self, line):
+		self.tag = line.strip()
+
+	def parse_git_repo(self, line):
+		self.source_urls.append(line.strip())
 
 	def parse_source(self, line):
-		arg = line.strip()
-		if arg.startswith("git:") or arg.startswith("http:") or arg.startswith("https:"):
-			obj = self.build_engine.create_artefact_from_url(arg,
-					package_name = self.name,
+		return self.add_source(line.strip())
+
+	def add_source(self, arg):
+		build_engine = self.context_engine()
+
+		if isinstance(arg, Artefact):
+			sdist = arg
+		elif arg.startswith("git:") or arg.startswith("http:") or arg.startswith("https:"):
+			sdist = build_engine.create_artefact_from_url(arg,
+					package_name = self.context_name(),
 					version = self.version)
 		else:
 			filename = os.path.join(os.path.dirname(path), arg)
 			filename = os.path.realpath(filename)
-			obj = self.build_engine.create_artefact_from_local_file(filename)
-		self.add_source(obj)
+			sdist = build_engine.create_artefact_from_local_file(filename)
 
-		if self.name is None:
-			self.name = obj.name
-		if self.version is None:
-			self.version = obj.version
-
-		return obj
+		self.sources.append(sdist)
+		return sdist
 
 	def parse_patch(self, path, line):
 		arg = line.strip()
@@ -589,6 +602,8 @@ class BuildInfo(Object):
 				print("  hash %s %s" % (algo, md), file = f)
 
 	def parse_build_script(self, path, line):
+		build_engine = self.context_engine()
+
 		arg = line.strip()
 		filename = os.path.join(os.path.dirname(path), arg)
 		filename = os.path.realpath(filename)
@@ -597,29 +612,110 @@ class BuildInfo(Object):
 			raise ValueError("build script %s must be executable" % arg)
 
 		self.build_script = arg
-		self.build_strategy = self.build_engine.create_build_strategy_from_script(filename)
+		self.build_strategy = build_engine.create_build_strategy_from_script(filename)
 
 	def parse_build_strategy(self, path, line):
-		self.build_strategy = BuildStrategy.parse(self.build_engine, line.strip())
+		build_engine = self.context_engine()
 
-class BuildSpec(BuildInfo):
+		self.build_strategy = BuildStrategy.parse(build_engine, line.strip())
+
+class VersionSpec(BuildInfo):
+	def __init__(self, build_spec, version):
+		super(VersionSpec, self).__init__()
+
+		self.parent = build_spec
+		self.engine = build_spec.engine
+		self.package_name = build_spec.package_name
+		self.version = version
+		self.tag = None
+
+	def id(self):
+		return "%s-%s" % (self.package_name, self.version)
+
+	def write(self, f):
+		print("", file = f)
+		if self.version:
+			print("version %s" % self.version, file = f)
+		else:
+			print("# defaults", file = f)
+
+		if self.tag:
+			print("git-tag %s" % self.tag, file = f)
+
+		super(VersionSpec, self).write(f)
+
+	def context_name(self):
+		return self.parent.context_name()
+
+	def context_engine(self):
+		return self.parent.context_engine()
+
+	def implicit_git_url(self):
+		source_urls = self.parent.defaults.source_urls
+		if len(source_urls) != 1:
+			return None
+		repo_url = source_urls[0]
+
+		url = "%s?name=%s&version=%s&tag=%s" % (repo_url,
+				self.package_name, 
+				self.version,
+				self.tag)
+		return url
+
+class DefaultSpec(VersionSpec):
+	def __init__(self, build_spec):
+		super(DefaultSpec, self).__init__(build_spec, None)
+
+	def add_source(self, url_or_path):
+		self.source_urls.append(url_or_path)
+
+class BuildSpec(Object):
 	def __init__(self, engine):
 		super(BuildSpec, self).__init__()
 
 		self.engine = engine
 
-		self.name = None
-		self.default_source_url = None
+		self.package_name = None
+
+		self.defaults = DefaultSpec(self)
 		self.versions = []
+
+		self.build_engine = None
 
 	def save(self, path):
 		with open(path, "w") as f:
 			print("engine %s" % self.engine, file = f)
 
-			if self.name:
-				print("name %s" % self.name, file = f)
+			if self.package_name:
+				print("package %s" % self.package_name, file = f)
 
-			self.write(f)
+			# self.write(f)
+			if self.defaults:
+				self.defaults.write(f)
+			for v in self.versions:
+				v.write(f)
+
+	def validate(self, path):
+		if self.engine is None:
+			raise ValueError("%s: does not specify an engine" % path)
+
+		if not self.package_name:
+			raise ValueError("%s: does not specify a package name" % path)
+
+		if not self.versions:
+			raise ValueError("%s: does not specify any versions" % path)
+
+		for v in self.versions:
+			if v.sources:
+				continue
+
+			url = v.implicit_git_url()
+			if url is not None:
+				v.add_source(url)
+				continue
+
+			if not v.sources:
+				raise ValueError("%s: version %s does not specify any sources" % (path, v.version))
 
 	#
 	# Parse the build-requires file
@@ -631,8 +727,9 @@ class BuildSpec(BuildInfo):
 		result = BuildSpec(None)
 
 		engine = default_engine
-		build_engine = default_engine
 		result.build_engine = default_engine
+
+		version = result.defaults
 		with open(path, 'r') as f:
 			req = None
 			for l in f.readlines():
@@ -649,27 +746,33 @@ class BuildSpec(BuildInfo):
 
 					(kwd, l) = l.split(maxsplit = 1)
 
-					if kwd == 'name':
-						if result.name:
-							raise ValueError("%s: duplicate name specification" % path)
-						result.name = l.strip()
+					if kwd == 'package':
+						if result.package_name:
+							raise ValueError("%s: duplicate package specification" % path)
+						result.package_name = l.strip()
 					elif kwd == 'engine':
-						build_engine = result.parse_engine(path, l, default_engine)
+						result.parse_engine(path, l, default_engine)
+					elif kwd == 'version':
+						version = result.add_version(l.strip())
 					elif kwd in ('require', 'artefact', 'built', 'used'):
 						if kwd == 'require':
-							obj = result.parse_requires(l)
+							obj = version.parse_requires(l)
 						elif kwd == 'artefact' or kwd == 'built':
-							obj = result.parse_artefact(l)
+							obj = version.parse_artefact(l)
 						elif kwd == 'used':
-							obj = result.parse_used(l)
+							obj = version.parse_used(l)
+					elif kwd == 'git-repo':
+						version.parse_git_repo(l)
+					elif kwd == 'git-tag':
+						version.parse_git_tag(l)
 					elif kwd == 'source':
-						result.parse_source(l)
+						version.parse_source(l)
 					elif kwd == 'build':
-						result.parse_build_script(path, l)
+						version.parse_build_script(path, l)
 					elif kwd == 'build-strategy':
-						result.parse_build_strategy(path, l)
+						version.parse_build_strategy(path, l)
 					elif kwd == 'patch':
-						result.parse_patch(path, l)
+						version.parse_patch(path, l)
 					else:
 						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
 				else:
@@ -690,8 +793,33 @@ class BuildSpec(BuildInfo):
 					else:
 						raise ValueError("%s: unparseable line <%s>" % (path, l))
 
-		if result.engine is None:
-			raise ValueError("%s: missing engine specification" % path)
+		# Old-style build-spec files did not have separate "version" sections, but just a single
+		# one.
+		if not result.versions:
+			v = result.defaults
+			if len(v.sources) == 0 and len(v.source_urls) == 1:
+				result.defaults = DefaultSpec(result)
+
+				url_or_path = v.source_urls[0]
+				try:
+					sdist = result.build_engine.create_artefact_from_url(url_or_path)
+				except:
+					sdist = None
+
+				if sdist:
+					result.package_name = sdist.name
+					v.version = sdist.version
+					v.sources = [sdist]
+					v.source_urls = []
+
+					if sdist.git_repo_url:
+						result.defaults.add_source(sdist.git_repo_url)
+						v.tag = sdist.git_repo_tag
+
+				result.versions.append(v)
+
+
+		result.validate(path)
 		return result
 
 	def parse_engine(self, path, line, default_engine):
@@ -705,13 +833,55 @@ class BuildSpec(BuildInfo):
 		self.build_engine = Engine.factory(self.engine)
 		return self.build_engine
 
+	def add_version(self, version_str):
+		version = VersionSpec(self, version_str)
+		self.versions.append(version)
+
+		return version
+
+	def context_name(self):
+		return self.package_name
+
+	def context_engine(self):
+		return self.build_engine
+
 class Source(Object):
 	def __init__(self):
 		pass
 
+	def merge_info_from_build(self, build_info):
+		self.spec.requires += build_info.requires
+
+		assert(len(build_info.sources) == 1)
+		sdist = build_info.sources[0]
+
+		if sdist.git_url():
+			self.spec.tag = sdist.git_tag()
+
+			defaults = self.spec_file.defaults
+			if not defaults.source_urls:
+				defaults.source_urls.append(sdist.git_url())
+
+	def add_requires(self, req_list):
+		self.spec.requires += req_list
+
+	def save(self, path, spec_name = "build-spec"):
+		if os.path.exists(path):
+			raise ValueError("Refusing to save source to %s: file or directory exists" % path)
+
+		os.makedirs(path, mode = 0o755)
+		for sdist in self.spec.sources:
+			if sdist.local_path is not None:
+				shutil.copy(sdist.local_path, path)
+
+		spec_path = os.path.join(path, spec_name)
+		self.spec_file.save(spec_path)
+
 class SourceFile(Source):
 	def __init__(self, sdist, engine):
-		self.spec = BuildSpec(engine.name)
+		self.spec_file = BuildSpec(engine.name)
+		self.spec_file.package_name = sdist.name
+		self.spec = self.spec_file.add_version(sdist.version)
 		self.spec.add_source(sdist)
 
 	def id(self):
@@ -720,6 +890,8 @@ class SourceFile(Source):
 class SourceDirectory(Source):
 	def __init__(self, path, config):
 		self.path = path
+		self.spec_file = None
+		self.spec = None
 
 		if not os.path.isdir(path):
 			raise ValueError("%s: not a directory" % path)
@@ -733,13 +905,24 @@ class SourceDirectory(Source):
 
 			print("Found build-info file; please rename to build-spec at your convenience")
 
-		self.spec = BuildSpec.from_file(spec_path, config)
+		self.spec_file = BuildSpec.from_file(spec_path, config)
 
-		if not self.spec.sources:
-			raise ValueError("%s: does not specify any sources" % path)
+		for v in self.spec_file.versions:
+			if v.source is not None:
+				self.spec = v
+				break
+
+	def select_version(self, version):
+		for v in self.spec.versions:
+			if v.version == version:
+				self.spec = v
+				return True
+
+		return False
 
 	def id(self):
-		return self.spec.sources[0].id()
+		assert(self.spec)
+		return self.spec.id()
 
 class BuildStrategy(Object):
 	# Derived classes that have static build dependencies should define a
@@ -843,7 +1026,7 @@ class BuildStrategy_FromScript(BuildStrategy):
 		yield os.path.join(self.build_base.path, os.path.basename(build_script))
 
 		# Record the fact that we used a build script (for now)
-		self.build_info.build_script = build_script
+		# self.build_info.build_script = build_script
 
 class BuildFailure(Exception):
 	def __init__(self, msg, cmd):
@@ -871,7 +1054,8 @@ class BuildDirectory(Object):
 		self.engine = engine
 
 		# This is where we record auto-detected build information
-		self.build_info = BuildSpec(engine.name)
+		self.built_spec = BuildSpec(engine.name)
+		self.build_info = None
 
 		build_base = compute.default_build_dir()
 		self.build_base = self.compute.get_directory(build_base)
@@ -906,6 +1090,16 @@ class BuildDirectory(Object):
 
 		return self.directory.path
 
+	# This is called right after creating the build container, and before we install anything
+	def record_package(self, sdist):
+		self.built_spec.package_name = sdist.name
+		self.build_info = self.built_spec.add_version(sdist.version)
+
+	# This is called after we've unpacked a git repo
+	def record_source(self, sdist):
+		self.sdist = sdist
+		self.build_info.add_source(sdist)
+
 	def unpack_archive(self, sdist):
 		archive = sdist.local_path
 		if not archive or not os.path.exists(archive):
@@ -923,7 +1117,7 @@ class BuildDirectory(Object):
 		if not self.directory or not self.directory.isdir():
 			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
 
-		self.sdist = sdist
+		self.record_source(sdist)
 
 	def unpack_git(self, sdist, destdir):
 		repo_url = sdist.git_url()
@@ -948,7 +1142,8 @@ class BuildDirectory(Object):
 			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
 
 		sdist.git_repo_tag = tag
-		self.sdist = sdist
+
+		self.record_source(sdist)
 
 	# General helper function: clone a git repo to the given destdir, and
 	# optionally check out the tag requested (HEAD otherwise)
@@ -1089,10 +1284,13 @@ class BuildDirectory(Object):
 		self.mni()
 
 	def prepare_results(self, build_state):
-		self.build_info.save(build_state.get_new_path("build-info"))
+		self.save_build_info(build_state.get_new_path("build-info"))
 
 		for build in self.build_info.artefacts:
 			build.local_path = build_state.save_file(build.local_path)
+
+	def save_build_info(self, info_path):
+		self.built_spec.save(info_path)
 
 	def build_requires_as_string(self):
 		self.mni()
@@ -2181,6 +2379,8 @@ class Engine(Object):
 		sdist = build_spec.sources[0]
 
 		bd = self.create_build_directory(compute)
+
+		bd.record_package(sdist)
 
 		if self.use_proxy:
 			bd.http_proxy = self.config.globals.http_proxy

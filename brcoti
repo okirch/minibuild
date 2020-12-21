@@ -411,7 +411,7 @@ If you're in a hurry, re-run this command with --no-upstream-check
 			exit_code = 1
 
 		if job.build:
-			write_source_dir(name, source.spec, job.build.build_info)
+			write_source_dir(name, source, job.build)
 
 			engine.reset_indices()
 			job.verify_artefact_availability(job.build.build_info.used)
@@ -424,22 +424,21 @@ If you're in a hurry, re-run this command with --no-upstream-check
 
 	return exit_code
 
-def write_source_dir(name, spec, build_info):
-	src_dir = name
+def zap_source_dir(src_dir):
 	if os.path.isdir(src_dir):
 		shutil.rmtree(src_dir)
-	os.makedirs(src_dir, mode = 0o755)
-	for sdist in spec.sources:
-		if sdist.local_path is not None:
-			shutil.copy(sdist.local_path, src_dir)
 
-	spec.requires += build_info.requires
+def write_source_dir(src_dir, source, build_dir):
+	build_info = build_dir.build_info
 
-	spec_path = os.path.join(src_dir, "build-spec")
-	spec.save(spec_path)
+	zap_source_dir(src_dir)
+
+	source.merge_info_from_build(build_info)
+
+	source.save(src_dir)
 
 	info_path = os.path.join(src_dir, "build-used")
-	build_info.save(info_path)
+	build_dir.save_build_info(info_path)
 
 def submit_action(config, opts):
 	exit_code = 0
@@ -577,15 +576,20 @@ def merge_extra_action(config, opts):
 
 def cleanup_action(config, opts):
 	for name in opts.packages:
-		source = source_from_path(name, opts)
-		if source is None:
-			exit_code = 1
-			continue
+		spec_path = os.path.join(name, "build-spec")
 
-		spec_path = os.path.join(source.path, "build-spec")
+		spec = brcoti_core.BuildSpec.from_file(spec_path, config = None)
 		temp_path = spec_path + ".new"
-		source.spec.save(temp_path)
+		spec.save(temp_path)
 		print("Wrote spec to %s" % temp_path)
+
+		spec_path = temp_path
+		spec = brcoti_core.BuildSpec.from_file(spec_path, config = None)
+		temp_path = spec_path + ".new"
+		spec.save(temp_path)
+		print("Wrote spec to %s" % temp_path)
+
+		continue
 
 		used_path = os.path.join(source.path, "build-used")
 		if os.path.exists(used_path):
