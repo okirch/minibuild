@@ -285,7 +285,10 @@ class Ruby:
 			return result
 
 		def format_versions(self):
-			return ", ".join([str(x) for x in self.requirement])
+			result = ", ".join([str(x) for x in self.requirement])
+			if result == ">= 0":
+				result = ""
+			return result
 
 		def __eq__(self, other):
 			assert(isinstance(other, self.__class__))
