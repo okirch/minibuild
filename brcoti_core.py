@@ -444,7 +444,7 @@ class Uploader(Object):
 	def upload(self, build):
 		self.mni()
 
-class BuildInfo(Object):
+class BuildSpec(Object):
 	def __init__(self, engine):
 		self.engine = engine
 
@@ -613,7 +613,7 @@ class BuildInfo(Object):
 	@staticmethod
 	def from_file(path, config, default_engine = None):
 		print("Loading build info from %s" % path)
-		result = BuildInfo(None)
+		result = BuildSpec(None)
 
 		engine = default_engine
 		build_engine = default_engine
@@ -694,7 +694,7 @@ class Source(Object):
 
 class SourceFile(Source):
 	def __init__(self, sdist, engine):
-		self.spec = BuildInfo(engine.name)
+		self.spec = BuildSpec(engine.name)
 		self.spec.add_source(sdist)
 
 	def id(self):
@@ -716,7 +716,7 @@ class SourceDirectory(Source):
 
 			print("Found build-info file; please rename to build-spec at your convenience")
 
-		self.spec = BuildInfo.from_file(spec_path, config)
+		self.spec = BuildSpec.from_file(spec_path, config)
 
 		if not self.spec.sources:
 			raise ValueError("%s: does not specify any sources" % path)
@@ -1233,7 +1233,7 @@ class BuildState(Object):
 
 		try:
 			engine = self.engine
-			build_info = BuildInfo.from_file(path, engine.config, default_engine = engine)
+			build_info = BuildSpec.from_file(path, engine.config, default_engine = engine)
 		except Exception as e:
 			print("Cannot parse build-info file at %s" % path)
 			print(e)

@@ -994,7 +994,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine):
 		super(RubyBuildDirectory, self).__init__(compute, engine)
 
-		self.build_info = brcoti_core.BuildInfo(engine.name)
+		self.build_info = brcoti_core.BuildSpec(engine.name)
 
 		gem_cache_path = engine.engine_config.get_value("gem-system-cache")
 		if not gem_cache_path:

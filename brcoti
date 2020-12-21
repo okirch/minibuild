@@ -589,7 +589,7 @@ def cleanup_action(config, opts):
 
 		used_path = os.path.join(source.path, "build-used")
 		if os.path.exists(used_path):
-			used = brcoti_core.BuildInfo.from_file(used_path, config = None)
+			used = brcoti_core.BuildSpec.from_file(used_path, config = None)
 
 			temp_path = used_path + ".new"
 			used.save(temp_path)

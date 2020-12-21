@@ -784,7 +784,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 	def __init__(self, compute, engine):
 		super(PythonBuildDirectory, self).__init__(compute, engine)
 
-		self.build_info = brcoti_core.BuildInfo(engine.name)
+		self.build_info = brcoti_core.BuildSpec(engine.name)
 
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
