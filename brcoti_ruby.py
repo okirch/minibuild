@@ -271,7 +271,7 @@ class RubyArtefact(brcoti_core.Artefact):
 		self.gemspec = gemspec
 
 		self.name = gemspec.name
-		self.version = gemspec.version
+		self.version = str(gemspec.version)
 
 		# Sometimes, the platform is just a string, sometimes it's a Gem::Platform
 		# instance. We don't care, we force it to string.
