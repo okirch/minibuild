@@ -870,6 +870,9 @@ class BuildDirectory(Object):
 		self.compute = compute
 		self.engine = engine
 
+		# This is where we record auto-detected build information
+		self.build_info = BuildSpec(engine.name)
+
 		build_base = compute.default_build_dir()
 		self.build_base = self.compute.get_directory(build_base)
 		assert(self.build_base)
@@ -879,7 +882,6 @@ class BuildDirectory(Object):
 		self.quiet = False
 		self.build_log = None
 
-		self.build_info = None
 		self.http_proxy = None
 
 		self.explicit_requirements_installed = []
