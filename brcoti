@@ -62,11 +62,22 @@ def source_from_path(name, config):
 
 	return source
 
-def find_source(engine, req_string, use_git = False):
+def find_source(engine, req_string, use_git = True, git_url = None, git_tag = None, version = None):
 	print("=== Locating %s ===" % (req_string,))
-	req = engine.parse_build_requirement(req_string)
 
-	sdist = engine.build_source_locate(req)
+	if use_git and (req_string.startswith("https:") or req_string.startswith("http:")):
+		if git_url:
+			raise ValueError("I'm confused. You specified \"%s\" as package name, and provided a --git-url as well" % req_string)
+		git_url = req_string
+		req_string = None
+
+	if use_git and git_url:
+		sdist = engine.create_artefact_from_url(git_url, version = version, package_name = req_string, tag = git_tag)
+	else:
+		if version:
+			req_string = "%s == %s" % (req_string, version)
+		req = engine.parse_build_requirement(req_string)
+		sdist = engine.build_source_locate(req)
 
 	if sdist is None:
 		print("FAILED to locate source for %s" % req)
@@ -335,18 +346,22 @@ def prep_action(config, opts):
 		if os.path.isfile(name):
 			source = source_from_path(name, config)
 		else:
-			source = find_source(engine, name, use_git = opts.git)
+			source = find_source(engine, name, use_git = opts.git, git_url = opts.git_url, git_tag = opts.git_tag, version = opts.version)
 		if source is None:
 			exit_code = 1
 			continue
 
 		sdist = source.spec.sources[0]
 
+		if name != sdist.name:
+			print("Package name is %s" % sdist.name)
+			name = sdist.name
+
 		url = sdist.git_url()
 		if not url:
 			url = sdist.url
 		if url:
-			print("Using %s" % url)
+			print("Building %s from %s" % (sdist.id, url))
 
 		source.spec.build_strategy = engine.create_build_strategy("auto")
 
@@ -589,6 +604,12 @@ def build_option_parser():
 		help = "List of packages")
 	prep_parser.add_argument('--git', default = False, action = 'store_true',
                 help = "Build from git repo rather than sdist")
+	prep_parser.add_argument('--version', default = None,
+                help = "Explicitly specify the package version to build from")
+	prep_parser.add_argument('--git-url', default = None,
+                help = "Explicitly specify the git repo to build from")
+	prep_parser.add_argument('--git-tag', default = None,
+                help = "Explicitly specify the git tag or commit to build from")
 	prep_parser.add_argument('--no-upstream-check', default = False, action = 'store_true',
                 help = "Do not compare our build results to upstream build (use with caution)")
 	prep_parser.add_argument('--shell-on-fail', default = False, action = 'store_true',
