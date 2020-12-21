@@ -135,6 +135,7 @@ ruby_Array_to_python(ruby_Array *self, ruby_converter_t *converter)
 		py_item = ruby_instance_to_python(ruby_item, converter);
 		if (py_item == NULL) {
 			fprintf(stderr, "Array item %u(%s): python conversion failed\n", i, ruby_item->op->name);
+			fprintf(stderr, "  item=%s\n", ruby_instance_repr(ruby_item));
 			// PyErr_Format(PyExc_RuntimeError, "Conversion of %s instance failed", ruby_item->op->name);
 			goto failed;
 		}

@@ -331,6 +331,30 @@ class Ruby:
 
 			return dep
 
+	class GemPlatform(object):
+		# Gem::Platform(); {@cpu=None, @os=java, @version=None}
+		def __init__(self, yaml_data = None):
+			self.cpu = None
+			self.os = None
+			self.version = None
+
+			if yaml_data is not None:
+				for key, value in yaml_data.items():
+					setattr(self, key, value)
+			self._yaml = yaml_data
+
+		def __repr__(self):
+			if not self.cpu and not self.os and not self.version:
+				return "ruby"
+			l = []
+			if self.cpu:
+				l.append(self.cpu)
+			if self.os:
+				l.append(self.os)
+			if self.version:
+				l.append(self.version)
+			return "-".join(l)
+
 	@staticmethod
 	def parse_dependency(string):
 		return Ruby.GemDependency.parse(string)
@@ -599,6 +623,7 @@ class Ruby:
 		'Gem::Specification'	: GemSpecification,
 		'Gem::Requirement'	: GemRequirement,
 		'Gem::Dependency'	: GemDependency,
+		'Gem::Platform'		: GemPlatform,
 		'Time'			: Time,
 	}
 
