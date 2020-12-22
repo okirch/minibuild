@@ -632,6 +632,14 @@ class VersionSpec(BuildInfo):
 	def id(self):
 		return "%s-%s" % (self.package_name, self.version)
 
+	@property
+	def dependencies(self):
+		defaults = []
+		if self.parent and self.parent.defaults:
+			defaults = self.parent.defaults.requires
+
+		return defaults + self.requires
+
 	def write(self, f):
 		print("", file = f)
 		if self.version:
@@ -1136,7 +1144,10 @@ class BuildDirectory(Object):
 			self.http_proxy = engine.config.globals.http_proxy
 
 		# install additional packages as requested by build-info
-		for req in build_spec.requires:
+		# Note: build_spec.dependencies covers all dependencies
+		# from the defaults section, plus the ones specific to the
+		# version we're just building
+		for req in build_spec.dependencies:
 			self.install_requirement(req)
 
 		if sdist.git_url():
@@ -2134,8 +2145,11 @@ class Engine(Object):
 		if len(build_spec.sources) != 1:
 			raise ValueError("Currently unable to handle builds with %d sources" % len(build_spec.sources))
 
+		# Note: build_spec.dependencies covers all dependencies
+		# from the defaults section, plus the ones specific to the
+		# version we're just building
 		req_dict = {}
-		for req in build_spec.requires:
+		for req in build_spec.dependencies:
 			if req.engine == self.name:
 				engine = self
 			else:
