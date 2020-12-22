@@ -128,6 +128,9 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 			return self.req_string
 		return self.name
 
+	def valid_platform(self):
+		return self.cooked_requirement.valid_platform()
+
 class RubyArtefact(brcoti_core.Artefact):
 	engine = ENGINE_NAME
 
@@ -1039,7 +1042,13 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			# GemDependency objects; we need to convert these into
 			# RubyBuildRequirements
 			for dep in gemfile_lock.requirements():
-				requirements.append(RubyBuildRequirement.from_cooked(dep))
+				req = RubyBuildRequirement.from_cooked(dep)
+
+				if not req.valid_platform():
+					print("Ignoring Gemfile.lock requirement %s" % req)
+					continue
+
+				requirements.append(req)
 
 			self.locked_bundler_version = gemfile_lock.bundler_version()
 			if self.locked_bundler_version:
@@ -1077,6 +1086,11 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			req = RubyBuildRequirement.from_string(r)
 			req.origin = "Gemfile"
 			req.index_url = source
+
+			if not req.valid_platform():
+				print("Ignoring Gemfile requirement %s" % req)
+				continue
+
 			result.append(req)
 
 		return result
