@@ -9,6 +9,7 @@ class Ruby:
 		def __init__(self, s):
 			self._version = []
 			self.is_prerelease = False
+			self.platform = None
 
 			if type(s) == list or type(s) == tuple:
 				self._version = s
@@ -17,6 +18,11 @@ class Ruby:
 			if type(s) != str:
 				raise ValueError("Cannot build ParsedVersion from %s object (%s)" % (
 						type(s), s))
+
+			# If the version includes a platform like "1.2.3-java" or "4.5.6-x86_64-linux", split
+			# it off and record it in self.platform
+			if "-" in s:
+				(s, self.platform) = s.split('-', 1)
 
 			word = None
 			isnumber = False
@@ -79,7 +85,10 @@ class Ruby:
 			return version
 
 		def __repr__(self):
-			return "".join([str(x) for x in self._version])
+			result = "".join([str(x) for x in self._version])
+			if self.platform:
+				result += "-" + self.platform
+			return result
 
 		def __lt__(self, other):
 			return self.compare(other, lambda s, o: s < o)
