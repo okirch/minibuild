@@ -260,6 +260,16 @@ class Ruby:
 
 			return True
 
+		def specific_version(self):
+			if len(self.req) != 1:
+				return None
+
+			clause = self.req[0]
+			if clause.op != '==':
+				return None
+
+			return clause.version
+
 	class GemDependency(object):
 		# Needed for marshaling
 		ruby_classname = 'Gem::Dependency'
@@ -336,6 +346,50 @@ class Ruby:
 
 		def valid_platform(self, my_platforms = ('ruby', 'x86_64-linux')):
 			return self.requirement.valid_platform(my_platforms)
+
+		def specific_version(self):
+			return self.requirement.specific_version()
+
+		def merge(self, other):
+			assert(isinstance(other, Ruby.GemDependency))
+			assert(self.name == other.name)
+
+			merge_cooked = Ruby.GemDependency()
+			merge_cooked.name = self.name
+
+			if self.type == other.type:
+				merge_cooked.type = self.type
+			else:
+				merge_cooked.type = 'any'
+
+			merge_cooked.prerelease = self.prerelease and other.prerelease
+
+			# If either of the requires a specific version like "== 1.2.3",
+			# AND that specific version matches the other dependency,
+			# our merged result is just "== 1.2.3"
+			version = self.specific_version()
+			if version and version in other.requirement:
+				merge_cooked.requirement = self.requirement
+				return merge_cooked
+
+			version = other.specific_version()
+			if version and version in self.requirement:
+				merge_cooked.requirement = other.requirement
+				return merge_cooked
+
+			# Slow path: concat the two lists, making sure that at least
+			# we do not add obvious duplicates.
+			merge_cooked.requirement.req += self.requirement.req
+			for clause in other.requirement:
+				have = False
+				for other_clause in merge_cooked.requirement:
+					if other_clause == clause:
+						have = True
+
+				if not have:
+					merge_cooked.requirement.add_clause(clause)
+
+			return merge_cooked
 
 		@staticmethod
 		def parse(string):

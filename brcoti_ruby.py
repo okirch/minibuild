@@ -75,34 +75,14 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 		# Both cooked_requirement are a Gem::Dependency
 		merge = RubyBuildRequirement(self.name)
 
-		merge_cooked = ruby_utils.Ruby.GemDependency()
-		merge.cooked_requirement = merge_cooked
-		merge_cooked.name = self.name
+		merge.cooked_requirement = self.cooked_requirement.merge(other.cooked_requirement)
 
 		if self.origin_priority() < other.origin_priority():
 			merge.origin = other.origin
 		else:
 			merge.origin = self.origin
 
-		if self.cooked_requirement.type == other.cooked_requirement.type:
-			merge_cooked.type = self.cooked_requirement.type
-		else:
-			merge_cooked.type = 'any'
-
-		merge_cooked.prerelease = self.cooked_requirement.prerelease and other.cooked_requirement.prerelease
-
-		merge_cooked.requirement.req += self.cooked_requirement.requirement.req
-
-		for clause in other.cooked_requirement.requirement:
-			have = False
-			for other_clause in merge_cooked.requirement:
-				if other_clause == clause:
-					have = True
-
-			if not have:
-				merge_cooked.requirement.add_clause(clause)
-
-		print("merged: %s + %s => %s" % (self, other, merge))
+		# print("merged: %s + %s => %s" % (self, other, merge))
 		return merge
 
 	origin_order = (
