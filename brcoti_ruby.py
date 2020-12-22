@@ -1028,9 +1028,8 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 	def infer_build_dependencies(self):
 
-		requirements = []
-
-		requirements += self.infer_gemfile_requirements()
+		req_set = brcoti_core.RequirementSet()
+		req_set.add_list(self.infer_gemfile_requirements())
 
 		loc = self.directory.lookup('Gemfile.lock')
 		if loc is not None:
@@ -1050,13 +1049,14 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 					print("Ignoring Gemfile.lock requirement %s" % req)
 					continue
 
-				requirements.append(req)
+				req_set.add(req)
 
 			self.locked_bundler_version = gemfile_lock.bundler_version()
 			if self.locked_bundler_version:
 				print("Locked to bundler version %s" % self.locked_bundler_version)
 
-		return requirements
+		req_set.show("Bundler requirements")
+		return req_set.all()
 
 	def infer_gemfile_requirements(self):
 		import bundler
