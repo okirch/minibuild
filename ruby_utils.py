@@ -717,6 +717,11 @@ class Ruby:
 		'Gem::Requirement'	: GemRequirement,
 		'Gem::Dependency'	: GemDependency,
 		'Gem::Platform'		: GemPlatform,
+
+		# Rarely used (eg in syntax-1.0.0)
+		# For now, we treat this as an alias for Gem::Requirement
+		'Gem::Version::Requirement' : GemRequirement,
+
 		'Time'			: Time,
 	}
 
