@@ -497,6 +497,8 @@ def build_action(config, opts):
 			if not source.select_version(opts.version) and \
 			   not source.from_closest_version(opts.version):
 				raise ValueError("%s does not have version %s, and nothing to guess from" % (name, opts.version))
+
+			source.spec.no_default_patches = opts.no_default_patches
 			guessing = True
 
 		engine = brcoti_core.Engine.factory(source.spec.engine)
@@ -703,6 +705,8 @@ def build_option_parser():
                 help = "When a build command fails, open an interactive shell session to debug the issue")
 	build_parser.add_argument('--auto-repair', default = False, action = 'store_true',
                 help = "Try to detect and fix build environment issues")
+	build_parser.add_argument('--no-default-patches', default = False, action = 'store_true',
+                help = "When building a new version from an existing build-spec, ignore any default patches")
 
 	mkindex_parser = subparsers.add_parser('make-index',
 		help = "Rebuild package index")

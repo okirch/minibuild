@@ -480,6 +480,7 @@ class BuildInfo(Object):
 		self.artefacts = []
 		self.sources = []
 		self.source_urls = []
+		self.no_default_patches = False
 		self._patches = []
 		self.used = []
 
@@ -676,6 +677,9 @@ class VersionSpec(BuildInfo):
 
 	@property
 	def patches(self):
+		if self.no_default_patches:
+			return self._patches
+
 		defaults = []
 		if self.parent and self.parent.defaults:
 			defaults = self.parent.defaults._patches
@@ -691,6 +695,9 @@ class VersionSpec(BuildInfo):
 
 		if self.tag:
 			print("git-tag %s" % self.tag, file = f)
+
+		if self.no_default_patches:
+			print("no-default-patches", file = f)
 
 		super(VersionSpec, self).write(f)
 
@@ -796,7 +803,11 @@ class BuildSpec(Object):
 					engine = None
 					obj = None
 
-					(kwd, l) = l.split(maxsplit = 1)
+					(kwd, *rest_of_line) = l.split(maxsplit = 1)
+					if rest_of_line:
+						l = rest_of_line[0]
+					else:
+						l = ""
 
 					if kwd == 'package':
 						if result.package_name:
@@ -825,6 +836,8 @@ class BuildSpec(Object):
 						version.parse_build_strategy(path, l)
 					elif kwd == 'patch':
 						version.parse_patch(path, l)
+					elif kwd == 'no-default-patches':
+						version.no_default_patches = True
 					else:
 						raise ValueError("%s: unexpected keyword \"%s\"" % (path, kwd))
 				else:
