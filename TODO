@@ -8,8 +8,6 @@ privileges
 		build: user user.
 			optionally check out source
 
-rename brcoti to minibuild
-
 building without sudo
 
 build strategies
