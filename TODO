@@ -23,6 +23,17 @@ dependencies on non-ruby packages (esp rpms)
 
 	Add rpm requirements to spec.requirements?
 
+Gemfile parser:
+	gem 'byebug', platform: (RUBY_VERSION > "2.0.0" ? :mri : :mswin)
+
+	from rspec/Gemfile:
+	%w[rspec-core rspec-expectations rspec-mocks rspec-support].each do |lib|
+	  gem lib, :path => File.expand_path("../../#{lib}", __FILE__)
+	end
+
+	from rspec 2.11.0
+	source :rubygems
+
 change ruby from proxy to mirror?
 	provide a per-build instance that can hide/add packages
 
