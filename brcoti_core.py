@@ -709,19 +709,36 @@ class VersionSpec(BuildInfo):
 
 	def implicit_git_urls(self):
 		result = []
-		for repo_url in self.parent.defaults.source_urls:
-			url = self.format_url(repo_url)
+
+		source_urls = self.source_urls
+		if not source_urls:
+			source_urls = self.parent.defaults.source_urls
+
+		for i in range(len(source_urls)):
+			repo_url = source_urls[i]
+
+			if i == 0:
+				name = self.package_name
+			else:
+				repo_url = repo_url.rstrip('/')
+				name = repo_url.split('/')[-1]
+
+			url = self.format_url(repo_url, name)
+
 			if url:
 				result.append(url)
 		return result
 
-	def format_url(self, repo_url):
-		url = "%s?name=%s&version=%s" % (repo_url,
-				self.package_name, 
-				self.version)
+	def format_url(self, repo_url, name = None):
+		attrs = []
+		if name:
+			attrs.append("name=%s" % name)
+		attrs.append("version=%s" % self.version)
 		if self.tag:
-			url += "&tag=%s" % self.tag
-		return url
+			attrs.append("tag=%s" % self.tag)
+
+		return "%s?%s" % (repo_url, "&".join(attrs))
+
 
 class DefaultSpec(VersionSpec):
 	def __init__(self, build_spec):
