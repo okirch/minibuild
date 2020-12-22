@@ -1204,60 +1204,63 @@ class BuildDirectory(Object):
 		for req in build_spec.dependencies:
 			self.install_requirement(req)
 
+		for src_index in range(len(build_spec.sources)):
+			sdist = build_spec.sources[src_index]
+
+			destdir = self.get_unpack_directory(sdist, cleanup = True)
+
+			if sdist.git_url():
+				self.unpack_git(sdist, destdir)
+			else:
+				self.unpack_archive(sdist, destdir)
+
+			if src_index == 0:
+				self.record_source(sdist)
+
+			directory = self.compute.get_directory(destdir)
+			if not directory or not directory.isdir():
+				raise ValueError("Unpacking %s failed: cannot find %s" % (sdist.id(), destdir))
+
+			if src_index == 0:
+				self.directory = directory
+
+				if build_spec.patches:
+					self.apply_patches(build_spec)
+
+	def get_unpack_directory(self, sdist, cleanup = False):
 		if sdist.git_url():
-			self.unpack_git(sdist, sdist.id())
+			url = sdist.git_url()
+			url = url.rstrip('/')
+			relative_dir = url.split('/')[-1]
 		else:
-			self.unpack_archive(sdist)
+			relative_dir = self.archive_get_unpack_directory(sdist)
 
-		print("Unpacked %s to %s" % (sdist.id(), self.unpacked_dir()))
+		if cleanup:
+			d = self.build_base.lookup(relative_dir)
+			if d is not None:
+				d.rmtree()
 
-		if build_spec.patches:
-			self.apply_patches(build_spec)
+		return os.path.join(self.build_base.path, relative_dir)
 
-	def unpack_archive(self, sdist):
+	def unpack_archive(self, sdist, destdir):
 		archive = sdist.local_path
 		if not archive or not os.path.exists(archive):
 			raise ValueError("Unable to unpack %s: you need to download the archive first" % sdist.filename)
 
-		relative_unpack_dir = self.archive_get_unpack_directory(sdist)
-
-		d = self.build_base.lookup(relative_unpack_dir)
-		if d is not None:
-			d.rmtree()
-
 		shutil.unpack_archive(archive, self.build_base.hostpath())
-
-		self.directory = self.build_base.lookup(relative_unpack_dir)
-		if not self.directory or not self.directory.isdir():
-			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
-
-		self.record_source(sdist)
+		print("Unpacked %s to %s" % (archive, destdir))
 
 	def unpack_git(self, sdist, destdir):
 		repo_url = sdist.git_url()
 		if not repo_url:
 			raise ValueError("Unable to build from git - cannot determine git url")
 
-		relative_unpack_dir = sdist.id()
-
-		d = self.build_base.lookup(relative_unpack_dir)
-		if d is not None:
-			d.rmtree()
-
-		destdir = os.path.join(self.build_base.path, relative_unpack_dir)
-
 		tag = sdist.git_tag()
 
-		# print("unpack_git: relative_unpack_dir=%s destdir=%s" % (relative_unpack_dir, destdir))
 		tag = self.unpack_git_helper(repo_url, tag, destdir = destdir, version_hint = str(sdist.version))
-
-		self.directory = self.compute.get_directory(destdir)
-		if not self.directory or not self.directory.isdir():
-			raise ValueError("Unpacking %s failed: cannot find %s in %s" % (archive, relative_unpack_dir, self.build_base.path))
+		print("Unpacked %s to %s" % (repo_url, destdir))
 
 		sdist.git_repo_tag = tag
-
-		self.record_source(sdist)
 
 	# General helper function: clone a git repo to the given destdir, and
 	# optionally check out the tag requested (HEAD otherwise)
@@ -2196,8 +2199,7 @@ class Engine(Object):
 	# container.
 	#
 	def validate_build_spec(self, build_spec, auto_repair = False):
-		if len(build_spec.sources) != 1:
-			raise ValueError("Currently unable to handle builds with %d sources" % len(build_spec.sources))
+		# FIXME: use a RequirementSet
 
 		# Note: build_spec.dependencies covers all dependencies
 		# from the defaults section, plus the ones specific to the
@@ -2219,7 +2221,7 @@ class Engine(Object):
 		missing = []
 
 		for engine, req_list in req_dict.items():
-			print("Explicit %s requirements given in build-info:" % engine.name)
+			print("Explicit %s requirements given in build-spec:" % engine.name)
 			for req in req_list:
 				if req.origin:
 					print("  %s (via %s)" % (req.format(), req.origin))
