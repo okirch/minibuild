@@ -388,7 +388,9 @@ def prep_action(config, opts):
 		job.set_cmdline_strategy(opts.strategy)
 
 		try:
-			job.anticipate_build_dependencies()
+			if not opts.ignore_package_dependencies:
+				job.anticipate_build_dependencies()
+
 			job.unpack_source()
 			job.build_package()
 			job.process_build_dependencies()
@@ -515,7 +517,7 @@ def build_action(config, opts):
 			if not job.rebuild_required():
 				continue
 
-			if guessing:
+			if guessing and not opts.ignore_package_dependencies:
 				job.anticipate_build_dependencies()
 
 			job.unpack_source()
@@ -683,6 +685,8 @@ def build_option_parser():
                 help = "List explicit build dependencies such as 'rpm:gcc-c++'")
 	prep_parser.add_argument('--strategy', default = None,
                 help = "Specify a build strategy like 'bundler(gem-build())' (default: auto)")
+	prep_parser.add_argument('--ignore-package-dependencies', default = False, action = 'store_true',
+                help = "When building a new version from an existing build-spec, do not inspect any dependencies listed by the package")
 
 	submit_parser = subparsers.add_parser('submit',
 		help = "Submit source package(s)")
@@ -707,6 +711,8 @@ def build_option_parser():
                 help = "Try to detect and fix build environment issues")
 	build_parser.add_argument('--no-default-patches', default = False, action = 'store_true',
                 help = "When building a new version from an existing build-spec, ignore any default patches")
+	build_parser.add_argument('--ignore-package-dependencies', default = False, action = 'store_true',
+                help = "When building a new version from an existing build-spec, do not inspect any dependencies listed by the package")
 
 	mkindex_parser = subparsers.add_parser('make-index',
 		help = "Rebuild package index")
