@@ -29,6 +29,7 @@ import ruby_utils
 import brcoti_core
 
 ENGINE_NAME	= 'ruby'
+ORIGIN_GEMFILE	= 'bundler'
 
 def get_ruby_version():
 	return os.popen("ruby -e 'print(RUBY_VERSION)'").read()
@@ -106,12 +107,12 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 
 	origin_order = (
 			'package',
-			'Gemfile',
+			ORIGIN_GEMFILE,
 			'commandline'
 		)
 	def origin_priority(self):
 		if self.origin in self.origin_order:
-			return self.origin_order(self.origin)
+			return self.origin_order.index(self.origin)
 		return -1
 
 	def __repr__(self):
@@ -1043,6 +1044,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			# RubyBuildRequirements
 			for dep in gemfile_lock.requirements():
 				req = RubyBuildRequirement.from_cooked(dep)
+				req.origin = ORIGIN_GEMFILE
 
 				if not req.valid_platform():
 					print("Ignoring Gemfile.lock requirement %s" % req)
@@ -1084,7 +1086,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 				source = None
 
 			req = RubyBuildRequirement.from_string(r)
-			req.origin = "Gemfile"
+			req.origin = ORIGIN_GEMFILE
 			req.index_url = source
 
 			if not req.valid_platform():
