@@ -480,7 +480,7 @@ class BuildInfo(Object):
 		self.artefacts = []
 		self.sources = []
 		self.source_urls = []
-		self.patches = []
+		self._patches = []
 		self.used = []
 
 		self.requires_set = RequirementSet()
@@ -513,7 +513,7 @@ class BuildInfo(Object):
 		elif self.build_script:
 			print("build %s" % self.build_script, file = f)
 
-		for patch in self.patches:
+		for patch in self._patches:
 			patch = os.path.basename(patch)
 			print("patch %s" % patch, file = f)
 
@@ -631,7 +631,7 @@ class BuildInfo(Object):
 
 		if not os.path.exists(filename):
 			raise ValueError("patch %s does not exist" % arg)
-		self.patches.append(filename)
+		self._patches.append(filename)
 
 	def write_hashes(self, attrs, f):
 		if attrs.hash:
@@ -676,6 +676,14 @@ class VersionSpec(BuildInfo):
 			defaults = self.parent.defaults.requires
 
 		return defaults + self.requires
+
+	@property
+	def patches(self):
+		defaults = []
+		if self.parent and self.parent.defaults:
+			defaults = self.parent.defaults._patches
+
+		return defaults + self._patches
 
 	def write(self, f):
 		print("", file = f)
