@@ -160,6 +160,7 @@ class BuildJob(object):
 
 		dep_list = []
 		for sdist in spec.sources:
+			print("Retrieving implicit build requirements for %s" % sdist.id())
 			dep_list += self.engine.infer_build_requirements(sdist)
 
 		if dep_list:

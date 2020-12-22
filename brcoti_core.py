@@ -2460,7 +2460,7 @@ class Engine(Object):
 		if not requirements:
 			return
 
-		print("Trying to resolve explicit build requirements%s" % (recursive and " recursively" or ""))
+		print("Trying to resolve build requirements%s" % (recursive and " recursively" or ""))
 
 		# Copy the list
 		requirements = [] + requirements
