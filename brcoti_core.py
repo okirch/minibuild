@@ -280,6 +280,9 @@ class EngineSpecificRequirementSet(Object):
 		self.req_dict[req.name] = existing_req.merge(req)
 		return True
 
+	def all(self):
+		return self.req_dict.values()
+
 	def __iter__(self):
 		return sorted(self.req_dict.values(), key = lambda r: r.name)
 
@@ -295,6 +298,31 @@ class RequirementSet(Object):
 			self.engine_dict[req.engine] = engine_set
 
 		engine_set.add(req)
+
+	def add_list(self, req_list):
+		for req in req_list:
+			self.add(req)
+
+	def all(self):
+		result = []
+		for engine_set in self.engine_dict.values():
+			result += engine_set.all()
+		return result
+
+
+	def show(self, msg):
+		if msg:
+			print(msg)
+		for (engine_name, engine_set) in self.engine_dict.items():
+			req_list = engine_set.all()
+			if not req_list:
+				continue
+			print("  %s requirements:" % engine_name)
+			for req in req_list:
+				if req.origin:
+					print("   %s (via %s)" % (req.format(), req.origin))
+				else:
+					print("   %s" % req.format())
 
 	def __iter__(self):
 		return self.engine_dict.items()
