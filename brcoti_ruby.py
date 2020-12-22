@@ -252,7 +252,7 @@ class RubyArtefact(brcoti_core.Artefact):
 
 		try:
 			self._set_gemspec(GemFile(self.local_path).parse_metadata())
-		except Error as e:
+		except Exception as e:
 			print("Unable to read gemspec from %s - parse error" % self.local_path)
 			raise e
 
