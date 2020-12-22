@@ -576,6 +576,8 @@ class BuildInfo(Object):
 		# plus version/tag information, we don't write them out
 		# explicitly.
 		if self.explicit_git_urls() != self.implicit_git_urls():
+			#print("explicit urls:", self.explicit_git_urls())
+			#print("implicit urls:", self.implicit_git_urls())
 			for sdist in self.sources:
 				if sdist.git_repo_url is None:
 					print("source %s" % sdist.filename, file = f)
@@ -593,7 +595,7 @@ class BuildInfo(Object):
 			url = sdist.git_url()
 			if url is None:
 				return None
-			result.append(self.format_url(url))
+			result.append(self.format_url(url, name = sdist.name))
 		return result
 
 	def parse_git_tag(self, line):
