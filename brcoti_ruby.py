@@ -99,7 +99,7 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 					have = True
 
 			if not have:
-				merge_cooked.cooked_requirement.requirement.append(clause)
+				merge_cooked.requirement.add_clause(clause)
 
 		print("merged: %s + %s => %s" % (self, other, merge))
 		return merge
