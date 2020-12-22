@@ -576,7 +576,6 @@ def mkindex_action(config, opts):
 	return 0
 
 def merge_extra_action(config, opts):
-
 	by_engine = dict()
 	for name in opts.packages:
 		if ':' not in name:
@@ -603,6 +602,13 @@ def merge_extra_action(config, opts):
 
 	print("=== Done ===")
 	return 0
+
+def prune_extra_action(config, opts):
+	if opts.engine is None:
+		raise ValueError("You have to specify a build engine using --engine <NAME>")
+
+	engine = brcoti_core.Engine.factory(opts.engine)
+	engine.publish_build_results(prune_extras = True)
 
 def cleanup_action(config, opts):
 	for name in opts.packages:
@@ -708,6 +714,9 @@ def build_option_parser():
 	merge_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
 		help = "List of packages")
 
+	prune_parser = subparsers.add_parser('prune-extra',
+		help = "Prune binary packages from extra index that are no longer required")
+
 	cleanup_parser = subparsers.add_parser('cleanup',
 		help = "Clean up source package")
 	cleanup_parser.add_argument('packages', metavar = 'PKG', type = str, nargs = '+',
@@ -744,8 +753,12 @@ elif opts.action == 'make-index':
 	exit_code = mkindex_action(config, opts)
 elif opts.action == 'merge-extra':
 	exit_code = merge_extra_action(config, opts)
+elif opts.action == 'prune-extra':
+	exit_code = prune_extra_action(config, opts)
 elif opts.action == 'cleanup':
 	exit_code = cleanup_action(config, opts)
+elif opts.action is None:
+	raise ValueError("Missing ACTION on command line (try %s --help)" % SCRIPT_NAME)
 else:
 	raise NotImplementedError("Action %s not yet implemented" % opts.action)
 exit(exit_code)

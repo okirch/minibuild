@@ -1227,14 +1227,19 @@ class RubyPublisher(brcoti_core.Publisher):
 
 	def prepare(self):
 		self.prepare_repo_dir()
-
 		self.gems_dir = self.prepare_repo_subdir("gems")
+		self.gems = set()
+
+		self.processor = None
 
 	def is_artefact(self, path):
 		return path.endswith(".gem")
 
 	def publish_artefact(self, path):
-		# print(" %s" % path)
+		gem_name = os.path.basename(path)
+		if self.processor:
+			path = self.processor(path)
+
 		shutil.copy(path, self.gems_dir)
 
 		path = os.path.join(self.gems_dir, os.path.basename(path))
