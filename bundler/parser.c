@@ -156,7 +156,7 @@ __gemfile_parser_at_eol(gemfile_parser_state *ps)
 static unsigned int	gemfile_parser_skip_whitespace(gemfile_parser_state *ps);
 static const char *	gemfile_parser_token_name(int token);
 static int		gemfile_parser_single_token(gemfile_parser_state *ps);
-static bundler_value_t *gemfile_parser_process_expression(gemfile_parser_state *ps);
+static bundler_value_t *gemfile_parser_process_literal(gemfile_parser_state *ps);
 static bool		gemfile_parser_err_unexpected_eol(gemfile_parser_state *ps);
 static bool		gemfile_parser_process_instance_common(bundler_gemfile_t *, gemfile_parser_state *, bundler_object_instance_t *);
 
@@ -1005,7 +1005,7 @@ gemfile_parser_process_ruby(bundler_gemfile_t *gemf, gemfile_parser_state *ps)
 {
 	bundler_value_t *value;
 
-	if (!(value = gemfile_parser_process_expression(ps)))
+	if (!(value = gemfile_parser_process_literal(ps)))
 		return false;
 
 	if (ps->execute) {
@@ -1381,7 +1381,7 @@ failed:
  * operators at all.
  */
 static bundler_value_t *
-gemfile_parser_process_expression(gemfile_parser_state *ps)
+gemfile_parser_process_literal(gemfile_parser_state *ps)
 {
 	static bundler_value_t value_false = { .type = VALUE_T_BOOL, .boolean = false };
 	static bundler_value_t value_true = { .type = VALUE_T_BOOL, .boolean = true };
@@ -1411,7 +1411,7 @@ gemfile_parser_process_expression(gemfile_parser_state *ps)
 		do {
 			bundler_value_t *item;
 
-			if (!(item = gemfile_parser_process_expression(ps)))
+			if (!(item = gemfile_parser_process_literal(ps)))
 				return NULL;
 			bundler_value_append(v, item);
 
@@ -1480,7 +1480,7 @@ gemfile_parser_process_instance_common(bundler_gemfile_t *gemf, gemfile_parser_s
 			}
 
 			/* get the instance var value */
-			value = gemfile_parser_process_expression(ps);
+			value = gemfile_parser_process_literal(ps);
 			if (value == NULL)
 				return false;
 
@@ -1506,7 +1506,7 @@ gemfile_parser_process_instance_common(bundler_gemfile_t *gemf, gemfile_parser_s
 				return false;
 
 			/* get the variable value */
-			value = gemfile_parser_process_expression(ps);
+			value = gemfile_parser_process_literal(ps);
 			if (value == NULL)
 				return false;
 
