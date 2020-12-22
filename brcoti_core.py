@@ -595,9 +595,6 @@ class BuildInfo(Object):
 			result.append(self.format_url(url))
 		return result
 
-	def implicit_git_url(self):
-		return None
-
 	def parse_git_tag(self, line):
 		self.tag = line.strip()
 
@@ -710,13 +707,6 @@ class VersionSpec(BuildInfo):
 			if url:
 				result.append(url)
 		return result
-
-	def implicit_git_url(self):
-		source_urls = self.parent.defaults.source_urls
-		if len(source_urls) != 1:
-			return None
-
-		return self.format_url(source_urls[0])
 
 	def format_url(self, repo_url):
 		url = "%s?name=%s&version=%s" % (repo_url,
