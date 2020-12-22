@@ -166,8 +166,8 @@ class BuildJob(object):
 			print("Inferred build requirement(s) from package:")
 			for dep in dep_list:
 				print("  %s" % dep.format())
+				spec.add_requirement(dep)
 
-			spec.requires += dep_list
 
 	def unpack_source(self):
 		print("=== Unpacking %s ===" % self.id())
