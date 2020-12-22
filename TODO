@@ -18,14 +18,11 @@ change ruby from proxy to mirror?
 	provide a per-build instance that can hide/add packages
 
 prep:
-	after building, check at the implicit dependencies
-	(eg from Gemfile.lock) and make sure we can resolve them
-	vs our own index
+	after building, check the implicit dependencies (eg from
+	Gemfile.lock) and make sure we can resolve them vs our own index
 
-support source dirs that let you build more than one version
-	build-spec needs extension
-		default-version
-		git-tag-pattern v%version or v%subst(.,_,%version)
+build-spec extensions:
+	git-tag-pattern v%version or v%subst(.,_,%version)
 
 support mirrored git repos
 
@@ -40,5 +37,3 @@ add python-requires info to simple index
 restricted network
 
 Support maven/java
-
-Distinguish "initial prep" vs "build from our captured sources"
