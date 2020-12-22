@@ -1128,6 +1128,39 @@ class BuildDirectory(Object):
 		self.sdist = sdist
 		self.build_info.add_source(sdist)
 
+	def unpack(self, build_spec, sdist):
+		self.record_package(sdist)
+
+		engine = self.engine
+		if engine.use_proxy:
+			self.http_proxy = engine.config.globals.http_proxy
+
+		# install additional packages as requested by build-info
+		for req in build_spec.requires:
+			self.install_requirement(req)
+
+		if sdist.git_url():
+			self.unpack_git(sdist, sdist.id())
+		else:
+			self.unpack_archive(sdist)
+
+		print("Unpacked %s to %s" % (sdist.id(), self.unpacked_dir()))
+
+		if build_spec.patches:
+			self.apply_patches(build_spec)
+
+	# Get requirements from Gemfile, Gemfile.lock etc and check whether we can satisfy these.
+	# This is easier than failing on all unsatisfied requirements during "bundler install"
+	# one by one...
+	def validate_implicit_build_requirements(self, merge_from_upstream = False):
+		engine = self.engine
+
+		requirements = self.infer_build_dependencies()
+
+		missing = engine.validate_build_requirements(requirements, merge_from_upstream = merge_from_upstream)
+		if missing:
+			raise UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
+
 	def unpack_archive(self, sdist):
 		archive = sdist.local_path
 		if not archive or not os.path.exists(archive):
@@ -2066,6 +2099,9 @@ class Engine(Object):
 	# container.
 	#
 	def validate_build_spec(self, build_spec, auto_repair = False):
+		if len(build_spec.sources) != 1:
+			raise ValueError("Currently unable to handle builds with %d sources" % len(build_spec.sources))
+
 		req_dict = {}
 		for req in build_spec.requires:
 			if req.engine == self.name:
@@ -2400,41 +2436,6 @@ class Engine(Object):
 	#  Engine.buildDirectoryClass = {Ruby,Python,...}BuildDirectory
 	def create_build_directory(self, compute):
 		self.mni()
-
-	def build_unpack(self, compute, build_spec, auto_repair = False):
-		if len(build_spec.sources) != 1:
-			raise ValueError("Currently unable to handle builds with %d sources" % len(build_spec.sources))
-		sdist = build_spec.sources[0]
-
-		bd = self.create_build_directory(compute)
-
-		bd.record_package(sdist)
-
-		if self.use_proxy:
-			bd.http_proxy = self.config.globals.http_proxy
-
-		# install additional packages as requested by build-info
-		for req in build_spec.requires:
-			bd.install_requirement(req)
-
-		if sdist.git_url():
-			bd.unpack_git(sdist, sdist.id())
-		else:
-			bd.unpack_archive(sdist)
-
-		print("Unpacked %s to %s" % (sdist.id(), bd.unpacked_dir()))
-
-		if build_spec.patches:
-			bd.apply_patches(build_spec)
-
-		# Get requirements from Gemfile, Gemfile.lock etc
-		requirements = bd.infer_build_dependencies()
-
-		missing = self.validate_build_requirements(requirements, merge_from_upstream = auto_repair)
-		if missing:
-			raise UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
-
-		return bd
 
 	# This is for the comparison of the artefacts we built with upstream
 	# Some engines (like ruby) may decide to compile extensions, in which case

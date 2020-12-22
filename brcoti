@@ -186,7 +186,13 @@ class BuildJob(object):
 		compute_node = self.engine.prepare_environment(self.compute_backend, build_spec)
 
 		try:
-			self.build = self.engine.build_unpack(compute_node, build_spec, self.auto_repair)
+			self.build = self.engine.create_build_directory(compute_node)
+
+			# Unpack the first source
+			# (if we ever support builds with more than one source, we have to
+			# revisit this).
+			self.build.unpack(build_spec, build_spec.sources[0])
+			self.build.validate_implicit_build_requirements(merge_from_upstream = self.auto_repair)
 		except brcoti_core.UnsatisfiedDependencies as e:
 			print("Cannot build %s: missing build dependencies:" % self.id())
 			for req in e.dependencies:
