@@ -88,6 +88,7 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 	origin_order = (
 			'package',
 			ORIGIN_GEMFILE,
+			'spec',
 			'commandline'
 		)
 	def origin_priority(self):

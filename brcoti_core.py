@@ -543,6 +543,7 @@ class BuildInfo(Object):
 
 		engine = Engine.factory(name)
 		obj = engine.parse_build_requirement(rest.strip())
+		obj.origin = 'spec'
 		self.add_requirement(obj)
 		return obj
 
