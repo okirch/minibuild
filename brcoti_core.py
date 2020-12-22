@@ -1559,6 +1559,38 @@ class Publisher(Object):
 		self.type = type
 		self.repoconfig = repconfig
 
+	class Fileset:
+		def __init__(self):
+			self._files = dict()
+			self.dupes = []
+
+		def add(self, path):
+			name = os.path.basename(path)
+
+			old_path = self._files.get(name)
+			if old_path is not None:
+				self.dupes.append(old_path)
+
+			self._files[name] = path
+
+		@property
+		def artefacts(self):
+			return self._files.values()
+
+	def create_fileset(self):
+		return self.Fileset()
+
+	def rescan_state_dir(self, fileset, path):
+		if not os.path.isdir(path):
+			return
+
+		print("Scanning %s for %s artefacts" % (path, self.type));
+		for (dir_path, dirnames, filenames) in os.walk(path):
+			for f in filenames:
+				file_path = os.path.join(dir_path, f)
+				if self.is_artefact(file_path):
+					fileset.add(file_path)
+
 	# TBD: implement a two-stage process where we first
 	# create the updated hierarchy in a temporary location,
 	# and then rename it to the final location (more or less
@@ -2239,32 +2271,34 @@ class Engine(Object):
 	def build_state_path(self, artefact_name):
 		return os.path.join(self.state_dir, artefact_name)
 
-	def publish_build_results(self):
+	def publish_build_results(self, prune_extras = False):
 		publisher = self.publisher
 		if not publisher:
 			raise ValueError("%s: no publisher" % self.name)
 
 		publisher.prepare()
 
-		self.rescan_state_dir(publisher, self.binary_extra_dir)
-		self.rescan_state_dir(publisher, self.state_dir)
+		fileset = publisher.create_fileset()
+
+		publisher.rescan_state_dir(fileset, self.binary_extra_dir)
+		publisher.rescan_state_dir(fileset, self.state_dir)
+
+		if prune_extras and fileset.dupes:
+			print("Found %d duplicates" % len(fileset.dupes))
+			for p in fileset.dupes:
+				print("  " + p)
+
+			for p in fileset.dupes:
+				os.remove(p)
+
+		for path in fileset.artefacts:
+			publisher.publish_artefact(path)
 
 		publisher.finish()
 		publisher.commit()
 
 		if self.index:
 			self.index.zap_cache()
-
-	def rescan_state_dir(self, publisher, path):
-		if not os.path.isdir(path):
-			return
-
-		print("Scanning %s for artefacts" % path);
-		for (dir_path, dirnames, filenames) in os.walk(path):
-			for f in filenames:
-				file_path = os.path.join(dir_path, f)
-				if publisher.is_artefact(file_path):
-					publisher.publish_artefact(file_path)
 
 	def create_build_strategy_default(self):
 		self.mni()
