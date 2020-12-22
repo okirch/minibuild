@@ -784,12 +784,23 @@ class Ruby:
 			return Ruby.YAML.PartiallyConstructedObject(tag_suffix, mapping)
 
 		@staticmethod
+		def binary_constructor(loader, node):
+			import base64
+
+			value = base64.b64decode(node.value)
+			# print("binary_constructor(%s)" % (value,))
+			return value
+
+		@staticmethod
 		def initonce():
 			import yaml
 
 			if not Ruby.YAML.initialized:
 				yaml.add_multi_constructor('!ruby/object:',
 						Ruby.YAML.multi_constructor,
+						Loader = yaml.Loader)
+				yaml.add_constructor('!binary',
+						Ruby.YAML.binary_constructor,
 						Loader = yaml.Loader)
 				Ruby.YAML.initialized = True
 
