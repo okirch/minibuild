@@ -341,6 +341,7 @@ class RubyDownloadFinder(brcoti_core.DownloadFinder):
 		if self.verbose:
 			print("%s versions: %s" % (self.name, ", ".join(info.versions())))
 
+		good_match = None
 		best_match = None
 		best_release = None
 
@@ -1512,7 +1513,11 @@ class RubyEngine(brcoti_core.Engine):
 		for req in missing_deps:
 			print("Trying %s" % req)
 			finder = self.create_binary_download_finder(req, False)
-			found = finder.get_best_match(self.upstream_index)
+
+			try:
+				found = finder.get_best_match(self.upstream_index)
+			except:
+				found = None
 			if found is None:
 				print("No upstream package to satisfy requirement %s" % req)
 				print("Requirement %s: no upstream package to satisfy requirement" % req)
