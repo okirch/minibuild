@@ -571,21 +571,29 @@ class BuildInfo(Object):
 		return obj
 
 	def write_sources(self, f):
-		for sdist in self.sources:
-			if sdist.git_repo_url is None:
-				print("source %s" % sdist.filename, file = f)
-				self.write_hashes(sdist, f)
-			else:
-				url = "%s?name=%s&version=%s" % (sdist.git_url(), sdist.name, sdist.version)
-				if sdist.git_tag():
-					url += "&tag=" + sdist.git_tag()
-
-				implicit_url = self.implicit_git_url()
-				if url != implicit_url:
+		# If all of our sources were constructed from git-repo urls
+		# plus version/tag information, we don't write them out
+		# explicitly.
+		if self.explicit_git_urls() != self.implicit_git_urls():
+			for sdist in self.sources:
+				if sdist.git_repo_url is None:
+					print("source %s" % sdist.filename, file = f)
+					self.write_hashes(sdist, f)
+				else:
+					url = self.format_url(sdist.git_url())
 					print("source %s" % url, file = f)
 
 		for url in self.source_urls:
 			print("git-repo %s" % url, file = f)
+
+	def explicit_git_urls(self):
+		result = []
+		for sdist in self.sources:
+			url = sdist.git_url()
+			if url is None:
+				return None
+			result.append(self.format_url(url))
+		return result
 
 	def implicit_git_url(self):
 		return None
@@ -687,12 +695,22 @@ class VersionSpec(BuildInfo):
 	def context_engine(self):
 		return self.parent.context_engine()
 
+	def implicit_git_urls(self):
+		result = []
+		for repo_url in self.parent.defaults.source_urls:
+			url = self.format_url(repo_url)
+			if url:
+				result.append(url)
+		return result
+
 	def implicit_git_url(self):
 		source_urls = self.parent.defaults.source_urls
 		if len(source_urls) != 1:
 			return None
-		repo_url = source_urls[0]
 
+		return self.format_url(source_urls[0])
+
+	def format_url(self, repo_url):
 		url = "%s?name=%s&version=%s" % (repo_url,
 				self.package_name, 
 				self.version)
@@ -747,10 +765,8 @@ class BuildSpec(Object):
 			if v.sources:
 				continue
 
-			url = v.implicit_git_url()
-			if url is not None:
+			for url in v.implicit_git_urls():
 				v.add_source(url)
-				continue
 
 			if not v.sources:
 				raise ValueError("%s: version %s does not specify any sources" % (path, v.version))
