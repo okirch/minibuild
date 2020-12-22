@@ -998,12 +998,13 @@ class SourceDirectory(Source):
 		new_ver = self.spec_file.add_version(version)
 		new_ver.build_strategy = closest.build_strategy
 
-		url = new_ver.implicit_git_url()
-		if url is None:
+		for url in new_ver.implicit_git_urls():
+			# sdist = self.spec_file.build_engine.create_artefact_from_url(url)
+			new_ver.add_source(url)
+
+		if not new_ver.source:
 			raise ValueError("Don't know how to determine source for %s" % new_ver.id())
 
-		# sdist = self.spec_file.build_engine.create_artefact_from_url(url)
-		new_ver.add_source(url)
 		# FIXME copy other settings?
 
 		self.spec = new_ver
