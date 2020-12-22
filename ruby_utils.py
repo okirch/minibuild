@@ -153,6 +153,10 @@ class Ruby:
 
 	class Clause:
 		def __init__(self, op, version):
+			# Make the operator canonical
+			if op == '=':
+				op = '=='
+
 			self.op = op
 			self.version = Ruby.ParsedVersion(str(version))
 
@@ -248,6 +252,14 @@ class Ruby:
 			assert(isinstance(other, self.__class__))
 			return self.req == other.req
 
+		def valid_platform(self, my_platforms):
+			for clause in self.req:
+				version = clause.version
+				if version.platform and version.platform not in my_platforms:
+					return False
+
+			return True
+
 	class GemDependency(object):
 		# Needed for marshaling
 		ruby_classname = 'Gem::Dependency'
@@ -321,6 +333,9 @@ class Ruby:
 				return False
 
 			return True
+
+		def valid_platform(self, my_platforms = ('ruby', 'x86_64-linux')):
+			return self.requirement.valid_platform(my_platforms)
 
 		@staticmethod
 		def parse(string):
