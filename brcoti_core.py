@@ -1170,7 +1170,7 @@ class BuildDirectory(Object):
 
 		missing = engine.validate_build_requirements(requirements, merge_from_upstream = merge_from_upstream)
 		if missing:
-			raise UnsatisfiedDependencies("Build of %s has unsatisfied dependencies" % sdist.id(), missing)
+			raise UnsatisfiedDependencies("Build has unsatisfied dependencies", missing)
 
 	def unpack_archive(self, sdist):
 		archive = sdist.local_path
