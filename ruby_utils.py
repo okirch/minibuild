@@ -250,13 +250,20 @@ class Ruby:
 			self.prerelease = False
 
 			if yaml_data:
+				if not 'requirement' in yaml_data:
+					print("GemDependency yaml_data=%s" % yaml_data)
 				self.name = yaml_data['name']
-				self.requirement = yaml_data['requirement']
+
+				# is version_requirements always a fallback for requirement?
+				self.requirement = yaml_data.get('requirement')
+				if self.requirement is None:
+					self.requirement = yaml_data.get('version_requirements')
+
 				self.type = yaml_data['type']
 				if self.type.startswith(':'):
 					self.type = self.type.lstrip(':')
-				self.prerelease = yaml_data['prerelease']
-				# ignoring version_requirements
+
+				self.prerelease = yaml_data.get('prerelease', False)
 
 		def __repr__(self):
 			return "GemDependency(%s %s%s%s)" % (
@@ -289,6 +296,9 @@ class Ruby:
 			if result == ">= 0":
 				result = ""
 			return result
+
+		def __hash__(self):
+			return hash(repr(self))
 
 		def __eq__(self, other):
 			assert(isinstance(other, self.__class__))
@@ -573,6 +583,8 @@ class Ruby:
 						continue
 
 					if type(our_value) == list and type(her_value) == list:
+						# print("Comparing our_value=%s" % our_value)
+						# print("       to her_value=%s" % her_value)
 						change = result.add_list_diff(key, our_value, her_value)
 					else:
 						change = result.add(key, our_value, her_value)
