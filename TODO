@@ -1,4 +1,13 @@
 
+privileges
+	introduce build-admin
+		Some operations should require build-admin
+
+	Workflows
+		prep: as user, sudo to run containers
+		build: user user.
+			optionally check out source
+
 rename brcoti to minibuild
 
 building without sudo
