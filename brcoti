@@ -619,13 +619,13 @@ def cleanup_action(config, opts):
 	for name in opts.packages:
 		spec_path = os.path.join(name, "build-spec")
 
-		spec = brcoti_core.BuildSpec.from_file(spec_path, config = None)
+		spec = brcoti_core.BuildSpec.from_file(spec_path)
 		temp_path = spec_path + ".new"
 		spec.save(temp_path)
 		print("Wrote spec to %s" % temp_path)
 
 		spec_path = temp_path
-		spec = brcoti_core.BuildSpec.from_file(spec_path, config = None)
+		spec = brcoti_core.BuildSpec.from_file(spec_path)
 		temp_path = spec_path + ".new"
 		spec.save(temp_path)
 		print("Wrote spec to %s" % temp_path)
@@ -634,7 +634,7 @@ def cleanup_action(config, opts):
 
 		used_path = os.path.join(source.path, "build-used")
 		if os.path.exists(used_path):
-			used = brcoti_core.BuildSpec.from_file(used_path, config = None)
+			used = brcoti_core.BuildSpec.from_file(used_path)
 
 			temp_path = used_path + ".new"
 			used.save(temp_path)

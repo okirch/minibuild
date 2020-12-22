@@ -796,9 +796,8 @@ class BuildSpec(Object):
 	#
 	# Parse the build-requires file
 	#
-	# FIXME: config is not used
 	@staticmethod
-	def from_file(path, config, default_engine = None):
+	def from_file(path, default_engine = None):
 		print("Loading build info from %s" % path)
 		result = BuildSpec(None)
 
@@ -994,7 +993,7 @@ class SourceDirectory(Source):
 
 			print("Found build-info file; please rename to build-spec at your convenience")
 
-		self.spec_file = BuildSpec.from_file(spec_path, config)
+		self.spec_file = BuildSpec.from_file(spec_path)
 
 		for v in self.spec_file.versions:
 			if v.source is not None:
@@ -1599,7 +1598,7 @@ class BuildState(Object):
 
 		try:
 			engine = self.engine
-			build_info = BuildSpec.from_file(path, engine.config, default_engine = engine)
+			build_info = BuildSpec.from_file(path, default_engine = engine)
 		except Exception as e:
 			print("Cannot parse build-info file at %s" % path)
 			print(e)
