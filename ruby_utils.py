@@ -231,8 +231,12 @@ class Ruby:
 					if req[i] not in "<>=!~":
 						break
 
+				(op, version) = (req[:i], req[i:])
+				if not op:
+					op = "=="
+
 				# print("  %s|%s" % (req[:i], req[i:]))
-				result.add_clause(Ruby.Clause(req[:i], req[i:]))
+				result.add_clause(Ruby.Clause(op, version))
 
 			return result
 
