@@ -1498,7 +1498,7 @@ class RubyEngine(brcoti_core.Engine):
 		if name == 'gem-compile':
 			return BuildStrategy_GemCompile(*args)
 
-		super(RubyEngine, self).create_build_strategy(name, *args)
+		return super(RubyEngine, self).create_build_strategy(name, *args)
 
 	def create_build_directory(self, compute):
 		return RubyBuildDirectory(compute, self)

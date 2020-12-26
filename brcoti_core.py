@@ -1161,7 +1161,7 @@ class BuildStrategy_FromScript(BuildStrategy):
 	def next_command(self, build_directory):
 		build_script = self.path
 
-		shutil.copy(build_script, self.build_base.hostpath())
+		shutil.copy(build_script, build_directory.build_base.hostpath())
 
 		yield os.path.join(self.build_base.path, os.path.basename(build_script))
 
@@ -2428,7 +2428,7 @@ class Engine(Object):
 
 	def create_build_strategy(self, name, *args):
 		if name == 'script':
-			return brcoti_core.BuildStrategy_FromScript(*args)
+			return BuildStrategy_FromScript(*args)
 
 		raise ValueError("%s: unknown build strategy \"%s\"" % (self.name, name))
 
