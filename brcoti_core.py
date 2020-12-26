@@ -1085,13 +1085,19 @@ class BuildStrategy(Object):
 		return result
 
 	@staticmethod
-	def parse_expression_list(engine, arg):
-		# print("parse_expression_list(\"%s\")" % arg)
+	def parse_expression_list(engine, arg, indent = 0, debug = False):
+		ws = " " * indent
+
+		if debug:
+			print("%sparse_expression_list(\"%s\")" % (ws, arg))
+
 		rest = arg.strip()
 		result = []
 
 		while rest:
-			# print("  Partial: <%s>" % rest)
+			if debug:
+				print("%s  Partial: <%s>" % (ws, rest))
+
 			if rest.startswith("\""):
 				m = re.search('"([^"]*)"(.*)', rest)
 			else:
@@ -1101,15 +1107,32 @@ class BuildStrategy(Object):
 
 			id_or_string = m.group(1)
 			rest = m.group(2).strip()
+
+			if debug:
+				print("%s  => %s | %s" % (ws, id_or_string, rest))
+
 			if rest.startswith("("):
 				m = re.search("\((.*)\)(.*)", rest)
 				if not m:
 					return None
 
-				args = BuildStrategy.parse_expression_list(engine, m.group(1))
+				if debug:
+					print("%s  Parsing argument list of call to %s()" % (ws, id_or_string))
+
+				args = BuildStrategy.parse_expression_list(engine, m.group(1), indent + 2)
+				if args is None:
+					raise ValueError("BuildStrategy.parse(%s) failed" % m.group(1))
+
+				if debug:
+					print("%s  Creating build strategy %s with args %s" % (ws, id_or_string, args))
 
 				strategy = engine.create_build_strategy(id_or_string, *args)
-				# print("  created %s" % strategy.describe())
+				if strategy is None:
+					raise ValueError("Failed to create build strategy %s with args %s" % (id_or_string, args))
+
+				if debug:
+					print("%s  created %s" % (ws, strategy.describe()))
+
 				result.append(strategy)
 				rest = m.group(2).strip()
 			else:
@@ -1119,6 +1142,9 @@ class BuildStrategy(Object):
 				return None
 
 			rest = rest[1:].strip()
+
+		if debug:
+			print("%sReturning %s" % (ws, result))
 
 		return result
 
