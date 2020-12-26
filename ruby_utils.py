@@ -139,7 +139,7 @@ class Ruby:
 
 		def __str__(self):
 			if len(self.versions) == 1:
-				return self.versions[0]
+				return str(self.versions[0])
 			return "[%s]" % ", ".join(self.versions)
 
 		def __repr__(self):
