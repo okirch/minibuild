@@ -1092,7 +1092,10 @@ class BuildStrategy(Object):
 
 		while rest:
 			# print("  Partial: <%s>" % rest)
-			m = re.search("([-A-Za-z_]*)(.*)", rest)
+			if rest.startswith("\""):
+				m = re.search('"([^"]*)"(.*)', rest)
+			else:
+				m = re.search("([-A-Za-z_]*)(.*)", rest)
 			if not m:
 				return None
 
@@ -1127,7 +1130,7 @@ class BuildStrategy_FromScript(BuildStrategy):
 
 	def describe(self):
 		# For now, we assume that the script always lives inside the source directory
-		return "%s(%s)" % (self._type, os.path.basename(self.path))
+		return "%s(\"%s\")" % (self._type, os.path.basename(self.path))
 
 	def next_command(self, build_directory):
 		build_script = self.path
