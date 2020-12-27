@@ -844,6 +844,9 @@ class BuildStrategy_GemCompile(NestedRubyBuildStrategy):
 	def build_used(self, build_directory):
 		return self.inner_job.build_used(build_directory)
 
+	def implicit_build_dependencies(self, build_directory):
+		return self.inner_job.implicit_build_dependencies(build_directory)
+
 class BuildStrategy_Rake(RubyBuildStrategy):
 	_type = "rake"
 	_requires = ['rake']
@@ -869,6 +872,9 @@ class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 
 	def __init__(self, inner_job):
 		super(BuildStrategy_Bundler, self).__init__(inner_job)
+		self.locked_bundler_version = None
+		self.gemfile_parsed = None
+		self.gemfile_lock_parsed = None
 
 	def next_command(self, build_directory):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
@@ -908,6 +914,93 @@ class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 
 	# TBD: run bundle package to collect the used gems into vendor/cache
 	# and return them for inclusion in the build-info file
+
+	def implicit_build_dependencies(self, build_directory):
+		directory = build_directory.directory
+		req_set = brcoti_core.RequirementSet()
+
+		req_set.add_list(self.gemfile_requirements(directory))
+		req_set.add_list(self.gemfile_lock_requirements(directory))
+		req_set.add_list(self.inner_job.implicit_build_dependencies(build_directory))
+
+		req_set.show("Bundler requirements")
+		return req_set.all()
+
+	def gemfile_requirements(self, directory):
+		import bundler
+
+		if self.gemfile_parsed is not None:
+			return self.gemfile_parsed
+
+		file = directory.lookup('Gemfile')
+		if file is None:
+			return []
+
+		# FIXME: we need a global RUBY_VERSION config item
+		ctx = bundler.Context("2.5.0")
+		ctx.with_group("development")
+
+		try:
+			gemfile = bundler.Gemfile(file.hostpath(), ctx)
+		except Exception as e:
+			print("Failed to parse Gemfile")
+			print(e)
+			return []
+
+		result = []
+		for r in gemfile.required():
+			if 'source=' in r:
+				i = r.index('source=')
+				source = r[i+7:]
+				r = r[:i]
+			else:
+				source = None
+
+			req = RubyBuildRequirement.from_string(r)
+			req.origin = ORIGIN_GEMFILE
+			req.index_url = source
+
+			if not req.valid_platform():
+				print("Ignoring Gemfile requirement %s" % req)
+				continue
+
+			result.append(req)
+
+		self.gemfile_parsed = result
+		return result
+
+	def gemfile_lock_requirements(self, directory):
+		if self.gemfile_lock_parsed is not None:
+			return self.gemfile_lock_parsed
+
+		result = []
+
+		loc = directory.lookup('Gemfile.lock')
+		if loc is not None:
+			gemfile_lock = ruby_utils.Ruby.GemfileLock.parse(loc)
+
+			print("Analyzing contents of Gemfile.lock")
+			# gemfile_lock.dump()
+
+			# gemfile_lock.requirements() returns a list of
+			# GemDependency objects; we need to convert these into
+			# RubyBuildRequirements
+			for dep in gemfile_lock.requirements():
+				req = RubyBuildRequirement.from_cooked(dep)
+				req.origin = ORIGIN_GEMFILE
+
+				if not req.valid_platform():
+					print("Ignoring Gemfile.lock requirement %s" % req)
+					continue
+
+				result.append(req)
+
+			self.locked_bundler_version = gemfile_lock.bundler_version()
+			if self.locked_bundler_version:
+				print("Locked to bundler version %s" % self.locked_bundler_version)
+
+		self.gemfile_lock_parsed = result
+		return result
 
 class BuildStrategy_Auto(RubyBuildStrategy):
 	_type = "auto"
@@ -964,6 +1057,14 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 				yield cmd
 
 		self.actual = strategy
+
+	# This returns a list of requirements specified by the package build
+	# files like Gemfile/Gemfile.lock
+	def implicit_build_dependencies(self, build_directory):
+		strategy = self.actual
+		if strategy is None:
+			strategy = self.actual_strategy(build_directory, want_compiler = True)
+		return strategy.implicit_build_dependencies(build_directory)
 
 	# We're called twice. Once _before_ the build run, and once _after_.
 	# In the call before, we should always include gem-compiler to make sure it
