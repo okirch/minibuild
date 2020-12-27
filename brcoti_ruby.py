@@ -1503,14 +1503,14 @@ class RubyEngine(brcoti_core.Engine):
 	def create_build_directory(self, compute):
 		return RubyBuildDirectory(compute, self)
 
-	def merge_from_upstream(self, missing_deps):
+	def merge_from_upstream(self, missing_deps, requirements = None, update_index = True):
 		if not self.binary_extra_dir:
 			print("Unable to auto-add missing depdencies: binary_extra_dir not set")
 			return missing
 
 		still_missing = []
-		rebuild_index = False
-		for req in missing_deps:
+		added = False
+		for req in list(missing_deps):
 			print("Trying %s" % req)
 			finder = self.create_binary_download_finder(req, False)
 
@@ -1533,10 +1533,17 @@ class RubyEngine(brcoti_core.Engine):
 
 			print("Requirement %s: downloaded from %s" % (req, found.url))
 			shutil.copy(found_path, self.binary_extra_dir)
-			rebuild_index = True
+			added = True
 
-		if rebuild_index:
+			if type(missing_deps) == set:
+				missing_deps.remove(req)
+
+			if requirements is not None:
+				requirements.update(self.resolve_install_requirements(found))
+
+		if added and update_index:
 			self.publish_build_results()
+
 
 		return still_missing
 

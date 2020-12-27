@@ -2581,7 +2581,7 @@ class Engine(Object):
 
 		return missing
 
-	def merge_from_upstream(self, missing_deps):
+	def merge_from_upstream(self, missing_deps, requirements = None, update_index = True):
 		# Not all engines support merging missing packages from upstream. For example,
 		# the rpm engine pulls from opensuse.org and that's it.
 		return missing_deps
