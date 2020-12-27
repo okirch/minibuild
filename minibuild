@@ -109,6 +109,7 @@ class BuildJob(object):
 		self.rebuild_if_needed = False
 		self.shell_on_fail = False
 		self.auto_repair = False
+		self.ignore_implicit_dependencies = False
 
 	def id(self):
 		return self.source.id()
@@ -200,7 +201,14 @@ class BuildJob(object):
 			# (if we ever support builds with more than one source, we have to
 			# revisit this).
 			self.build.unpack(build_spec, build_spec.sources[0])
-			self.build.validate_implicit_build_requirements(merge_from_upstream = self.auto_repair)
+
+			requirements = build_strategy.implicit_build_dependencies(self.build)
+
+			if not self.ignore_implicit_dependencies:
+				missing = self.build.engine.validate_build_requirements(requirements, merge_from_upstream = self.auto_repair)
+				if missing:
+					raise brcoti_core.UnsatisfiedDependencies("Build has unsatisfied dependencies", missing)
+
 		except brcoti_core.UnsatisfiedDependencies as e:
 			print("Cannot build %s: missing build dependencies:" % self.id())
 			for req in e.dependencies:
