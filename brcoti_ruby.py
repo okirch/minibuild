@@ -841,10 +841,10 @@ class BuildStrategy_Rake(RubyBuildStrategy):
 	_type = "rake"
 	_requires = ['rake']
 
-	def __init__(self, targets = ['build']):
+	def __init__(self, *targets):
 		super(BuildStrategy_Rake, self).__init__()
-		if type(targets) == str:
-			targets = [targets]
+		if not targets:
+			targets = ['build']
 		self.targets = targets
 
 	def describe(self):
