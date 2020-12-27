@@ -2486,20 +2486,19 @@ class Engine(Object):
 
 	# Given a list of build requirements, check our index to see whether they
 	# can be satisified. Return a list of unsatisfied dependencies
-	def validate_build_requirements(self, requirements, merge_from_upstream = True, recursive = False):
+	def resolve_build_requirement_list(self, requirements, recursive = False, resolved = None):
 		if not requirements:
 			return
 
-		print("Trying to resolve build requirements%s" % (recursive and " recursively" or ""))
+		# Turn the list of requirements into a set
+		if type(requirements) != set:
+			requirements = set(requirements)
 
-		# Copy the list
-		requirements = [] + requirements
-
-		missing = []
+		missing = set()
 
 		seen = set()
 		while requirements:
-			req = requirements.pop(0)
+			req = requirements.pop()
 
 			if req.format() in seen:
 				continue
@@ -2509,8 +2508,11 @@ class Engine(Object):
 				found = self.resolve_build_requirement(req, verbose = False)
 				assert(found)
 			except:
-				missing.append(req)
+				missing.add(req)
 				continue
+
+			if resolved is not None:
+				resolved.append(found)
 
 			transitive = []
 			if recursive:
@@ -2522,10 +2524,33 @@ class Engine(Object):
 			else:
 				print("  %s resolved to %s" % (req.format(), found.id()))
 
-			requirements += transitive
+			requirements.update(transitive)
 
-		if missing and merge_from_upstream:
-			missing = self.merge_from_upstream(missing)
+		return missing
+
+	# Given a list of build requirements, check our index to see whether they
+	# can be satisified. Return a list of unsatisfied dependencies
+	def validate_build_requirements(self, requirements, merge_from_upstream = True, recursive = False):
+		if not requirements:
+			return
+
+		print("Trying to resolve build requirements%s" % (recursive and " recursively" or ""))
+
+		# Turn the list of requirements into a set
+		requirements = set(requirements)
+		merged_some = False
+
+		while requirements:
+			missing = self.resolve_build_requirement_list(requirements, recursive)
+
+			if not merge_from_upstream:
+				break
+			elif missing:
+				self.merge_from_upstream(missing, requirements, update_index = False)
+				merged_some = True
+
+		if merged_some:
+			self.publish_build_results()
 
 		if not missing:
 			print("Looks like we're able to satisfy all dependencies, let's go ahead")
