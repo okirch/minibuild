@@ -1371,18 +1371,6 @@ class BuildDirectory(Object):
 			if pipe.close():
 				raise ValueError("patch command failed (%s)" % patch)
 
-	# Get requirements from Gemfile, Gemfile.lock etc and check whether we can satisfy these.
-	# This is easier than failing on all unsatisfied requirements during "bundler install"
-	# one by one...
-	def validate_implicit_build_requirements(self, merge_from_upstream = False):
-		engine = self.engine
-
-		requirements = self.infer_build_dependencies()
-
-		missing = engine.validate_build_requirements(requirements, merge_from_upstream = merge_from_upstream)
-		if missing:
-			raise UnsatisfiedDependencies("Build has unsatisfied dependencies", missing)
-
 	def build(self, build_strategy):
 		for req_string in build_strategy.build_dependencies(self):
 			print("build strategy requires %s" % req_string)

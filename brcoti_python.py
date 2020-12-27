@@ -790,9 +790,6 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 		name, version, type = PythonArtefact.parse_filename(sdist.filename)
 		return name + "-" + version
 
-	def infer_build_dependencies(self):
-		return []
-
 	def collect_build_results(self):
 		# glob_files returns a list of ComputeResource* objects
 		wheels = self.directory.glob_files(os.path.join("dist", "*.whl"))
