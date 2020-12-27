@@ -1295,6 +1295,9 @@ class RubyPublisher(brcoti_core.Publisher):
 			version = repr(build.gemspec.version)
 			platform = build.gemspec.platform
 
+			if platform != 'ruby':
+				version += "-" + platform
+
 			id = self.gem_id(build)
 
 			pd = packages.get(name)
