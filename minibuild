@@ -99,6 +99,11 @@ class BuildJob(object):
 		self.build = None
 		self.build_state = self.engine.build_state_factory(source)
 
+		build_strategy = self.source.spec.build_strategy
+		if build_strategy is None:
+			build_strategy = self.engine.create_build_strategy_default()
+		self.build_strategy = build_strategy
+
 		self.always_commit = False
 		self.quiet = False
 		self.rebuild_if_needed = False
@@ -152,6 +157,7 @@ class BuildJob(object):
 			return
 
 		self.source.spec.build_strategy = brcoti_core.BuildStrategy.parse(self.engine, arg)
+		self.build_strategy = self.source.spec.build_strategy
 
 	# This is a prep task - eg ruby would look at the upstream artefact
 	# and scan it for :development dependencies
@@ -173,6 +179,7 @@ class BuildJob(object):
 	def unpack_source(self):
 		print("=== Unpacking %s ===" % self.id())
 		build_spec = self.source.spec
+		build_strategy = self.build_strategy
 
 		print("Validating build info")
 		self.engine.validate_build_spec(build_spec, auto_repair = self.auto_repair)
@@ -221,11 +228,7 @@ class BuildJob(object):
 	def build_package(self):
 		print("=== Building %s ===" % self.id())
 		build = self.build
-
-		build_strategy = self.source.spec.build_strategy
-		if build_strategy is None:
-			build_strategy = self.engine.create_build_strategy_default()
-		self.build_strategy = build_strategy
+		build_strategy = self.build_strategy
 
 		try:
 			artefacts = build.build(build_strategy)
