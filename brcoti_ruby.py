@@ -784,6 +784,14 @@ class GemFile(object):
 class RubyBuildStrategy(brcoti_core.BuildStrategy):
 	pass
 
+class NestedRubyBuildStrategy(RubyBuildStrategy):
+	def __init__(self, inner_job):
+		self.inner_job = inner_job
+
+	def describe(self):
+		return '%s(%s)' % (self._type, self.inner_job.describe())
+
+
 class BuildStrategy_GemBuild(RubyBuildStrategy):
 	_type = "gem-build"
 
@@ -801,13 +809,12 @@ class BuildStrategy_GemBuild(RubyBuildStrategy):
 			for spec in build_directory.directory.glob_files("*.gemspec"):
 				yield "gem build '%s'" % os.path.basename(spec.path)
 
-class BuildStrategy_GemCompile(RubyBuildStrategy):
+class BuildStrategy_GemCompile(NestedRubyBuildStrategy):
 	_type = "gem-compile"
 	_requires = ['gem-compiler']
 
 	def __init__(self, inner_job, name = None):
-		super(BuildStrategy_GemCompile, self).__init__()
-		self.inner_job = inner_job
+		super(BuildStrategy_GemCompile, self).__init__(inner_job)
 		self.inner_job_done = False
 		self.name = name
 
@@ -856,16 +863,12 @@ class BuildStrategy_Rake(RubyBuildStrategy):
 		for tgt in self.targets:
 			yield "rake %s" % tgt
 
-class BuildStrategy_Bundler(RubyBuildStrategy):
+class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 	_type = "bundler"
 	_requires = ['bundler']
 
 	def __init__(self, inner_job):
-		super(BuildStrategy_Bundler, self).__init__()
-		self.inner_job = inner_job
-
-	def describe(self):
-		return '%s(%s)' % (self._type, self.inner_job.describe())
+		super(BuildStrategy_Bundler, self).__init__(inner_job)
 
 	def next_command(self, build_directory):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
