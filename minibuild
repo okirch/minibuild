@@ -508,10 +508,11 @@ def build_action(config, opts):
 			exit_code = 1
 			continue
 
+		# If we're asked to build a specific version, but that version is not specified in the
+		# spec file, pick one that is "close" and base our build description off of it.
 		guessing = False
-		if opts.version:
-			if not source.select_version(opts.version) and \
-			   not source.from_closest_version(opts.version):
+		if opts.version and not source.select_version(opts.version):
+			if not source.from_closest_version(opts.version):
 				raise ValueError("%s does not have version %s, and nothing to guess from" % (name, opts.version))
 
 			source.spec.no_default_patches = opts.no_default_patches
