@@ -104,6 +104,8 @@ class BuildJob(object):
 			build_strategy = self.engine.create_build_strategy_default()
 		self.build_strategy = build_strategy
 
+		build_strategy.resolve_source(self.source)
+
 		self.always_commit = False
 		self.quiet = False
 		self.rebuild_if_needed = False

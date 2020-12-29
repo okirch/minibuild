@@ -791,6 +791,11 @@ class NestedRubyBuildStrategy(RubyBuildStrategy):
 	def describe(self):
 		return '%s(%s)' % (self._type, self.inner_job.describe())
 
+	def implicit_build_dependencies(self, build_directory):
+		return self.inner_job.implicit_build_dependencies(build_directory)
+
+	def resolve_source(self, source):
+		self.inner_job.resolve_source(source)
 
 class BuildStrategy_GemBuild(RubyBuildStrategy):
 	_type = "gem-build"
@@ -843,9 +848,6 @@ class BuildStrategy_GemCompile(NestedRubyBuildStrategy):
 
 	def build_used(self, build_directory):
 		return self.inner_job.build_used(build_directory)
-
-	def implicit_build_dependencies(self, build_directory):
-		return self.inner_job.implicit_build_dependencies(build_directory)
 
 class BuildStrategy_Rake(RubyBuildStrategy):
 	_type = "rake"

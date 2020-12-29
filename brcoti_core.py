@@ -1066,6 +1066,9 @@ class BuildStrategy(Object):
 	def build_used(self, build_directory):
 		return []
 
+	def resolve_source(self, source):
+		return
+
 	def implicit_build_dependencies(self, build_directory):
 		return []
 
@@ -1156,17 +1159,26 @@ class BuildStrategy_FromScript(BuildStrategy):
 
 	def __init__(self, path):
 		self.path = path
+		self.full_path = None
 
 	def describe(self):
 		# For now, we assume that the script always lives inside the source directory
 		return "%s(\"%s\")" % (self._type, os.path.basename(self.path))
 
+	def resolve_source(self, source):
+		if not isinstance(source, SourceDirectory):
+			raise ValueError("build-strategy script: source is not a SourceDirectory");
+
+		self.full_path = os.path.join(source.path, self.path)
+
 	def next_command(self, build_directory):
-		build_script = self.path
+		build_script = self.full_path
+		if not build_script:
+			raise ValueError("build-strategy script: no full path for script \"%s\" - did you forget to call resolve_source()?" % self.path);
 
 		shutil.copy(build_script, build_directory.build_base.hostpath())
 
-		yield os.path.join(self.build_base.path, os.path.basename(build_script))
+		yield os.path.join(build_directory.build_base.path, os.path.basename(build_script))
 
 		# Record the fact that we used a build script (for now)
 		# self.build_info.build_script = build_script
