@@ -1176,9 +1176,9 @@ class BuildStrategy_FromScript(BuildStrategy):
 		if not build_script:
 			raise ValueError("build-strategy script: no full path for script \"%s\" - did you forget to call resolve_source()?" % self.path);
 
-		shutil.copy(build_script, build_directory.build_base.hostpath())
+		installed_path = build_directory.install_extra_file(build_script)
 
-		yield os.path.join(build_directory.build_base.path, os.path.basename(build_script))
+		yield installed_path
 
 		# Record the fact that we used a build script (for now)
 		# self.build_info.build_script = build_script
@@ -1372,6 +1372,11 @@ class BuildDirectory(Object):
 
 		return None
 
+	def install_extra_file(self, local_path):
+		shutil.copy(local_path, self.build_base.hostpath())
+
+		return os.path.join(self.build_base.path, os.path.basename(local_path))
+
 	def apply_patches(self, build_spec):
 		for patch in build_spec.patches:
 			print("Applying patch %s" % patch)
@@ -1403,9 +1408,8 @@ class BuildDirectory(Object):
 
 	def build_from_script(self, build_script):
 		print("build_from_script(%s)" % build_script)
-		shutil.copy(build_script, self.build_base.hostpath())
+		path = self.install_extra_file(build_script)
 
-		path = os.path.join(self.build_base.path, os.path.basename(build_script))
 		self.compute.run_command("/bin/sh -c %s" % path, working_dir = self.directory.path)
 
 		# Record the fact that we used a build script (for now)
