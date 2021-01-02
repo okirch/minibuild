@@ -1360,7 +1360,7 @@ class BuildDirectory(Object):
 					continue
 
 				head = tag[:-len(tail)]
-				if head and head[-1].isdigit():
+				if head and (head[-1].isdigit() or head[-1] == '.'):
 					# 12.1 is not a valid tag for version 2.1
 					continue
 
