@@ -487,6 +487,7 @@ class BuildInfo(Object):
 		self.no_default_patches = False
 		self._patches = []
 		self.used = []
+		self.tag_pattern = None
 
 		self.requires_set = RequirementSet()
 
@@ -601,6 +602,10 @@ class BuildInfo(Object):
 				return None
 			result.append(self.format_url(url, name = sdist.name))
 		return result
+
+	def parse_git_tag_pattern(self, line):
+		self.tag_pattern = line.strip()
+		assert("$VERSION" in self.tag_pattern)
 
 	def parse_git_tag(self, line):
 		tag = line.strip()
@@ -718,6 +723,9 @@ class VersionSpec(BuildInfo):
 		else:
 			print("# defaults", file = f)
 
+		if self.tag_pattern:
+			print("git-tag-pattern %s" % self.tag_pattern, file = f)
+
 		if self.tag:
 			print("git-tag %s" % self.tag, file = f)
 
@@ -780,6 +788,8 @@ class VersionSpec(BuildInfo):
 		tag = self.tag_for.get(name)
 		if tag is None:
 			tag = self.tag
+		if tag is None and self.parent.defaults.tag_pattern:
+			tag = self.parent.defaults.tag_pattern.replace("$VERSION", self.version)
 		if tag:
 			attrs.append("tag=%s" % tag)
 
@@ -892,6 +902,8 @@ class BuildSpec(Object):
 						version.parse_exclude_git_repo(l)
 					elif kwd == 'include-git-repo':
 						version.parse_include_git_repo(l)
+					elif kwd == 'git-tag-pattern':
+						version.parse_git_tag_pattern(l)
 					elif kwd == 'git-tag':
 						version.parse_git_tag(l)
 					elif kwd == 'source':
