@@ -1653,14 +1653,17 @@ class BuildState(Object):
 		return dst
 
 	def write_file(self, name, data, desc = None):
+		with self.open_file(name, desc) as f:
+			f.write(data)
+
+	def open_file(self, name, desc = None):
 		path = self.get_new_path(name)
 
 		if desc:
 			print("Writing %s to %s" % (desc, path))
 		else:
 			print("Writing %s" % path)
-		with open(path, "w") as f:
-			f.write(data)
+		return open(path, "w")
 
 	def rebuild_required(self):
 		path = self.get_old_path("build-used")

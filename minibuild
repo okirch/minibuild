@@ -310,25 +310,35 @@ class BuildJob(object):
 			path = engine.downloader.download(upstream)
 
 			# This returns an ArtefactComparison object
-			result = build.compare_build_artefacts(path, mine.local_path)
+			changes = build.compare_build_artefacts(path, mine.local_path)
 
-			if result:
+			if changes:
 				# Our build is identical with upstream
 				continue
 
 			print("%s differs from upstream build" % mine.id())
-			result.print()
+			self.display_upstream_changes(changes)
 
-			print("--- showing diff ---")
-			result.show_diff()
-			print("--- end diff ---")
-			print("")
+			with self.build_state.open_file("upstream-diff", "Diff versus upstream") as f:
+				saved_stdout = sys.stdout
+				sys.stdout = f
+				print("Difference from upstream build")
+				self.display_upstream_changes(changes)
+				sys.stdout = saved_stdout
 
 			retval = False
 
 		if retval:
 			print("Our build matches upstream")
 		return retval
+
+	def display_upstream_changes(self, changes):
+		changes.print()
+
+		print("--- showing diff ---")
+		changes.show_diff()
+		print("--- end diff ---")
+		print("")
 
 	# This is a prep task.
 	# After a successful build, we inspect the list of packages that got installed
