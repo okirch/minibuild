@@ -692,6 +692,8 @@ class GemFile(object):
 	metadata_badness = {
 		'date' : 0,
 		'rubygems_version' : 0,
+		'specification_version' : 0,
+		'cert_chain' : 0,
 	}
 
 	@staticmethod
