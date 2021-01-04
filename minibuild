@@ -523,70 +523,81 @@ def build_action(config, opts):
 
 		# If we're asked to build a specific version, but that version is not specified in the
 		# spec file, pick one that is "close" and base our build description off of it.
-		guessing = False
 		if opts.version and not source.select_version(opts.version):
 			if not source.from_closest_version(opts.version):
 				raise ValueError("%s does not have version %s, and nothing to guess from" % (name, opts.version))
 
 			source.spec.no_default_patches = opts.no_default_patches
-			guessing = True
 
-		engine = brcoti_core.Engine.factory(source.spec.engine)
+			this_exit_code = build_one_version(compute_backend, source, True)
 
-		print("=== Package %s ===" %(source.id()))
-		job = BuildJob(config, engine, compute_backend, source)
-		job.always_commit = opts.force
-		job.quiet = opts.quiet
-		job.rebuild_if_needed = opts.rebuild_if_needed
-		job.shell_on_fail = opts.shell_on_fail
-		job.auto_repair = opts.auto_repair
-
-		try:
-			if not job.rebuild_required():
-				continue
-
-			if guessing and not opts.ignore_package_dependencies:
-				job.anticipate_build_dependencies()
-
-			job.unpack_source()
-			job.build_package()
-			job.process_build_dependencies()
-			job.prepare_results()
-
-			if opts.upstream_check and not job.compare_upstream():
-				upstream_check_failed()
-				exit_code = 1
-
-			job.maybe_commit()
-
-		except brcoti_core.BuildAborted:
-			print("Build of %s ABORTED" % source.id())
-			exit_code = 1
-		except brcoti_core.UnsatisfiedDependencies as e:
-			print("Build of %s has unsatisfied dependencies" % source.id())
-			for req in e.dependencies:
-				print("  %s" % req.format())
-
-			print("In order to merge these from upstream, run the following command:")
-			print("%s merge-extra %s" % (SCRIPT_NAME,
-					" ".join(["'%s:%s'" % (r.engine, r.format()) for r in e.dependencies])))
-			exit_code = 1
-		except Exception as e:
-			print("FAILED to build %s" % source.id())
-			import traceback
-			print(e)
-			traceback.print_tb(sys.exc_info()[2])
-			traceback.format_exc()
-			exit_code = 1
-
-		if guessing:
-			if not exit_code:
+			if this_exit_code == 0:
 				source.save()
 			else:
 				print("Non-zero exit code, writing updated spec file to build-spec.new")
 				source.save(spec_name = "build-spec.new")
+		else:
+			this_exit_code = build_one_version(compute_backend, source)
+
+		if this_exit_code:
+			exit_code = this_exit_code
 
 	print("=== Done ===")
+	return exit_code
+
+def build_one_version(compute_backend, source, check_package_dependencies = False):
+	engine = brcoti_core.Engine.factory(source.spec.engine)
+
+	print("=== Package %s ===" %(source.id()))
+	job = BuildJob(config, engine, compute_backend, source)
+	job.always_commit = opts.force
+	job.quiet = opts.quiet
+	job.rebuild_if_needed = opts.rebuild_if_needed
+	job.shell_on_fail = opts.shell_on_fail
+	job.auto_repair = opts.auto_repair
+
+	# job.merge_cmdline_requirements(opts.require)
+	# job.set_cmdline_strategy(opts.strategy)
+
+	exit_code = 0
+	try:
+		if not job.rebuild_required():
+			return 0
+
+		if check_package_dependencies and not opts.ignore_package_dependencies:
+			job.anticipate_build_dependencies()
+
+		job.unpack_source()
+		job.build_package()
+		job.process_build_dependencies()
+		job.prepare_results()
+
+		if opts.upstream_check and not job.compare_upstream():
+			upstream_check_failed()
+			exit_code = 1
+
+		job.maybe_commit()
+
+	except brcoti_core.BuildAborted:
+		print("Build of %s ABORTED" % source.id())
+		exit_code = 1
+	except brcoti_core.UnsatisfiedDependencies as e:
+		print("Build of %s has unsatisfied dependencies" % source.id())
+		for req in e.dependencies:
+			print("  %s" % req.format())
+
+		print("In order to merge these from upstream, run the following command:")
+		print("%s merge-extra %s" % (SCRIPT_NAME,
+				" ".join(["'%s:%s'" % (r.engine, r.format()) for r in e.dependencies])))
+		exit_code = 1
+	except Exception as e:
+		print("FAILED to build %s" % source.id())
+		import traceback
+		print(e)
+		traceback.print_tb(sys.exc_info()[2])
+		traceback.format_exc()
+		exit_code = 1
+
 	return exit_code
 
 def mkindex_action(config, opts):
