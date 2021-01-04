@@ -424,6 +424,7 @@ def prep_action(config, opts):
 		job.quiet = opts.quiet
 		job.shell_on_fail = opts.shell_on_fail
 		job.auto_repair = opts.auto_repair
+		job.ignore_implicit_dependencies = opts.ignore_implicit_dependencies
 
 		job.merge_cmdline_requirements(opts.require)
 		job.set_cmdline_strategy(opts.strategy)
@@ -729,6 +730,8 @@ def build_option_parser():
                 help = "Specify a build strategy like 'bundler(gem-build())' (default: auto)")
 	prep_parser.add_argument('--ignore-package-dependencies', default = False, action = 'store_true',
                 help = "When building a new version from an existing build-spec, do not inspect any dependencies listed by the package")
+	prep_parser.add_argument('--ignore-implicit-dependencies', default = False, action = 'store_true',
+                help = "Ignore dependencies inferred by the build strategy")
 
 	submit_parser = subparsers.add_parser('submit',
 		help = "Submit source package(s)")
