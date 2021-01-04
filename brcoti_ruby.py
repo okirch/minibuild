@@ -1026,10 +1026,23 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 		where = build_directory.directory
 
 		strategy = None
-		if where.lookup("Rakefile"):
-			strategy = BuildStrategy_Rake()
-		else:
+
+		rakefile = where.lookup("Rakefile")
+		if rakefile is None:
 			strategy = BuildStrategy_GemBuild()
+		else:
+			using_hoe = False
+			with rakefile.open() as f:
+				for l in f.readlines():
+					if "Hoe.spec" in l:
+						using_hoe = True
+
+			if using_hoe:
+				targets = ('gem', )
+			else:
+				targets = ('build', )
+
+			strategy = BuildStrategy_Rake(*targets)
 
 		if where.lookup("Gemfile"):
 			strategy = BuildStrategy_Bundler(strategy)
