@@ -536,6 +536,25 @@ def build_action(config, opts):
 			else:
 				print("Non-zero exit code, writing updated spec file to build-spec.new")
 				source.save(spec_name = "build-spec.new")
+		elif opts.all_unbuilt_versions:
+			rebuilding = []
+			for v in source.spec_file.versions:
+				if v.source is not None:
+					engine = brcoti_core.Engine.factory(v.engine)
+					bs = engine.build_state_factory(v.source)
+					if bs.built_previously():
+						print("%s was built previously, skipped" % v.version)
+						continue
+
+					print("%s has never been built before" % v.version)
+					rebuilding.append(v)
+
+			for v in rebuilding:
+				source.spec = v
+				this_exit_code = build_one_version(compute_backend, source)
+
+				if this_exit_code:
+					exit_code = this_exit_code
 		else:
 			this_exit_code = build_one_version(compute_backend, source)
 
@@ -722,6 +741,8 @@ def build_option_parser():
 		help = "List of packages")
 	build_parser.add_argument('--version', default = None,
                 help = "Explicitly specify the package version to build from")
+	build_parser.add_argument('--all-unbuilt-versions', default = False, action = 'store_true',
+                help = "Build all versions listed in the spec file which have not been built yet")
 	build_parser.add_argument('--rebuild-if-needed', default = False, action = 'store_true',
                 help = "Only rebuild package if needed")
 	build_parser.add_argument('--force', default = False, action = 'store_true',

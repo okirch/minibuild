@@ -1664,9 +1664,23 @@ class BuildState(Object):
 			print("Writing %s" % path)
 		return open(path, "w")
 
+	def get_old_build_used(self):
+		for name in ("build-used", "build-info"):
+			path = self.get_old_path(name)
+			if os.path.exists(path):
+				return path
+
+		return None
+
+	def built_previously(self):
+		if not self.exists():
+			return False
+		path = self.get_old_build_used()
+		return path is not None
+
 	def rebuild_required(self):
-		path = self.get_old_path("build-used")
-		if not os.path.exists(path):
+		path = self.get_old_build_used()
+		if not path:
 			print("Previous build did not create a build-used file")
 			return True
 
