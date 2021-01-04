@@ -676,6 +676,12 @@ class Ruby:
 					if our_value == her_value:
 						continue
 
+					if key == 'metadata':
+						if our_value == {} and her_value == None:
+							continue
+						if her_value == {} and our_value == None:
+							continue
+
 					if type(our_value) == list and type(her_value) == list:
 						# print("Comparing our_value=%s" % our_value)
 						# print("       to her_value=%s" % her_value)
