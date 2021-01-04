@@ -599,7 +599,12 @@ class BuildInfo(Object):
 		return result
 
 	def parse_git_tag(self, line):
-		self.tag = line.strip()
+		tag = line.strip()
+		if "=" in tag:
+			(repo_name, tag) = tag.split("=", 1)
+			self.tag_for[repo_name] = tag
+		else:
+			self.tag = line.strip()
 
 	def parse_git_repo(self, line):
 		self.source_urls.append(line.strip())
@@ -665,6 +670,7 @@ class VersionSpec(BuildInfo):
 		self.package_name = build_spec.package_name
 		self.version = version
 		self.tag = None
+		self.tag_for = {}
 
 	def id(self):
 		return "%s-%s" % (self.package_name, self.version)
@@ -736,8 +742,12 @@ class VersionSpec(BuildInfo):
 		if name:
 			attrs.append("name=%s" % name)
 		attrs.append("version=%s" % self.version)
-		if self.tag:
-			attrs.append("tag=%s" % self.tag)
+
+		tag = self.tag_for.get(name)
+		if tag is None:
+			tag = self.tag
+		if tag:
+			attrs.append("tag=%s" % tag)
 
 		return "%s?%s" % (repo_url, "&".join(attrs))
 
