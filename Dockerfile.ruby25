@@ -1,6 +1,9 @@
 FROM opensuse/leap:latest
 RUN zypper in -y ruby-2.5 ruby2.5-rubygem-bundler ruby-devel
 RUN zypper in -y git-core patch
+RUN gem uninstall -x rake
+RUN gem uninstall -x bundler
+#RUN gem uninstall -x rdoc
 #
 # This patch makes the hoe build fail
 COPY patches/ruby2.5-make-gem-build-reproducible.patch /tmp
