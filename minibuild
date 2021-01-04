@@ -119,7 +119,7 @@ class BuildJob(object):
 	def source_for(self, build):
 		spec = self.source.spec
 
-		assert(len(spec.sources) == 1)
+		assert(len(spec.sources) >= 1)
 		return spec.sources[0]
 
 	def rebuild_required(self):

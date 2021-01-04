@@ -969,15 +969,12 @@ class Source(Object):
 	def merge_info_from_build(self, build_info):
 		self.spec.requires += build_info.requires
 
-		assert(len(build_info.sources) == 1)
-		sdist = build_info.sources[0]
+		if len(build_info.sources) >= 1:
+			sdist = build_info.sources[0]
 
-		if sdist.git_url():
-			self.spec.tag = sdist.git_tag()
-
-			defaults = self.spec_file.defaults
-			if not defaults.source_urls:
-				defaults.source_urls.append(sdist.git_url())
+			if sdist.git_url():
+				self.spec.tag = sdist.git_tag()
+				self.spec.source_urls.append(sdist.git_url())
 
 	def add_requires(self, req_list):
 		self.spec.requires += req_list
