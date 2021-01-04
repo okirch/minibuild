@@ -609,6 +609,16 @@ class BuildInfo(Object):
 	def parse_git_repo(self, line):
 		self.source_urls.append(line.strip())
 
+	def parse_exclude_git_repo(self, line):
+		if self.exclude_git_repos is None:
+			self.exclude_git_repos = set()
+		self.exclude_git_repos.add(line.strip())
+
+	def parse_include_git_repo(self, line):
+		if self.include_git_repos is None:
+			self.include_git_repos = set()
+		self.include_git_repos.add(line.strip())
+
 	def parse_source(self, line):
 		return self.add_source(line.strip())
 
@@ -670,6 +680,9 @@ class VersionSpec(BuildInfo):
 		self.package_name = build_spec.package_name
 		self.version = version
 		self.tag = None
+
+		self.exclude_git_repos = set()
+		self.include_git_repos = None
 		self.tag_for = {}
 
 	def id(self):
@@ -730,6 +743,13 @@ class VersionSpec(BuildInfo):
 			else:
 				repo_url = repo_url.rstrip('/')
 				name = repo_url.split('/')[-1]
+
+				if name in self.exclude_git_repos:
+					continue
+
+				if self.include_git_repos is not None and \
+				   name not in self.include_git_repos:
+					continue
 
 			url = self.format_url(repo_url, name)
 
@@ -854,6 +874,10 @@ class BuildSpec(Object):
 							obj = version.parse_used(l)
 					elif kwd == 'git-repo':
 						version.parse_git_repo(l)
+					elif kwd == 'exclude-git-repo':
+						version.parse_exclude_git_repo(l)
+					elif kwd == 'include-git-repo':
+						version.parse_include_git_repo(l)
 					elif kwd == 'git-tag':
 						version.parse_git_tag(l)
 					elif kwd == 'source':
