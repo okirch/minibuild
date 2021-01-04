@@ -689,11 +689,13 @@ class GemFile(object):
 
 	# Tune how serious some divergence of metadata actually is
 	# We should make this configurable
+	# has_rdoc is deprecated, and "gem build" does not set it
 	metadata_badness = {
 		'date' : 0,
 		'rubygems_version' : 0,
 		'specification_version' : 0,
 		'cert_chain' : 0,
+		'has_rdoc' : 0,
 	}
 
 	@staticmethod
