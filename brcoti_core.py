@@ -29,6 +29,7 @@ import glob
 import shutil
 import re
 import tempfile
+import subprocess
 
 def __pre_command():
 	# Avoid messing up the order of our output and the output of subprocesses when
@@ -40,7 +41,8 @@ def run_command(cmd, ignore_exitcode = False):
 	print("Running %s" % cmd)
 
 	__pre_command()
-	if os.system(cmd) != 0 and not ignore_exitcode:
+	rv = subprocess.run(cmd, shell = True, stdout = sys.stdout, stderr = sys.stderr, stdin = None)
+	if rv != 0 and not ignore_exitcode:
 		raise ValueError("Command `%s' returned non-zero exit status" % cmd)
 
 def popen(cmd, mode = 'r'):
