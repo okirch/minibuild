@@ -589,8 +589,12 @@ If our build *IS* correct, and this warning is due to a bug, please fix the mis-
 			traceback.format_exc()
 			exit_code = 1
 
-		if guessing and not exit_code:
-			source.save()
+		if guessing:
+			if not exit_code:
+				source.save()
+			else:
+				print("Non-zero exit code, writing updated spec file to build-spec.new")
+				source.save(spec_name = "build-spec.new")
 
 	print("=== Done ===")
 	return exit_code
