@@ -103,9 +103,15 @@ class Ruby:
 			return self.compare(other, lambda s, o: s >= o)
 
 		def __eq__(self, other):
+			if not isinstance(other, self.__class__):
+				return False
+
 			return self.compare(other, lambda s, o: s == o)
 
 		def __ne__(self, other):
+			if not isinstance(other, self.__class__):
+				return True
+
 			return self.compare(other, lambda s, o: s != o)
 
 		def compare(self, other, f):
@@ -148,7 +154,9 @@ class Ruby:
 			return "[%s]" % ", ".join(self.versions)
 
 		def __eq__(self, other):
-			assert(isinstance(other, self.__class__))
+			if not isinstance(other, self.__class__):
+				return False
+
 			return self.versions == other.versions
 
 	class Clause:
@@ -186,7 +194,8 @@ class Ruby:
 			raise ValueError("Unknown version comparison operator \"%s\"" % self.op)
 
 		def __eq__(self, other):
-			assert(isinstance(other, self.__class__))
+			if not isinstance(other, self.__class__):
+				return False
 			return self.op == other.op and self.version == other.version
 
 	class GemRequirement(object):
@@ -253,7 +262,9 @@ class Ruby:
 			return iter(self.req)
 
 		def __eq__(self, other):
-			assert(isinstance(other, self.__class__))
+			if not isinstance(other, self.__class__):
+				return False
+
 			return self.req == other.req
 
 		def valid_platform(self, my_platforms):
@@ -336,7 +347,8 @@ class Ruby:
 			return hash(repr(self))
 
 		def __eq__(self, other):
-			assert(isinstance(other, self.__class__))
+			if not isinstance(other, self.__class__):
+				return False
 
 			if self.name != other.name or \
 			   self.prerelease != other.prerelease or \
