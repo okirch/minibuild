@@ -41,7 +41,9 @@ def run_command(cmd, ignore_exitcode = False):
 	print("Running %s" % cmd)
 
 	__pre_command()
-	rv = subprocess.run(cmd, shell = True, stdout = sys.stdout, stderr = sys.stderr, stdin = None)
+	completed = subprocess.run(cmd, shell = True, stdout = sys.stdout, stderr = sys.stderr, stdin = None)
+
+	rv = completed.returncode
 	if rv != 0 and not ignore_exitcode:
 		raise ValueError("Command `%s' returned non-zero exit status" % cmd)
 
