@@ -721,6 +721,16 @@ class VersionSpec(BuildInfo):
 		if self.tag:
 			print("git-tag %s" % self.tag, file = f)
 
+		for (name, tag) in self.tag_for:
+			print("git-tag %s=%s" % (name, tag))
+
+		for repo in self.exclude_git_repos:
+			print("exclude-git-repo %s" % rep)
+
+		if self.include_git_repos is not None:
+			for repo in self.include_git_repos:
+				print("include-git-repo %s" % rep)
+
 		if self.no_default_patches:
 			print("no-default-patches", file = f)
 
