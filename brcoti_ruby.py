@@ -888,7 +888,10 @@ class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
 		yield "bundle config without test benchmark"
 
-		yield 'bundler install --full-index '
+		cmd = "bundler install"
+		if False:
+			cmd += " --full-index"
+		yield cmd
 
 		for cmd in self.inner_job.next_command(build_directory):
 			yield "bundler exec " + cmd
