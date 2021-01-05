@@ -873,6 +873,25 @@ class BuildStrategy_Rake(RubyBuildStrategy):
 		for tgt in self.targets:
 			yield "rake %s" % tgt
 
+class BuildStrategy_Thor(RubyBuildStrategy):
+	_type = "thor"
+	_requires = ['thor']
+
+	def __init__(self, *targets):
+		super(BuildStrategy_Thor, self).__init__()
+		if not targets:
+			targets = ['build']
+		self.targets = targets
+
+	def describe(self):
+		return '%s(%s)' % (self._type, ", ".join(self.targets))
+
+	def next_command(self, build_directory):
+		# FIXME: should we try to detect supported rake tasks
+		# if none were given?
+		for tgt in self.targets:
+			yield "thor %s" % tgt
+
 class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 	_type = "bundler"
 	_requires = ['bundler']
@@ -1036,9 +1055,8 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 		strategy = None
 
 		rakefile = where.lookup("Rakefile")
-		if rakefile is None:
-			strategy = BuildStrategy_GemBuild()
-		else:
+		thorfile = where.lookup("Thorfile")
+		if rakefile is not None:
 			using_hoe = False
 			with rakefile.open() as f:
 				for l in f.readlines():
@@ -1051,6 +1069,13 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 				targets = ('build', )
 
 			strategy = BuildStrategy_Rake(*targets)
+		elif thorfile is not None:
+			strategy = BuildStrategy_Thor()
+
+		# If we have neither Rakefile nor Thorfile, fall back to
+		# a simple "gem build"
+		if strategy is None:
+			strategy = BuildStrategy_GemBuild()
 
 		if where.lookup("Gemfile"):
 			strategy = BuildStrategy_Bundler(strategy)
@@ -1557,6 +1582,8 @@ class RubyEngine(brcoti_core.Engine):
 			return BuildStrategy_Auto()
 		if name == 'rake':
 			return BuildStrategy_Rake(*args)
+		if name == 'thor':
+			return BuildStrategy_Thor(*args)
 		if name == 'bundler':
 			return BuildStrategy_Bundler(*args)
 		if name == 'gem-build':
