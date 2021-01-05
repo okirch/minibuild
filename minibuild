@@ -538,18 +538,31 @@ def build_action(config, opts):
 				exit_code = this_exit_code
 				print("Non-zero exit code, writing updated spec file to build-spec.new")
 				source.save(spec_name = "build-spec.new")
-		elif opts.all_unbuilt_versions:
+		elif opts.all_versions or opts.all_unbuilt_versions:
 			rebuilding = []
+			skipped = []
+
+			engine = brcoti_core.Engine.factory(source.spec_file.engine)
 			for v in source.spec_file.versions:
 				if v.source is not None:
-					engine = brcoti_core.Engine.factory(v.engine)
-					bs = engine.build_state_factory(v.source)
-					if bs.built_previously():
-						print("%s was built previously, skipped" % v.version)
-						continue
+					if not opts.all_versions:
+						bs = engine.build_state_factory(v.source)
+						if bs.built_previously():
+							skipped.append(v)
+							continue
 
-					print("%s has never been built before" % v.version)
 					rebuilding.append(v)
+
+			if skipped:
+				print("Not rebuilding versions %s" % (
+					" ".join([v.version for v in skipped])))
+
+			if not rebuilding:
+				print("Nothing to rebuild, we're good")
+			else:
+				print("Going to (re-)build these versions:")
+				for v in rebuilding:
+					print("  %s" % v.version)
 
 			for v in rebuilding:
 				source.spec = v
@@ -567,6 +580,7 @@ def build_action(config, opts):
 			if exit_code != 0:
 				print("WARNING: Build was not successful. NOT submitting source code.")
 			else:
+				engine = brcoti_core.Engine.factory(source.spec_file.engine)
 				engine.submit_source(source)
 
 	print("=== Done ===")
@@ -751,6 +765,8 @@ def build_option_parser():
 		help = "List of packages")
 	build_parser.add_argument('--version', default = None,
                 help = "Explicitly specify the package version to build from")
+	build_parser.add_argument('--all-versions', default = False, action = 'store_true',
+                help = "(Re-)build all versions listed in the spec file")
 	build_parser.add_argument('--all-unbuilt-versions', default = False, action = 'store_true',
                 help = "Build all versions listed in the spec file which have not been built yet")
 	build_parser.add_argument('--rebuild-if-needed', default = False, action = 'store_true',
