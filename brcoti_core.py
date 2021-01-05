@@ -690,7 +690,7 @@ class VersionSpec(BuildInfo):
 			self.name = name
 			self.value = value
 
-	def __init__(self, build_spec, version):
+	def __init__(self, build_spec, version, defaults = None):
 		super(VersionSpec, self).__init__()
 
 		self.parent = build_spec
@@ -704,6 +704,8 @@ class VersionSpec(BuildInfo):
 		self.tag_for = {}
 
 		self.config_data = []
+
+		self.defaults = defaults
 
 	def id(self):
 		return "%s-%s" % (self.package_name, self.version)
@@ -719,8 +721,8 @@ class VersionSpec(BuildInfo):
 	@property
 	def dependencies(self):
 		defaults = []
-		if self.parent and self.parent.defaults:
-			defaults = self.parent.defaults.requires
+		if self.defaults:
+			defaults = self.defaults.requires
 
 		return defaults + self.requires
 
@@ -730,14 +732,17 @@ class VersionSpec(BuildInfo):
 			return self._patches
 
 		defaults = []
-		if self.parent and self.parent.defaults:
-			defaults = self.parent.defaults._patches
+		if self.defaults:
+			defaults = self.defaults._patches
 
 		return defaults + self._patches
 
 	@property
 	def build_strategy(self):
 		result = self._build_strategy
+		if result is None and self.defaults:
+			result = self.defaults._build_strategy
+
 		return result
 
 	def write(self, f):
@@ -780,9 +785,12 @@ class VersionSpec(BuildInfo):
 	def implicit_git_urls(self):
 		result = []
 
+		if self.version is None:
+			return result
+
 		source_urls = self.source_urls
-		if not source_urls:
-			source_urls = self.parent.defaults.source_urls
+		if not source_urls and self.defaults:
+			source_urls = self.defaults.source_urls
 
 		for i in range(len(source_urls)):
 			repo_url = source_urls[i]
@@ -1006,7 +1014,7 @@ class BuildSpec(Object):
 		return self.build_engine
 
 	def add_version(self, version_str):
-		version = VersionSpec(self, version_str)
+		version = VersionSpec(self, version_str, self.defaults)
 		self.versions.append(version)
 
 		return version
