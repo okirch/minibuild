@@ -535,6 +535,7 @@ def build_action(config, opts):
 			if this_exit_code == 0:
 				source.save()
 			else:
+				exit_code = this_exit_code
 				print("Non-zero exit code, writing updated spec file to build-spec.new")
 				source.save(spec_name = "build-spec.new")
 		elif opts.all_unbuilt_versions:
@@ -559,8 +560,14 @@ def build_action(config, opts):
 		else:
 			this_exit_code = build_one_version(compute_backend, source)
 
-		if this_exit_code:
-			exit_code = this_exit_code
+			if this_exit_code:
+				exit_code = this_exit_code
+
+		if opts.auto_submit:
+			if exit_code != 0:
+				print("WARNING: Build was not successful. NOT submitting source code.")
+			else:
+				engine.submit_source(source)
 
 	print("=== Done ===")
 	return exit_code
@@ -760,6 +767,8 @@ def build_option_parser():
                 help = "When building a new version from an existing build-spec, ignore any default patches")
 	build_parser.add_argument('--ignore-package-dependencies', default = False, action = 'store_true',
                 help = "When building a new version from an existing build-spec, do not inspect any dependencies listed by the package")
+	build_parser.add_argument('--auto-submit', default = False, action = 'store_true',
+                help = "Automatically submit source if the build succeeds (use with caution)")
 
 	mkindex_parser = subparsers.add_parser('make-index',
 		help = "Rebuild package index")
