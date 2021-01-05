@@ -296,8 +296,6 @@ class Ruby:
 			self.prerelease = False
 
 			if yaml_data:
-				if not 'requirement' in yaml_data:
-					print("GemDependency yaml_data=%s" % yaml_data)
 				self.name = yaml_data['name']
 
 				# is version_requirements always a fallback for requirement?
