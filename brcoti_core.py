@@ -2413,6 +2413,15 @@ class Engine(Object):
 
 	# Returns a ComputeNode instance
 	def prepare_environment(self, compute_backend, build_spec):
+
+		environment = []
+		for item in build_spec.get_build_configs("env"):
+			try:
+				(name, value) = item.split("=", maxsplit = 1)
+			except:
+				raise ValueError("Invalid environment setting in build-spec: %s" % item)
+			environment.append((name, value))
+
 		compute = compute_backend.spawn(self.engine_config.name)
 
 		if self.use_proxy and self.config.globals.http_proxy:
@@ -2420,6 +2429,9 @@ class Engine(Object):
 			compute.putenv('http_proxy', proxy)
 			compute.putenv('HTTP_PROXY', proxy)
 			compute.putenv('https_proxy', proxy)
+
+		for (name, value) in environment:
+			compute.putenv(name, value)
 
 		return compute
 
