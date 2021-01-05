@@ -680,7 +680,16 @@ class BuildInfo(Object):
 
 		self.build_strategy = BuildStrategy.parse(build_engine, line.strip())
 
+	def parse_build_config(self, line):
+		(name, value) = line.strip().split(maxsplit = 1)
+		self.add_build_config(name, value)
+
 class VersionSpec(BuildInfo):
+	class Config:
+		def __init__(self, name, value):
+			self.name = name
+			self.value = value
+
 	def __init__(self, build_spec, version):
 		super(VersionSpec, self).__init__()
 
@@ -694,8 +703,18 @@ class VersionSpec(BuildInfo):
 		self.include_git_repos = None
 		self.tag_for = {}
 
+		self.config_data = []
+
 	def id(self):
 		return "%s-%s" % (self.package_name, self.version)
+
+	def add_build_config(self, name, value):
+		self.config_data.append(self.Config(name, value))
+
+	def get_build_configs(self, name):
+		for conf in self.config_data:
+			if conf.name == name:
+				yield conf.value
 
 	@property
 	def dependencies(self):
@@ -741,6 +760,9 @@ class VersionSpec(BuildInfo):
 
 		if self.no_default_patches:
 			print("no-default-patches", file = f)
+
+		for conf in self.config_data:
+			print("build-config %s %s" % (conf.name, conf.value))
 
 		super(VersionSpec, self).write(f)
 
@@ -912,6 +934,8 @@ class BuildSpec(Object):
 						version.parse_build_script(path, l)
 					elif kwd == 'build-strategy':
 						version.parse_build_strategy(path, l)
+					elif kwd == 'build-config':
+						version.parse_build_config(l)
 					elif kwd == 'patch':
 						version.parse_patch(path, l)
 					elif kwd == 'no-default-patches':
@@ -1124,7 +1148,11 @@ class BuildStrategy(Object):
 		return []
 
 	def resolve_source(self, source):
-		return
+		for value in source.spec.get_build_configs(self._type):
+			self.apply_config(value)
+
+	def apply_config(self, value):
+		print("WARNING: build strategy of type \"%s\" has no apply_config() method. Ignoring \"%s\"" % (self._type, value))
 
 	def implicit_build_dependencies(self, build_directory):
 		return []
@@ -1223,6 +1251,7 @@ class BuildStrategy_FromScript(BuildStrategy):
 		return "%s(\"%s\")" % (self._type, os.path.basename(self.path))
 
 	def resolve_source(self, source):
+		super(BuildStrategy_FromScript, self).resolve_source(source)
 		if not isinstance(source, SourceDirectory):
 			raise ValueError("build-strategy script: source is not a SourceDirectory");
 

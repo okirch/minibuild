@@ -799,6 +799,7 @@ class NestedRubyBuildStrategy(RubyBuildStrategy):
 		return self.inner_job.implicit_build_dependencies(build_directory)
 
 	def resolve_source(self, source):
+		super(NestedRubyBuildStrategy, self).resolve_source(source)
 		self.inner_job.resolve_source(source)
 
 class BuildStrategy_GemBuild(RubyBuildStrategy):
@@ -881,11 +882,18 @@ class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 		self.locked_bundler_version = None
 		self.gemfile_parsed = None
 		self.gemfile_lock_parsed = None
+		self.config = []
+
+	def apply_config(self, value):
+		self.config.append(value)
 
 	def next_command(self, build_directory):
 		# While we bootstrap ruby building, skip everything test related and go just for the build
 		yield "bundle config bindir '%s'" % "/home/build/bin"
 		yield "bundle config path '%s'" % "/home/build/.gem"
+
+		for value in self.config:
+			yield "bundle config " + value
 
 		# While we bootstrap ruby building, skip everything test related and go just for the build
 		yield "bundle config without test benchmark"
