@@ -417,7 +417,7 @@ def prep_action(config, opts):
 		if url:
 			print("Building %s from %s" % (sdist.id(), url))
 
-		source.spec.build_strategy = engine.create_build_strategy("auto")
+		source.spec._build_strategy = engine.create_build_strategy("auto")
 
 		print("=== Package %s ===" %(source.id()))
 		job = BuildJob(config, engine, compute_backend, source)
