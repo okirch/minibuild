@@ -479,7 +479,7 @@ class Uploader(Object):
 class BuildInfo(Object):
 	def __init__(self):
 		self.build_script = None
-		self.build_strategy = None
+		self._build_strategy = None
 		self.requires = []
 		self.artefacts = []
 		self.sources = []
@@ -514,8 +514,8 @@ class BuildInfo(Object):
 		self.write_artefacts(f, "used", self.used)
 		self.write_sources(f)
 
-		if self.build_strategy:
-			print("build-strategy %s" % self.build_strategy.describe(), file = f)
+		if self._build_strategy:
+			print("build-strategy %s" % self._build_strategy.describe(), file = f)
 		elif self.build_script:
 			print("build %s" % self.build_script, file = f)
 
@@ -673,12 +673,12 @@ class BuildInfo(Object):
 			raise ValueError("build script %s must be executable" % arg)
 
 		self.build_script = arg
-		self.build_strategy = build_engine.create_build_strategy_from_script(filename)
+		self._build_strategy = build_engine.create_build_strategy_from_script(filename)
 
 	def parse_build_strategy(self, path, line):
 		build_engine = self.context_engine()
 
-		self.build_strategy = BuildStrategy.parse(build_engine, line.strip())
+		self._build_strategy = BuildStrategy.parse(build_engine, line.strip())
 
 	def parse_build_config(self, line):
 		(name, value) = line.strip().split(maxsplit = 1)
@@ -734,6 +734,11 @@ class VersionSpec(BuildInfo):
 			defaults = self.parent.defaults._patches
 
 		return defaults + self._patches
+
+	@property
+	def build_strategy(self):
+		result = self._build_strategy
+		return result
 
 	def write(self, f):
 		print("", file = f)
@@ -1098,7 +1103,7 @@ class SourceDirectory(Source):
 		closest = self.spec_file.versions[-1]
 
 		new_ver = self.spec_file.add_version(version)
-		new_ver.build_strategy = closest.build_strategy
+		new_ver._build_strategy = closest._build_strategy
 
 		for url in new_ver.implicit_git_urls():
 			# sdist = self.spec_file.build_engine.create_artefact_from_url(url)
