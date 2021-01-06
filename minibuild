@@ -253,7 +253,13 @@ class BuildJob(object):
 			raise brcoti_core.BuildAborted()
 
 		if not artefacts:
-			raise ValueError("%s: nothing got built" % self.source.id())
+			if not self.shell_on_fail:
+				raise ValueError("%s: nothing got built" % self.source.id())
+
+			print("*** BUILD DID NOT PRODUCE ANY OUTPUT ***")
+			print("Opening interactive shell for debugging")
+			self.build.compute.interactive_shell(working_dir = build.directory)
+			raise brcoti_core.BuildAborted()
 
 		return artefacts
 
