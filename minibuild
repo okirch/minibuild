@@ -652,6 +652,8 @@ def mkindex_action(config, opts):
 
 def merge_extra_action(config, opts):
 	by_engine = dict()
+
+	noise_canceling_map = str.maketrans("()", "  ")
 	for name in opts.packages:
 		if ':' not in name:
 			print("argument format should be <engine>:<package> - cannot parse \"%s\"" % name)
@@ -663,6 +665,13 @@ def merge_extra_action(config, opts):
 		if req_list is None:
 			req_list = []
 			by_engine[engine_name] = req_list
+
+		# In order to make cut'n'paste life easier, translate
+		#    floopie (~> 2.7)
+		# to
+		#    floopie ~> 2.7
+		if engine_name == 'ruby':
+			 req_string = req_string.translate(noise_canceling_map)
 
 		req_list.append(req_string)
 
