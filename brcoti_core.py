@@ -684,6 +684,9 @@ class BuildInfo(Object):
 		(name, value) = line.strip().split(maxsplit = 1)
 		self.add_build_config(name, value)
 
+	def parse_build_subdir(self, line):
+		self._build_subdir = line.strip()
+
 class VersionSpec(BuildInfo):
 	class Config:
 		def __init__(self, name, value):
@@ -704,6 +707,7 @@ class VersionSpec(BuildInfo):
 		self.tag_for = {}
 
 		self.config_data = []
+		self._build_subdir = None
 
 		self.defaults = defaults
 
@@ -745,6 +749,14 @@ class VersionSpec(BuildInfo):
 
 		return result
 
+	@property
+	def build_subdir(self):
+		result = self._build_subdir
+		if result is None and self.defaults:
+			result = self.defaults._build_subdir
+
+		return result
+
 	def write(self, f):
 		print("", file = f)
 		if self.version:
@@ -773,6 +785,9 @@ class VersionSpec(BuildInfo):
 
 		for conf in self.config_data:
 			print("build-config %s %s" % (conf.name, conf.value))
+
+		if self._build_subdir:
+			print("build-subdir %s" % self._build_subdir)
 
 		super(VersionSpec, self).write(f)
 
@@ -947,6 +962,8 @@ class BuildSpec(Object):
 						version.parse_build_script(path, l)
 					elif kwd == 'build-strategy':
 						version.parse_build_strategy(path, l)
+					elif kwd == 'build-subdir':
+						version.parse_build_subdir(l)
 					elif kwd == 'build-config':
 						version.parse_build_config(l)
 					elif kwd == 'patch':
@@ -1386,6 +1403,15 @@ class BuildDirectory(Object):
 				raise ValueError("Unpacking %s failed: cannot find %s" % (sdist.id(), destdir))
 
 			if src_index == 0:
+				if build_spec.build_subdir:
+					subdir = directory.lookup(build_spec.build_subdir)
+					if subdir is None:
+						raise ValueError("Unable to look up build-subdir \"%s\" inside %s" % (
+								build_spec.build_subdir,
+								directory))
+					print("Unpacked source into %s; build directory is %s" % (directory, subdir))
+					directory = subdir
+
 				self.directory = directory
 
 				if build_spec.patches:
