@@ -1526,8 +1526,13 @@ class BuildDirectory(Object):
 
 			self.build_info.requires.append(req)
 
+		did_something = False
 		for cmd in build_strategy.next_command(self):
 			self.build_command_helper(cmd)
+			did_something = True
+
+		if not did_something:
+			raise ValueError("Build strategy %s did not execute any commands..." % build_strategy.describe())
 
 		return self.collect_build_results()
 
