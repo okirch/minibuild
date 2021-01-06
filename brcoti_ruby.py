@@ -932,10 +932,11 @@ class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 
 	def build_dependencies(self, build_directory):
 		result = []
-		if build_directory.locked_bundler_version:
-			print("Gemfile.lock specifies bundler == %s" % build_directory.locked_bundler_version)
-			result = ['bundler == %s' % build_directory.locked_bundler_version]
+		if self.locked_bundler_version:
+			print("Gemfile.lock specifies bundler == %s" % self.locked_bundler_version)
+			result = ['bundler == %s' % self.locked_bundler_version]
 		elif not build_directory.has_build_dependency('bundler'):
+			print("Not locked to a specific version of bundler")
 			result.append('bundler')
 		return result + self.inner_job.build_dependencies(build_directory)
 
@@ -1163,8 +1164,6 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 			raise ValueError("Configuration does not specify bundler-cache")
 
 		self.pre_build_gems = self.get_installed_gems()
-
-		self.locked_bundler_version = None
 
 	# Most of the unpacking happens in the BuildDirectory base class.
 	# The only python specific piece is guessing which directory an archive is extracted to
