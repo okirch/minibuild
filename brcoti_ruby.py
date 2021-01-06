@@ -816,8 +816,13 @@ class BuildStrategy_GemBuild(RubyBuildStrategy):
 		if self.name:
 			yield "gem build '%s.gemspec'" % self.name
 		else:
+			built_some = False
 			for spec in build_directory.directory.glob_files("*.gemspec"):
 				yield "gem build '%s'" % os.path.basename(spec.path)
+				built_some = True
+
+			if not built_some:
+				raise ValueError("No gemspec files in build directory %s" % build_directory.directory)
 
 class BuildStrategy_GemCompile(NestedRubyBuildStrategy):
 	_type = "gem-compile"
