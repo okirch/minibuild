@@ -29,6 +29,23 @@ import brcoti_core
 import glob
 import shutil
 
+import termios
+
+_saved_tc_attrs = None
+
+def save_tty():
+	global _saved_tc_attrs
+	if _saved_tc_attrs is None:
+		fd0 = sys.stdin.fileno()
+		_saved_tc_attrs = termios.tcgetattr(fd0)
+	return
+
+def restore_tty():
+	global _saved_tc_attrs
+	if _saved_tc_attrs is not None:
+		fd0 = sys.stdin.fileno()
+		termios.tcsetattr(fd0, termios.TCSANOW, _saved_tc_attrs)
+
 class PodmanCmd(object):
 	def __init__(self, *args):
 		self.cmd = "podman " + " ".join(args)
@@ -292,7 +309,10 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		cmd = brcoti_core.ShellCommand("/bin/bash")
 		cmd.working_dir = working_dir
 		cmd.privileged_user = True
+
+		save_tty()
 		self._make_command(cmd, mode = "shell").run()
+		restore_tty()
 
 	def _make_command(self, shellcmd, mode = None):
 		args = []
