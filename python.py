@@ -1,5 +1,5 @@
 #
-# python specific portions of brcoti
+# python specific portions of minibuild
 #
 #   Copyright (C) 2020 Olaf Kirch <okir@suse.de>
 #
@@ -26,7 +26,7 @@ import pkginfo
 import glob
 import shutil
 
-import brcoti_core
+import minibuild.core as core
 
 ENGINE_NAME	= 'python'
 
@@ -207,7 +207,7 @@ def get_python_version():
 def canonical_package_name(name):
 	return name.replace('_', '-')
 
-class PythonBuildRequirement(brcoti_core.BuildRequirement):
+class PythonBuildRequirement(core.BuildRequirement):
 	engine = ENGINE_NAME
 
 	def __init__(self, name, req_string = None, cooked_requirement = None):
@@ -232,7 +232,7 @@ class PythonBuildRequirement(brcoti_core.BuildRequirement):
 
 		return super(PythonBuildRequirement, self).__repr__()
 
-class PythonArtefact(brcoti_core.Artefact):
+class PythonArtefact(core.Artefact):
 	engine = ENGINE_NAME
 
 	def __init__(self, name, version = None, type = None):
@@ -392,7 +392,7 @@ class PythonArtefact(brcoti_core.Artefact):
 
 		return build
 
-class PythonReleaseInfo(brcoti_core.PackageReleaseInfo):
+class PythonReleaseInfo(core.PackageReleaseInfo):
 	def __init__(self, name, version, parsed_version = None):
 		super(PythonReleaseInfo, self).__init__(canonical_package_name(name), version)
 
@@ -409,11 +409,11 @@ class PythonReleaseInfo(brcoti_core.PackageReleaseInfo):
 		assert(isinstance(other, PythonReleaseInfo))
 		return other.parsed_version < this.parsed_version
 
-class PythonPackageInfo(brcoti_core.PackageInfo):
+class PythonPackageInfo(core.PackageInfo):
 	def __init__(self, name):
 		super(PythonPackageInfo, self).__init__(canonical_package_name(name))
 
-class PythonDownloadFinder(brcoti_core.DownloadFinder):
+class PythonDownloadFinder(core.DownloadFinder):
 	def __init__(self, req, verbose):
 		super(PythonDownloadFinder, self).__init__(verbose)
 
@@ -491,7 +491,7 @@ class PythonBinaryDownloadFinder(PythonDownloadFinder):
 		# print("inspecting %s which is of type %s" % (build.filename, build.type))
 		return build.type == 'bdist_wheel'
 
-class JSONPackageIndex(brcoti_core.HTTPPackageIndex):
+class JSONPackageIndex(core.HTTPPackageIndex):
 	def __init__(self, url = 'https://pypi.org/pypi'):
 		super(JSONPackageIndex, self).__init__(url)
 		self._pkg_url_template = "{index_url}/{pkg_name}/json"
@@ -548,7 +548,7 @@ class JSONPackageIndex(brcoti_core.HTTPPackageIndex):
 
 		return info
 
-class SimplePackageIndex(brcoti_core.HTTPPackageIndex):
+class SimplePackageIndex(core.HTTPPackageIndex):
 	def __init__(self, url):
 		super(SimplePackageIndex, self).__init__(url + "/simple")
 
@@ -674,7 +674,7 @@ class SimplePackageIndex(brcoti_core.HTTPPackageIndex):
 
 
 # Upload package using twine
-class PythonUploader(brcoti_core.Uploader):
+class PythonUploader(core.Uploader):
 	def __init__(self, url, user, password):
 		self.url = url
 		self.config_written = False
@@ -699,7 +699,7 @@ class PythonUploader(brcoti_core.Uploader):
 		cmd += " --password %s" % (self.password)
 		cmd += " " + build.local_path
 
-		brcoti_core.run_command(cmd)
+		core.run_command(cmd)
 
 class WheelArchive(object):
 	def __init__(self, path):
@@ -745,9 +745,9 @@ class WheelArchive(object):
 			print("removed=" + ", ".join(removed_set))
 			print("changed=" + ", ".join(changed_set))
 
-		return brcoti_core.ArtefactComparison(other.path, added_set, removed_set, changed_set)
+		return core.ArtefactComparison(other.path, added_set, removed_set, changed_set)
 
-class PythonBuildStrategy(brcoti_core.BuildStrategy):
+class PythonBuildStrategy(core.BuildStrategy):
         pass
 
 class BuildStrategy_Wheel(PythonBuildStrategy):
@@ -780,7 +780,7 @@ class BuildStrategy_Wheel(PythonBuildStrategy):
 		# requirements (and used wheels) so that we can later report
 		# them via build_dependencies() and build_used()
 
-class PythonBuildDirectory(brcoti_core.BuildDirectory):
+class PythonBuildDirectory(core.BuildDirectory):
 	def __init__(self, compute, engine):
 		super(PythonBuildDirectory, self).__init__(compute, engine)
 
@@ -951,7 +951,7 @@ class PythonBuildDirectory(brcoti_core.BuildDirectory):
 # This is not very efficient, as we rebuild the entire tree whenever we do this.
 # At least for the binary files themselves, it's probably better to just touch up an
 # existing tree.
-class PythonPublisher(brcoti_core.Publisher):
+class PythonPublisher(core.Publisher):
 	def __init__(self, repoconfig):
 		super(PythonPublisher, self).__init__("python", repoconfig)
 
@@ -1085,7 +1085,7 @@ class PythonPublisher(brcoti_core.Publisher):
 			for l in self.top_index_trailer:
 				print(l, file = f)
 
-class PythonEngine(brcoti_core.Engine):
+class PythonEngine(core.Engine):
 	type = 'python'
 
 	REQUIRED_HASHES = ('md5', 'sha256')

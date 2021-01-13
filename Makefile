@@ -24,6 +24,7 @@ install: marshal48.so bundler.so
 	mkdir -p $(DESTDIR)$(PYDIR)
 	install -m 555 -s marshal48.so $(DESTDIR)$(PYDIR)
 	install -m 555 -s bundler.so $(DESTDIR)$(PYDIR)
+	install -m 555 *.py $(DESTDIR)$(PYDIR)
 	install -m 644 $(CONFIG) $(DESTDIR)$(ETCDIR)
 	install -m 555 minibuild $(DESTDIR)$(BINDIR)
 

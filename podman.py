@@ -25,9 +25,9 @@
 import os
 import os.path
 import sys
-import brcoti_core
 import glob
 import shutil
+import minibuild.core as core
 
 import termios
 
@@ -73,7 +73,7 @@ class PodmanCmd(object):
 			cmd = "sudo -- " + cmd
 		return os.popen(cmd, mode = mode)
 
-class PodmanCompute(brcoti_core.Compute):
+class PodmanCompute(core.Compute):
 	def __init__(self, global_config, config):
 		super(PodmanCompute, self).__init__(global_config, config)
 		self.network_up = False
@@ -96,12 +96,12 @@ class PodmanCompute(brcoti_core.Compute):
 			print("podman: using default podman network")
 			return
 
-		with brcoti_core.popen("podman network ls") as f:
+		with core.popen("podman network ls") as f:
 			if any(l.split()[0] == self.network_name for l in f.readlines()):
 				return
 
 		print("podman: setting up network \"%s\"" % self.network_name)
-		brcoti_core.run_command("podman network create %s" % self.network_name)
+		core.run_command("podman network create %s" % self.network_name)
 
 class PodmanPathMixin:
 	def __init__(self, root):
@@ -123,23 +123,23 @@ class PodmanPathMixin:
 	def hostpath(self):
 		return self.root + self.path
 
-class PodmanFile(PodmanPathMixin, brcoti_core.ComputeResourceFile):
+class PodmanFile(PodmanPathMixin, core.ComputeResourceFile):
 	def __init__(self, root, path):
 		PodmanPathMixin.__init__(self, root)
 
 		assert(path.startswith('/'))
-		brcoti_core.ComputeResourceFile.__init__(self, path)
+		core.ComputeResourceFile.__init__(self, path)
 
 	def open(self, mode = 'r'):
 		path = self.hostpath()
 		return open(path, mode)
 
-class PodmanDirectory(PodmanPathMixin, brcoti_core.ComputeResourceDirectory):
+class PodmanDirectory(PodmanPathMixin, core.ComputeResourceDirectory):
 	def __init__(self, root, path):
 		PodmanPathMixin.__init__(self, root)
 
 		assert(path.startswith('/'))
-		brcoti_core.ComputeResourceDirectory.__init__(self, path)
+		core.ComputeResourceDirectory.__init__(self, path)
 
 	def glob_files(self, path_pattern):
 		result = []
@@ -178,7 +178,7 @@ class PodmanDirectory(PodmanPathMixin, brcoti_core.ComputeResourceDirectory):
 		path = self._hostpath(path)
 		mkdir(path, mode)
 
-class PodmanComputeNode(brcoti_core.ComputeNode):
+class PodmanComputeNode(core.ComputeNode):
 	def __init__(self, img_config, backend):
 		super(PodmanComputeNode, self).__init__(backend)
 
@@ -306,7 +306,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 		self.env[name] = value
 
 	def interactive_shell(self, working_dir = None):
-		cmd = brcoti_core.ShellCommand("/bin/bash")
+		cmd = core.ShellCommand("/bin/bash")
 		cmd.working_dir = working_dir
 		cmd.privileged_user = True
 
@@ -319,7 +319,7 @@ class PodmanComputeNode(brcoti_core.ComputeNode):
 
 		working_dir = shellcmd.working_dir
 		if working_dir:
-			if isinstance(working_dir, brcoti_core.ComputeResourceFS):
+			if isinstance(working_dir, core.ComputeResourceFS):
 				working_dir = working_dir.path
 			args.append("--workdir \'%s\'" % working_dir)
 

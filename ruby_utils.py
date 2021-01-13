@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import marshal48
+import minibuild.marshal48
 import io
 import copy
 
@@ -1129,9 +1129,9 @@ def unmarshal(url_or_path, f = None, quiet = True):
 		f = open(url_or_path, mode = 'rb')
 	f = decompressor.open(f)
 
-	return marshal48.unmarshal(f, Ruby.factory, quiet)
+	return minibuild.marshal48.unmarshal(f, Ruby.factory, quiet)
 
 def unmarshal_byteseq(data, quiet = True):
 
 	f = io.BytesIO(data)
-	return marshal48.unmarshal(f, Ruby.factory, quiet)
+	return minibuild.marshal48.unmarshal(f, Ruby.factory, quiet)

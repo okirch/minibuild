@@ -24,17 +24,17 @@
 
 import os
 import sys
-import brcoti_core
 import glob
+import minibuild.core as core
 
-class LocalCompute(brcoti_core.Compute):
+class LocalCompute(core.Compute):
 	def __init__(self, global_config, config):
 		super(LocalCompute, self).__init__(global_config, config)
 
 	def spawn(self, flavor):
 		return LocalComputeNode(self)
 
-class LocalFile(brcoti_core.ComputeResourceFile):
+class LocalFile(core.ComputeResourceFile):
 	def __init__(self, path):
 		super(LocalFile, self).__init__(path)
 
@@ -44,7 +44,7 @@ class LocalFile(brcoti_core.ComputeResourceFile):
 	def hostpath(self):
 		return self.path
 
-class LocalDirectory(brcoti_core.ComputeResourceDirectory):
+class LocalDirectory(core.ComputeResourceDirectory):
 	def __init__(self, path):
 		if not path.startswith('/'):
 			path = os.path.join(os.getcwd(), path)
@@ -86,7 +86,7 @@ class LocalDirectory(brcoti_core.ComputeResourceDirectory):
 		path = self._realpath(path)
 		mkdir(path, mode)
 
-class LocalComputeNode(brcoti_core.ComputeNode):
+class LocalComputeNode(core.ComputeNode):
 	def __init__(self, backend):
 		super(LocalComputeNode, self).__init__(backend)
 
@@ -101,7 +101,7 @@ class LocalComputeNode(brcoti_core.ComputeNode):
 		if working_dir is None:
 			exit_code = f(cmd)
 		else:
-			if isinstance(working_dir, brcoti_core.ComputeResourceDirectory):
+			if isinstance(working_dir, core.ComputeResourceDirectory):
 				working_dir = working_dir.path
 			cwd = os.getcwd()
 			try:

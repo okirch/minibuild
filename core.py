@@ -213,7 +213,7 @@ class ArtefactComparison(Object):
 		def show(self):
 			import tempfile
 
-			self.tmpdir = tempfile.TemporaryDirectory(prefix = "brcoti-")
+			self.tmpdir = tempfile.TemporaryDirectory(prefix = "minibuild-")
 
 			old_path = self.write_data("old", self.old_data)
 			new_path = self.write_data("new", self.new_data)
@@ -440,7 +440,7 @@ class DownloadCache(object):
 		self.tempdir = None
 
 		if path is None:
-			self.tempdir = tempfile.TemporaryDirectory(prefix = "brcoti-cache-")
+			self.tempdir = tempfile.TemporaryDirectory(prefix = "minibuild-cache-")
 			path = self.tempdir.name
 
 		self.path = path
@@ -1689,7 +1689,7 @@ class BuildState(Object):
 
 		self.engine = engine
 		self.savedir = savedir
-		self.tmpdir = tempfile.TemporaryDirectory(prefix = "brcoti-")
+		self.tmpdir = tempfile.TemporaryDirectory(prefix = "minibuild-")
 
 	def __del__(self):
 		self.cleanup()
@@ -2065,14 +2065,14 @@ class Compute(Object):
 
 		env = config.get_environment(name)
 		if env.type == 'local':
-			import brcoti_local
+			import minibuild.local
 
-			return brcoti_local.compute_factory(config, env)
+			return minibuild.local.compute_factory(config, env)
 
 		if env.type == 'podman':
-			import brcoti_podman
+			import minibuild.podman
 
-			return brcoti_podman.compute_factory(config, env)
+			return minibuild.podman.compute_factory(config, env)
 
 		raise NotImplementedError("Compute environment \"%s\" uses type \"%s\" - not implemented" % (name, env.type))
 
@@ -2317,6 +2317,9 @@ class Engine(Object):
 
 	def __init__(self, engine_config):
 		self.name = engine_config.name
+
+		if Config.the_instance is None:
+			raise ValueError("Cannot instantiate engine - you must load a valid config file first")
 
 		# This should go away at some point
 		self.config = Config.the_instance
@@ -2827,6 +2830,7 @@ class Engine(Object):
 
 		if Config.the_instance is None:
 			print("Engine.factory called before a config file was loaded. This will not work.")
+			raise ValueError("Engine.factory called before a config file was loaded. This will not work.")
 			raise ValueError
 
 		config = Config.the_instance
@@ -2836,17 +2840,17 @@ class Engine(Object):
 
 		print("%s: using %s engine" % (name, engine_config.type))
 		if engine_config.type == 'python':
-			import brcoti_python
+			import minibuild.python
 
-			engine = brcoti_python.engine_factory(engine_config)
+			engine = minibuild.python.engine_factory(engine_config)
 		elif engine_config.type == 'ruby':
-			import brcoti_ruby
+			import minibuild.ruby
 
-			engine = brcoti_ruby.engine_factory(engine_config)
+			engine = minibuild.ruby.engine_factory(engine_config)
 		elif engine_config.type == 'rpm':
-			import brcoti_rpm
+			import minibuild.rpm
 
-			engine = brcoti_rpm.engine_factory(engine_config)
+			engine = minibuild.rpm.engine_factory(engine_config)
 		else:
 			raise NotImplementedError("No build engine for \"%s\"" % name)
 

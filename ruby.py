@@ -1,5 +1,5 @@
 #
-# rubygem specific portions of brcoti
+# rubygem specific portions of minibuild
 #
 #   Copyright (C) 2020 Olaf Kirch <okir@suse.de>
 #
@@ -24,9 +24,9 @@ import os.path
 import io
 import glob
 import shutil
-import ruby_utils
+import minibuild.ruby_utils
 
-import brcoti_core
+import minibuild.core as core
 
 ENGINE_NAME	= 'ruby'
 ORIGIN_GEMFILE	= 'bundler'
@@ -40,7 +40,7 @@ def get_rubygems_version():
 def canonical_package_name(name):
 	return name
 
-class RubyBuildRequirement(brcoti_core.BuildRequirement):
+class RubyBuildRequirement(core.BuildRequirement):
 	engine = ENGINE_NAME
 
 	def __init__(self, name, req_string = None, cooked_requirement = None):
@@ -50,16 +50,12 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 		self.platform = 'ruby'
 
 	def parse_requirement(self, req_string):
-		import ruby_utils
-
-		self.cooked_requirement = ruby_utils.Ruby.parse_dependency(req_string)
+		self.cooked_requirement = minibuild.ruby_utils.Ruby.parse_dependency(req_string)
 		self.req_string = req_string
 
 	@staticmethod
 	def from_string(req_string):
-		import ruby_utils
-
-		cooked_requirement = ruby_utils.Ruby.parse_dependency(req_string)
+		cooked_requirement = minibuild.ruby_utils.Ruby.parse_dependency(req_string)
 		return RubyBuildRequirement(cooked_requirement.name, req_string, cooked_requirement)
 
 	@staticmethod
@@ -113,7 +109,7 @@ class RubyBuildRequirement(brcoti_core.BuildRequirement):
 	def valid_platform(self):
 		return self.cooked_requirement.valid_platform()
 
-class RubyArtefact(brcoti_core.Artefact):
+class RubyArtefact(core.Artefact):
 	engine = ENGINE_NAME
 
 	def __init__(self, name, version = None, type = None):
@@ -143,8 +139,6 @@ class RubyArtefact(brcoti_core.Artefact):
 		return r
 
 	def verify_minimum_version(self, my_version, req_version):
-		import ruby_utils
-
 		if req_version is None:
 			return True
 
@@ -279,13 +273,13 @@ class RubyArtefact(brcoti_core.Artefact):
 		self.required_ruby_version = gemspec.required_ruby_version
 		self.required_rubygems_version = gemspec.required_rubygems_version
 
-class RubyReleaseInfo(brcoti_core.PackageReleaseInfo):
+class RubyReleaseInfo(core.PackageReleaseInfo):
 	def __init__(self, name, version, platform = 'ruby', parsed_version = None):
 		super(RubyReleaseInfo, self).__init__(canonical_package_name(name), version)
 		self.platform = platform
 
 		if not parsed_version:
-			parsed_version = ruby_utils.Ruby.ParsedVersion(version)
+			parsed_version = minibuild.ruby_utils.Ruby.ParsedVersion(version)
 
 		self.parsed_version = parsed_version
 
@@ -298,11 +292,11 @@ class RubyReleaseInfo(brcoti_core.PackageReleaseInfo):
 		assert(isinstance(other, RubyReleaseInfo))
 		return other.parsed_version < this.parsed_version
 
-class RubyPackageInfo(brcoti_core.PackageInfo):
+class RubyPackageInfo(core.PackageInfo):
 	def __init__(self, name):
 		super(RubyPackageInfo, self).__init__(canonical_package_name(name))
 
-class RubyDownloadFinder(brcoti_core.DownloadFinder):
+class RubyDownloadFinder(core.DownloadFinder):
 	def __init__(self, req, verbose, cooked_requirement = None):
 		super(RubyDownloadFinder, self).__init__(verbose)
 
@@ -424,7 +418,7 @@ class RubyBinaryDownloadFinder(RubyDownloadFinder):
 
 		return build.type == 'gem'
 
-class RubySpecIndex(brcoti_core.HTTPPackageIndex):
+class RubySpecIndex(core.HTTPPackageIndex):
 	def __init__(self, url):
 		super(RubySpecIndex, self).__init__(url)
 
@@ -464,7 +458,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 				version_list = gem[1]
 				# weird. rubygems.org always gives us an array of versions,
 				# but nexus seems to give us a single version object
-				if isinstance(version_list, ruby_utils.Ruby.GemVersion):
+				if isinstance(version_list, minibuild.ruby_utils.Ruby.GemVersion):
 					version = str(version_list)
 				else:
 					version = version_list[0]
@@ -500,7 +494,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 			raise ValueError("Unable to download index %s: HTTP response %s (%s)" % (
 					filename, resp.status, resp.reason))
 
-		from ruby_utils import unmarshal
+		from minibuild.ruby_utils import unmarshal
 
 		# This is fairly slow... need to speed this up!
 		return unmarshal(filename, resp)
@@ -526,7 +520,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 		self.process_gemspec_response(resp, release)
 
 	def process_gemspec_response(self, resp, release):
-		from ruby_utils import unmarshal
+		from minibuild.ruby_utils import unmarshal
 
 		gemspec = unmarshal(resp.url, resp)
 
@@ -632,7 +626,7 @@ class RubySpecIndex(brcoti_core.HTTPPackageIndex):
 
 # Upload package using "gem nexus"
 # You need to have the nexus gem installed for this
-class RubyUploader(brcoti_core.Uploader):
+class RubyUploader(core.Uploader):
 	def __init__(self, url, user, password):
 		self.url = url
 		self.config_written = False
@@ -652,7 +646,7 @@ class RubyUploader(brcoti_core.Uploader):
 		self.prepare_config()
 
 		print("Uploading %s to %s repository" % (build.local_path, self.url))
-		brcoti_core.run_command("gem nexus %s" % build.local_path)
+		core.run_command("gem nexus %s" % build.local_path)
 
 	def prepare_config(self):
 		if not self.config_written:
@@ -726,7 +720,7 @@ class GemFile(object):
 		old_name_set = GemFile.tar_member_names(old_data_tar)
 		new_name_set = GemFile.tar_member_names(new_data_tar)
 
-		result = brcoti_core.ArtefactComparison(new.path)
+		result = core.ArtefactComparison(new.path)
 
 		result.added = new_name_set - old_name_set
 		result.removed = old_name_set - new_name_set
@@ -783,9 +777,9 @@ class GemFile(object):
 
 	def parse_metadata(self):
 		io = self.open_metadata()
-		return ruby_utils.Ruby.YAML.load(io)
+		return minibuild.ruby_utils.Ruby.YAML.load(io)
 
-class RubyBuildStrategy(brcoti_core.BuildStrategy):
+class RubyBuildStrategy(core.BuildStrategy):
 	pass
 
 class NestedRubyBuildStrategy(RubyBuildStrategy):
@@ -959,7 +953,7 @@ class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 
 	def implicit_build_dependencies(self, build_directory):
 		directory = build_directory.directory
-		req_set = brcoti_core.RequirementSet()
+		req_set = core.RequirementSet()
 
 		req_set.add_list(self.gemfile_requirements(directory))
 		req_set.add_list(self.gemfile_lock_requirements(directory))
@@ -1019,7 +1013,7 @@ class BuildStrategy_Bundler(NestedRubyBuildStrategy):
 
 		loc = directory.lookup('Gemfile.lock')
 		if loc is not None:
-			gemfile_lock = ruby_utils.Ruby.GemfileLock.parse(loc)
+			gemfile_lock = minibuild.ruby_utils.Ruby.GemfileLock.parse(loc)
 
 			print("Analyzing contents of Gemfile.lock")
 			# gemfile_lock.dump()
@@ -1141,7 +1135,7 @@ class BuildStrategy_Auto(RubyBuildStrategy):
 	def build_used(self, build_directory):
 		return self.actual.build_used(build_directory)
 
-class RubyBuildDirectory(brcoti_core.BuildDirectory):
+class RubyBuildDirectory(core.BuildDirectory):
 	def __init__(self, compute, engine):
 		super(RubyBuildDirectory, self).__init__(compute, engine)
 
@@ -1288,10 +1282,10 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 
 	def get_installed_gems(self):
 		with self.compute.popen("gem list") as f:
-			return ruby_utils.Ruby.GemList.parse(f)
+			return minibuild.ruby_utils.Ruby.GemList.parse(f)
 
 	def inspect_gem_cache(self, cache_dir):
-		if not isinstance(cache_dir, brcoti_core.ComputeResourceDirectory):
+		if not isinstance(cache_dir, core.ComputeResourceDirectory):
 			compute = self.compute
 
 			# This code should be in the ComputeNode class
@@ -1309,7 +1303,7 @@ class RubyBuildDirectory(brcoti_core.BuildDirectory):
 		print("Looking for downloaded gems in %s" % cache_dir.path)
 		return cache_dir.glob_files("*.gem")
 
-class RubyPublisher(brcoti_core.Publisher):
+class RubyPublisher(core.Publisher):
 	def __init__(self, repoconfig):
 		super(RubyPublisher, self).__init__("ruby", repoconfig)
 
@@ -1337,7 +1331,7 @@ class RubyPublisher(brcoti_core.Publisher):
 
 	def finish(self):
 		cmd = "gem generate_index --directory %s" % self.repo_dir
-		brcoti_core.run_command(cmd)
+		core.run_command(cmd)
 
 		self.create_compact_index()
 
@@ -1392,7 +1386,7 @@ class RubyPublisher(brcoti_core.Publisher):
 			versions = []
 			info = []
 
-			for version in sorted(pd.keys(), key = ruby_utils.Ruby.ParsedVersion):
+			for version in sorted(pd.keys(), key = minibuild.ruby_utils.Ruby.ParsedVersion):
 				build = pd[version]
 
 				info_line = "%s |" % build.version
@@ -1444,7 +1438,7 @@ class RubyPublisher(brcoti_core.Publisher):
 		return m.hexdigest()
 
 
-class RubyEngine(brcoti_core.Engine):
+class RubyEngine(core.Engine):
 	type = 'ruby'
 
 	REQUIRED_HASHES = ()

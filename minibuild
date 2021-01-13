@@ -28,7 +28,7 @@ import io
 import pkginfo
 import glob
 import shutil
-import brcoti_core
+import minibuild
 
 SCRIPT_NAME = sys.argv[0]
 
@@ -36,16 +36,16 @@ DEFAULT_BUILD_COMPUTE = "podman"
 
 def create_build_engine(config):
 	opts = config.command_line_options
-	return brcoti_core.Engine.factory(opts.engine)
+	return minibuild.Engine.factory(opts.engine)
 
 def create_compute_backend(config, default_backend):
 	backend_name = config.command_line_options.compute or default_backend
-	return brcoti_core.Compute.factory(backend_name, config)
+	return minibuild.Compute.factory(backend_name, config)
 
 def source_from_path(name, config):
 	if os.path.isdir(name):
 		print("=== Using source directory %s ===" % name)
-		return brcoti_core.Engine.create_source_from_local_directory(name, config)
+		return minibuild.Engine.create_source_from_local_directory(name, config)
 
 	engine = create_build_engine(config)
 
@@ -88,7 +88,7 @@ def find_source(engine, req_string, use_git = True, git_url = None, git_tag = No
 	if not use_git:
 		sdist.git_repo_url = None
 
-	return brcoti_core.SourceFile(sdist, engine)
+	return minibuild.SourceFile(sdist, engine)
 
 class BuildJob(object):
 	def __init__(self, config, engine, compute_backend, source):
@@ -145,7 +145,7 @@ class BuildJob(object):
 
 			(engine_name, rest) = s.split(':', 1)
 
-			engine = brcoti_core.Engine.factory(engine_name)
+			engine = minibuild.Engine.factory(engine_name)
 
 			for req in rest.split(','):
 				req = engine.parse_build_requirement(req)
@@ -159,7 +159,7 @@ class BuildJob(object):
 		if not arg or arg == 'auto':
 			return
 
-		self.source.spec.build_strategy = brcoti_core.BuildStrategy.parse(self.engine, arg)
+		self.source.spec.build_strategy = minibuild.BuildStrategy.parse(self.engine, arg)
 		self.build_strategy = self.source.spec.build_strategy
 
 	# This is a prep task - eg ruby would look at the upstream artefact
@@ -209,9 +209,9 @@ class BuildJob(object):
 			if not self.ignore_implicit_dependencies:
 				missing = self.build.engine.validate_build_requirements(requirements, merge_from_upstream = self.auto_repair)
 				if missing:
-					raise brcoti_core.UnsatisfiedDependencies("Build has unsatisfied dependencies", missing)
+					raise minibuild.UnsatisfiedDependencies("Build has unsatisfied dependencies", missing)
 
-		except brcoti_core.UnsatisfiedDependencies as e:
+		except minibuild.UnsatisfiedDependencies as e:
 			print("Cannot build %s: missing build dependencies:" % self.id())
 			for req in e.dependencies:
 				print("  %s" % req.format())
@@ -242,7 +242,7 @@ class BuildJob(object):
 
 		try:
 			artefacts = build.build(build_strategy)
-		except brcoti_core.BuildFailure as e:
+		except minibuild.BuildFailure as e:
 			if not self.shell_on_fail:
 				raise e
 
@@ -250,7 +250,7 @@ class BuildJob(object):
 			print(e)
 			print("Opening interactive shell for debugging")
 			self.build.compute.interactive_shell(working_dir = e.cmd.working_dir)
-			raise brcoti_core.BuildAborted()
+			raise minibuild.BuildAborted()
 
 		if not artefacts:
 			if not self.shell_on_fail:
@@ -259,7 +259,7 @@ class BuildJob(object):
 			print("*** BUILD DID NOT PRODUCE ANY OUTPUT ***")
 			print("Opening interactive shell for debugging")
 			self.build.compute.interactive_shell(working_dir = build.directory)
-			raise brcoti_core.BuildAborted()
+			raise minibuild.BuildAborted()
 
 		return artefacts
 
@@ -451,7 +451,7 @@ def prep_action(config, opts):
 
 			# job.maybe_commit()
 
-		except brcoti_core.BuildAborted:
+		except minibuild.BuildAborted:
 			print("Build of %s ABORTED" % sdist.id())
 			exit_code = 1
 		except Exception as e:
@@ -503,9 +503,9 @@ def submit_action(config, opts):
 			continue
 
 		print("=== Using source directory %s ===" % name)
-		source = brcoti_core.Engine.create_source_from_local_directory(name, config)
+		source = minibuild.Engine.create_source_from_local_directory(name, config)
 
-		engine = brcoti_core.Engine.factory(source.spec.engine)
+		engine = minibuild.Engine.factory(source.spec.engine)
 		if not engine:
 			print("%s: build-info specifies invalid engine \"%s\"" % (name, source.spec.engine))
 			exit_code = 1
@@ -548,7 +548,7 @@ def build_action(config, opts):
 			rebuilding = []
 			skipped = []
 
-			engine = brcoti_core.Engine.factory(source.spec_file.engine)
+			engine = minibuild.Engine.factory(source.spec_file.engine)
 			for v in source.spec_file.versions:
 				if v.source is not None:
 					if not opts.all_versions:
@@ -586,14 +586,14 @@ def build_action(config, opts):
 			if exit_code != 0:
 				print("WARNING: Build was not successful. NOT submitting source code.")
 			else:
-				engine = brcoti_core.Engine.factory(source.spec_file.engine)
+				engine = minibuild.Engine.factory(source.spec_file.engine)
 				engine.submit_source(source)
 
 	print("=== Done ===")
 	return exit_code
 
 def build_one_version(compute_backend, source, check_package_dependencies = False):
-	engine = brcoti_core.Engine.factory(source.spec.engine)
+	engine = minibuild.Engine.factory(source.spec.engine)
 
 	print("=== Package %s ===" %(source.id()))
 	job = BuildJob(config, engine, compute_backend, source)
@@ -625,10 +625,10 @@ def build_one_version(compute_backend, source, check_package_dependencies = Fals
 
 		job.maybe_commit()
 
-	except brcoti_core.BuildAborted:
+	except minibuild.BuildAborted:
 		print("Build of %s ABORTED" % source.id())
 		exit_code = 1
-	except brcoti_core.UnsatisfiedDependencies as e:
+	except minibuild.UnsatisfiedDependencies as e:
 		print("Build of %s has unsatisfied dependencies" % source.id())
 		for req in e.dependencies:
 			print("  %s" % req.format())
@@ -648,7 +648,7 @@ def build_one_version(compute_backend, source, check_package_dependencies = Fals
 	return exit_code
 
 def mkindex_action(config, opts):
-	engine = brcoti_core.Engine.factory(opts.engine)
+	engine = minibuild.Engine.factory(opts.engine)
 
 	print("=== Publishing %s build results ===" % engine.name)
 	engine.publish_build_results()
@@ -683,7 +683,7 @@ def merge_extra_action(config, opts):
 
 	for (engine_name, req_list) in by_engine.items():
 		print("=== Merging %s packages from upstream ===" % engine_name)
-		engine = brcoti_core.Engine.factory(engine_name)
+		engine = minibuild.Engine.factory(engine_name)
 
 		req_list = [engine.parse_build_requirement(req_string) for req_string in req_list]
 
@@ -697,20 +697,20 @@ def prune_extra_action(config, opts):
 	if opts.engine is None:
 		raise ValueError("You have to specify a build engine using --engine <NAME>")
 
-	engine = brcoti_core.Engine.factory(opts.engine)
+	engine = minibuild.Engine.factory(opts.engine)
 	engine.publish_build_results(prune_extras = True)
 
 def cleanup_action(config, opts):
 	for name in opts.packages:
 		spec_path = os.path.join(name, "build-spec")
 		if os.path.exists(spec_path):
-			spec = brcoti_core.BuildSpec.from_file(spec_path)
+			spec = minibuild.BuildSpec.from_file(spec_path)
 		else:
 			info_path = os.path.join(name, "build-info")
 			if not os.path.exists(info_path):
 				raise ValueError("No build-spec of build-info in directory %s" % name)
 
-			spec = brcoti_core.BuildSpec.from_file(info_path)
+			spec = minibuild.BuildSpec.from_file(info_path)
 
 		temp_path = spec_path + ".new"
 		spec.save(temp_path)
@@ -823,7 +823,7 @@ def build_option_parser():
 
 opts = build_option_parser().parse_args()
 
-config = brcoti_core.Config(opts)
+config = minibuild.Config(opts)
 config.load_file("/etc/minibuild.json")
 for config_path in opts.config:
 	config.load_file(config_path)

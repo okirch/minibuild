@@ -1,5 +1,5 @@
 #
-# python specific portions of brcoti
+# python specific portions of minibuild
 #
 #   Copyright (C) 2020 Olaf Kirch <okir@suse.de>
 #
@@ -25,16 +25,16 @@ import io
 import pkginfo
 import glob
 import shutil
-from brcoti_core import ShellCommand
+from minibuild.core import ShellCommand
 
-import brcoti_core
+import minibuild.core as core
 
 ENGINE_NAME	= 'rpm'
 
 def canonical_package_name(name):
 	return name
 
-class RPMBuildRequirement(brcoti_core.BuildRequirement):
+class RPMBuildRequirement(core.BuildRequirement):
 	engine = ENGINE_NAME
 
 	def __init__(self, name, req_string = None, cooked_requirement = None):
@@ -59,7 +59,7 @@ class RPMBuildRequirement(brcoti_core.BuildRequirement):
 	def format(self):
 		return str(self.cooked_requirement)
 
-class RPMArtefact(brcoti_core.Artefact):
+class RPMArtefact(core.Artefact):
 	engine = ENGINE_NAME
 
 	def __init__(self, name, version = None, release = None, arch = None):
@@ -112,7 +112,7 @@ class RPMArtefact(brcoti_core.Artefact):
 
 		return build
 
-class RPMReleaseInfo(brcoti_core.PackageReleaseInfo):
+class RPMReleaseInfo(core.PackageReleaseInfo):
 	def __init__(self, name, version, parsed_version = None):
 		super(RPMReleaseInfo, self).__init__(canonical_package_name(name), version)
 
@@ -124,11 +124,11 @@ class RPMReleaseInfo(brcoti_core.PackageReleaseInfo):
 		barf
 		return other.parsed_version < this.parsed_version
 
-class RPMPackageInfo(brcoti_core.PackageInfo):
+class RPMPackageInfo(core.PackageInfo):
 	def __init__(self, name):
 		super(RPMPackageInfo, self).__init__(canonical_package_name(name))
 
-class RPMEngine(brcoti_core.Engine):
+class RPMEngine(core.Engine):
 	type = 'rpm'
 	REQUIRED_HASHES = ()
 
