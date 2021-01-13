@@ -1,7 +1,12 @@
 
-VERSION	= 0.0.1
-IMGDIR	= images
+LIBDIR ?= /usr/lib64
+PYDIR	= $(LIBDIR)/python3.6/site-packages/minibuild
+ETCDIR	= /etc
+BINDIR	= /usr/bin
 
+VERSION	= 0.0.1
+
+CONFIG	= minibuild.json
 CONTAINERS = \
 	brcoti-python3 \
 	brcoti-ruby25
@@ -13,16 +18,16 @@ else
 CCOPT	= -g
 endif
 
-LIBDIR ?= /usr/lib64
-PYDIR	= $(LIBDIR)/python3.6/site-packages
-
 all: marshal48.so bundler.so
 
 install: marshal48.so bundler.so
 	mkdir -p $(DESTDIR)$(PYDIR)
-	cp marshal48.so $(DESTDIR)$(PYDIR)
-	cp bundler.so $(DESTDIR)$(PYDIR)
+	install -m 555 -s marshal48.so $(DESTDIR)$(PYDIR)
+	install -m 555 -s bundler.so $(DESTDIR)$(PYDIR)
+	install -m 644 $(CONFIG) $(DESTDIR)$(ETCDIR)
+	install -m 555 minibuild $(DESTDIR)$(BINDIR)
 
+IMGDIR	= images
 containers: $(addprefix $(IMGDIR)/,$(CONTAINERS))
 
 $(IMGDIR)/brcoti-%: Dockerfile.%
