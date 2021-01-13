@@ -1,0 +1,85 @@
+From 37591eca3ec06d2b8b6af3c99b690eea36d00798 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Marcus=20R=C3=BCckert?= <mrueckert@suse.de>
+Date: Wed, 8 Mar 2017 17:54:34 +0100
+Subject: [PATCH 1/7] make gem build reproducible
+
+---
+ lib/rubygems/package.rb            | 4 ++++
+ lib/rubygems/package/tar_writer.rb | 9 ++++++---
+ 2 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/lib/rubygems/package.rb b/lib/rubygems/package.rb
+index b472b97a07..3fd5566e6a 100644
+--- a/lib/rubygems/package.rb
++++ b/lib/rubygems/package.rb
+@@ -109,9 +109,12 @@ class TarInvalidError < Error; end
+ 
+   def self.build spec, skip_validation=false
+     gem_file = spec.file_name
++    spec_file = spec.loaded_from
++    spec_file = "Gemfile" if spec_file.nil? || spec_file.empty?
+ 
+     package = new gem_file
+     package.spec = spec
++    package.build_time = File.stat(spec_file).mtime.to_i
+     package.build skip_validation
+ 
+     gem_file
+@@ -195,6 +198,7 @@ def add_contents tar # :nodoc:
+     digests = tar.add_file_signed 'data.tar.gz', 0444, @signer do |io|
+       gzip_to io do |gz_io|
+         Gem::Package::TarWriter.new gz_io do |data_tar|
++          data_tar.mtime = @build_time
+           add_files data_tar
+         end
+       end
+diff --git a/lib/rubygems/package/tar_writer.rb b/lib/rubygems/package/tar_writer.rb
+index 390f7851a3..e3fa2ee86d 100644
+--- a/lib/rubygems/package/tar_writer.rb
++++ b/lib/rubygems/package/tar_writer.rb
+@@ -91,12 +91,15 @@ def self.new(io)
+     nil
+   end
+ 
++  attr_accessor :mtime
++
+   ##
+   # Creates a new TarWriter that will write to +io+
+ 
+   def initialize(io)
+     @io = io
+     @closed = false
++    @mtime = Time.now
+   end
+ 
+   ##
+@@ -125,7 +128,7 @@ def add_file(name, mode) # :yields: io
+ 
+     header = Gem::Package::TarHeader.new :name => name, :mode => mode,
+                                          :size => size, :prefix => prefix,
+-                                         :mtime => Time.now
++                                         :mtime => mtime
+ 
+     @io.write header
+     @io.pos = final_pos
+@@ -220,7 +223,7 @@ def add_file_simple(name, mode, size) # :yields: io
+ 
+     header = Gem::Package::TarHeader.new(:name => name, :mode => mode,
+                                          :size => size, :prefix => prefix,
+-                                         :mtime => Time.now).to_s
++                                         :mtime => mtime).to_s
+ 
+     @io.write header
+     os = BoundedStream.new @io, size
+@@ -301,7 +304,7 @@ def mkdir(name, mode)
+     header = Gem::Package::TarHeader.new :name => name, :mode => mode,
+                                          :typeflag => "5", :size => 0,
+                                          :prefix => prefix,
+-                                         :mtime => Time.now
++                                         :mtime => mtime
+ 
+     @io.write header
+ 
+-- 
+2.21.0
+
