@@ -8,8 +8,8 @@ VERSION	= 0.0.1
 
 CONFIG	= minibuild.json
 CONTAINERS = \
-	brcoti-python3 \
-	brcoti-ruby25
+	minibuild-python3 \
+	minibuild-ruby25
 
 ifdef RPM_OPT_FLAGS
 CCOPT	= $(RPM_OPT_FLAGS)
@@ -31,7 +31,7 @@ install: marshal48.so bundler.so
 IMGDIR	= images
 containers: $(addprefix $(IMGDIR)/,$(CONTAINERS))
 
-$(IMGDIR)/brcoti-%: Dockerfile.%
+$(IMGDIR)/minibuild-%: Dockerfile.%
 	@mkdir -p $(IMGDIR)
 	podman build --tag $(@F):$(VERSION) --tag $(@F):latest -f $<
 	podman push $(@F) oci-archive:$@

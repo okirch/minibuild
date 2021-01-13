@@ -87,10 +87,10 @@
 			"images" : [
 				{
 					"name" : "python3",
-					"image": "brcoti-python3"
+					"image": "minibuild-python3"
 				}, {
 					"name" : "ruby",
-					"image": "brcoti-ruby25"
+					"image": "minibuild-ruby25"
 				}
 			],
 			"build_dir" : "/usr/src/packages/BUILD"
