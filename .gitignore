@@ -2,3 +2,7 @@
 *.o
 *.so
 __pycache__
+certificates
+lib
+images
+tags
