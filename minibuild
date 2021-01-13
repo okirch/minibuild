@@ -824,7 +824,7 @@ def build_option_parser():
 opts = build_option_parser().parse_args()
 
 config = brcoti_core.Config(opts)
-config.load_file("/etc/pybuilder.json")
+config.load_file("/etc/minibuild.json")
 for config_path in opts.config:
 	config.load_file(config_path)
 
